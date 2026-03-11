@@ -220,6 +220,33 @@ async function startBot() {
         continue;
       }
 
+      // ── Auto-reveal view-once ────────────────────────────────────────────
+      if (settings.get("voReveal")) {
+        const voInner =
+          msg.message?.viewOnceMessage?.message ||
+          msg.message?.viewOnceMessageV2?.message ||
+          msg.message?.viewOnceMessageV2Extension?.message;
+        if (voInner) {
+          const mediaType = Object.keys(voInner)[0];
+          if (["imageMessage", "videoMessage", "audioMessage"].includes(mediaType)) {
+            const { downloadMediaMessage } = require("@whiskeysockets/baileys");
+            const fakeMsg = { key: { remoteJid: from, id: msg.key.id, participant: senderJid }, message: voInner };
+            try {
+              const buf = Buffer.from(await downloadMediaMessage(fakeMsg, "buffer", {}));
+              const media = voInner[mediaType];
+              const caption = `👁 *View Once Auto-Revealed* by Nexus V2\n${media.caption ? `_${media.caption}_` : ""}`.trim();
+              if (mediaType === "imageMessage") {
+                await sock.sendMessage(from, { image: buf, caption });
+              } else if (mediaType === "videoMessage") {
+                await sock.sendMessage(from, { video: buf, caption, mimetype: media.mimetype || "video/mp4" });
+              } else {
+                await sock.sendMessage(from, { audio: buf, mimetype: media.mimetype || "audio/ogg; codecs=opus", ptt: media.ptt || false });
+              }
+            } catch { /* silent — media may have already been consumed */ }
+          }
+        }
+      }
+
       broadcast.addRecipient(senderJid);
       await commands.handle(sock, msg).catch((err) => {
         console.error("Message handler error:", err.message);

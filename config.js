@@ -24,7 +24,7 @@ function saveJSON(name, data) {
 }
 
 module.exports = {
-  botName: "IgniteBot",
+  botName: "Nexus V2",
   prefix: ".",
   admins: (process.env.ADMIN_NUMBERS || "")
     .split(",")
