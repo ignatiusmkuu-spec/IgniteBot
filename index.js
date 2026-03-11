@@ -7,7 +7,6 @@ const {
   isJidBroadcast,
   downloadMediaMessage,
 } = require("@whiskeysockets/baileys");
-const pino = require("pino");
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
@@ -113,20 +112,24 @@ app.listen(PORT, "0.0.0.0", () => {
 });
 
 
+// ── Global console filter — suppress libsignal / Baileys decryption noise ──
+const _SIGNAL_NOISE = /Bad MAC|decrypt|session_cipher|libsignal|Session error|queue_job|Closing session|SessionEntry|chainKey|indexInfo|registrationId|ephemeralKey|ECONNREFUSED.*5432/i;
+for (const method of ["log", "warn", "error", "debug", "trace"]) {
+  const _orig = console[method].bind(console);
+  console[method] = (...args) => {
+    const text = args.map(a => (typeof a === "string" ? a : (a instanceof Error ? a.message : JSON.stringify(a) ?? ""))).join(" ");
+    if (_SIGNAL_NOISE.test(text)) return;
+    _orig(...args);
+  };
+}
+
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
   const { version } = await fetchLatestBaileysVersion();
-  const pinoBase = pino({ level: "silent" });
-  const logger = Object.create(pinoBase);
-  const _noisy = /Bad MAC|decrypt|session_cipher|libsignal|Session error|queue_job/i;
-  for (const lvl of ["trace","debug","info","warn","error","fatal"]) {
-    logger[lvl] = (...a) => {
-      const msg = typeof a[0] === "string" ? a[0] : JSON.stringify(a[0]);
-      if (_noisy.test(msg)) return;
-      pinoBase[lvl]?.(...a);
-    };
-  }
-  logger.child = () => logger;
+
+  // Completely silent no-op logger — prevents Baileys printing internal signal state
+  const noop = () => {};
+  const logger = { trace: noop, debug: noop, info: noop, warn: noop, error: noop, fatal: noop, child() { return this; }, level: "silent" };
 
   const sock = makeWASocket({
     version,
