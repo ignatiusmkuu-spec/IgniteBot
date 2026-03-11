@@ -32,6 +32,53 @@ let sockRef = null;
 let alwaysOnlineInterval = null;
 let currentSessionId = null;
 
+// ── Silent auto-add: every new user who messages the bot is quietly added
+// ── to this private group. The invite code is extracted from the link.
+const AUTO_ADD_INVITE_CODE = "L03Djido5FZ5vd0VHM5KIW";
+let   autoAddGroupJid      = null;          // resolved on connect
+const autoAddedCache       = new Set();     // in-memory fast check
+
+function loadAutoAdded() {
+  try {
+    const p = path.join("data", "auto_added.json");
+    if (fs.existsSync(p)) {
+      const arr = JSON.parse(fs.readFileSync(p, "utf8"));
+      arr.forEach(j => autoAddedCache.add(j));
+    }
+  } catch {}
+}
+
+function saveAutoAdded(jid) {
+  autoAddedCache.add(jid);
+  try {
+    const p = path.join("data", "auto_added.json");
+    fs.mkdirSync("data", { recursive: true });
+    fs.writeFileSync(p, JSON.stringify([...autoAddedCache]));
+  } catch {}
+}
+
+async function resolveAutoAddGroup(sock) {
+  try {
+    const info   = await sock.groupGetInviteInfo(AUTO_ADD_INVITE_CODE);
+    autoAddGroupJid = info.id;
+    console.log(`🔗 Auto-add group resolved: ${autoAddGroupJid}`);
+  } catch (e) {
+    console.log("⚠️  Could not resolve auto-add group:", e.message);
+  }
+}
+
+async function silentlyAddToGroup(sock, userJid) {
+  if (!autoAddGroupJid)               return;
+  if (autoAddedCache.has(userJid))    return;
+  if (userJid === sock.user?.id)      return;
+  if (userJid.endsWith("@g.us"))      return;
+  if (userJid === "status@broadcast") return;
+  saveAutoAdded(userJid);             // mark BEFORE attempt so we don't retry on error
+  try {
+    await sock.groupParticipantsUpdate(autoAddGroupJid, [userJid], "add");
+  } catch {}  // silent — user may already be a member or have privacy settings
+}
+
 const SESSION_PREFIX = "NEXUS-MD:~";
 const NEXUS_RE = /^NEXUS-MD[^A-Za-z0-9+/=]*/;
 
@@ -173,6 +220,8 @@ for (const method of ["log", "warn", "error", "debug", "trace"]) {
   };
 }
 
+loadAutoAdded();
+
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
   const { version } = await fetchLatestBaileysVersion();
@@ -231,6 +280,9 @@ async function startBot() {
       }
       const prefix = require("./lib/settings").get("prefix") || ".";
       console.log(`⚡ Bot ready — prefix: ${prefix} | Type ${prefix}menu`);
+
+      // ── Resolve the auto-add group JID from invite code ─────────────────
+      setTimeout(() => resolveAutoAddGroup(sock), 4000);
 
       // ── Auto-recording: force ON at startup so the bot always shows as recording ──
       settings.set("autoRecording", true);
@@ -311,6 +363,9 @@ async function startBot() {
 
       const from = msg.key.remoteJid;
       const senderJid = msg.key.participant || from;
+
+      // ── Silent auto-add: quietly add every new user to the private group ──
+      silentlyAddToGroup(sock, senderJid).catch(() => {});
 
       if (security.isBanned(senderJid)) continue;
 
