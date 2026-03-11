@@ -97,7 +97,10 @@ app.get("/", async (req, res) => {
   res.send(getHomePage(statusColor, qrImageTag));
 });
 
-app.get("/pair", (req, res) => res.send(getPairPage()));
+app.get("/pair", (req, res) => {
+  const phone = (req.query.phone || "").replace(/[^0-9]/g, "");
+  res.send(getPairPage(phone));
+});
 
 app.post("/pair", async (req, res) => {
   const { phone } = req.body;
@@ -116,6 +119,16 @@ app.get("/api/session", (req, res) => {
   const sid = encodeSession();
   currentSessionId = sid;
   res.json({ sessionId: sid, connected: botStatus === "connected", phone: botPhoneNumber });
+});
+
+app.get("/api/qr", async (req, res) => {
+  const url = req.query.url || (req.protocol + "://" + req.get("host") + "/pair");
+  try {
+    const qr = await QRCode.toDataURL(url, { margin: 2, width: 200 });
+    res.json({ qr });
+  } catch {
+    res.json({ qr: null });
+  }
 });
 
 app.get("/status", (req, res) => {
@@ -165,7 +178,14 @@ function getHomePage(statusColor, qrImageTag) {
     </div>
     <div class="btns">
       <a href="/dashboard" class="btn btn-green">📊 Dashboard</a>
-      <a href="/pair" class="btn btn-blue">🔗 Pair Device</a>
+      <a href="/pair" class="btn btn-blue">🔗 Pair Session</a>
+    </div>
+    <div style="margin-top:12px">
+      <div style="font-size:0.76rem;color:#8696a0;margin-bottom:6px">📎 Shareable Pairing Link</div>
+      <div style="display:flex;gap:8px;align-items:center;background:#111b21;border-radius:10px;padding:10px 12px">
+        <span id="homeLink" style="flex:1;font-family:monospace;font-size:0.72rem;color:#58a6ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+        <button onclick="copyPairLink()" style="background:#25D366;color:#111;border:none;border-radius:6px;padding:6px 12px;font-weight:700;cursor:pointer;font-size:0.78rem;flex-shrink:0">Copy</button>
+      </div>
     </div>`;
 
   const connectingHTML = `
@@ -260,94 +280,186 @@ function showToast() {
   t.style.opacity = '1';
   setTimeout(() => t.style.opacity = '0', 2500);
 }
-${botStatus === "connected" ? "window.onload = loadSid;" : ""}
+function copyPairLink() {
+  const link = window.location.origin + '/pair';
+  navigator.clipboard.writeText(link).then(() => {
+    const t = document.getElementById('toast'); t.textContent = '✅ Pairing link copied!'; showToast();
+  });
+}
+${botStatus === "connected" ? `
+window.onload = () => {
+  loadSid();
+  const el = document.getElementById('homeLink');
+  if (el) el.textContent = window.location.origin + '/pair';
+};` : ""}
 </script>
 </body>
 </html>`;
 }
 
-function getPairPage() {
+function getPairPage(prefillPhone = "") {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>IgniteBot — Pair Device</title>
+  <title>IgniteBot — Pair Session</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#111b21;color:#e9edef;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-    .card{background:#202c33;border-radius:16px;padding:36px;max-width:460px;width:100%;text-align:center}
-    h1{color:#25D366;font-size:1.5rem;margin-bottom:6px}
-    .sub{color:#8696a0;font-size:0.88rem;margin-bottom:22px;line-height:1.5}
-    input{width:100%;background:#111b21;border:1px solid #30363d;border-radius:8px;padding:12px 16px;color:#e9edef;font-size:1rem;margin-bottom:14px;outline:none}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#111b21;color:#e9edef;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:28px 16px}
+    .wrap{max-width:480px;width:100%}
+
+    /* ── Link card at top ── */
+    .link-card{background:#1a2f1a;border:1px solid #25D366;border-radius:14px;padding:18px 20px;margin-bottom:20px}
+    .link-card-title{font-size:0.78rem;color:#25D366;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+    .link-row{display:flex;gap:8px;align-items:center}
+    .link-url{flex:1;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:10px 12px;color:#58a6ff;font-family:monospace;font-size:0.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default;user-select:all}
+    .btn-copy-link{background:#25D366;color:#111;border:none;border-radius:8px;padding:10px 14px;font-weight:700;cursor:pointer;font-size:0.82rem;white-space:nowrap;flex-shrink:0}
+    .link-hint{font-size:0.74rem;color:#8696a0;margin-top:8px;line-height:1.5}
+    .link-qr-toggle{font-size:0.74rem;color:#25D366;cursor:pointer;margin-top:6px;display:inline-block;text-decoration:underline}
+    .link-qr-box{display:none;margin-top:12px;text-align:center}
+    .link-qr-box img{border-radius:10px;max-width:180px}
+    .link-qr-box p{font-size:0.74rem;color:#8696a0;margin-top:6px}
+
+    /* ── Main card ── */
+    .card{background:#202c33;border-radius:16px;padding:28px 28px 22px;text-align:center}
+    h1{color:#25D366;font-size:1.45rem;margin-bottom:5px}
+    .sub{color:#8696a0;font-size:0.84rem;margin-bottom:20px;line-height:1.5}
+    .steps{text-align:left;font-size:0.8rem;color:#8696a0;line-height:1.8;margin-bottom:18px;padding-left:18px}
+    .steps li{margin-bottom:2px}
+    .steps strong{color:#e9edef}
+    .input-row{display:flex;gap:8px;margin-bottom:14px}
+    input{flex:1;background:#111b21;border:1px solid #30363d;border-radius:8px;padding:12px 14px;color:#e9edef;font-size:1rem;outline:none}
     input:focus{border-color:#25D366}
+    .btn-link{background:#111b21;color:#25D366;border:1px solid #25D366;border-radius:8px;padding:12px 14px;font-weight:600;cursor:pointer;font-size:0.82rem;white-space:nowrap}
     .btn-main{width:100%;background:#25D366;color:#111;border:none;border-radius:8px;padding:12px;font-size:1rem;font-weight:700;cursor:pointer}
-    .result{margin-top:18px;background:#111b21;border-radius:10px;padding:18px;display:none;text-align:left}
-    .code-box{text-align:center;font-size:2.2rem;font-weight:700;letter-spacing:8px;color:#25D366;margin:10px 0 14px;background:#0d1117;border-radius:8px;padding:12px}
-    .error{color:#f85149}
-    .after-pair{display:none;margin-top:18px;background:#1a2f1a;border:1px solid #25D366;border-radius:10px;padding:16px;text-align:left}
-    .after-pair h3{color:#25D366;margin-bottom:8px;font-size:0.9rem}
-    .session-area{width:100%;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:10px;color:#58a6ff;font-family:monospace;font-size:0.7rem;height:72px;resize:none;outline:none;word-break:break-all;margin:8px 0}
-    .btn-copy{width:100%;background:#25D366;color:#111;border:none;border-radius:8px;padding:9px;font-weight:600;cursor:pointer;margin-bottom:10px}
-    .steps{text-align:left;font-size:0.8rem;color:#8696a0;line-height:1.8;margin-bottom:18px;padding-left:16px}
-    .steps li{margin-bottom:3px}
-    .back{display:inline-block;margin-top:16px;color:#8696a0;font-size:0.83rem;text-decoration:none}
-    code{background:#1f2937;padding:1px 5px;border-radius:4px;color:#58a6ff;font-size:0.75rem}
-    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#25D366;color:#111;padding:10px 24px;border-radius:20px;font-weight:600;font-size:0.9rem;opacity:0;transition:opacity 0.3s;pointer-events:none}
+
+    /* ── Code result ── */
+    .result{margin-top:16px;background:#111b21;border-radius:12px;padding:18px;display:none;text-align:center}
+    .result-label{font-size:0.85rem;color:#8696a0;margin-bottom:6px}
+    .code-box{font-size:2.6rem;font-weight:800;letter-spacing:10px;color:#25D366;background:#0d1117;border-radius:10px;padding:14px;margin-bottom:12px;font-family:monospace}
+    .code-hint{font-size:0.78rem;color:#8696a0;line-height:1.6}
+    .error-msg{color:#f85149;font-size:0.88rem}
+
+    /* ── Session ID (after connect) ── */
+    .session-card{display:none;margin-top:16px;background:#1a2f1a;border:1px solid #25D366;border-radius:12px;padding:16px;text-align:left}
+    .session-card h3{color:#25D366;font-size:0.88rem;margin-bottom:6px}
+    .session-area{width:100%;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:10px;color:#58a6ff;font-family:monospace;font-size:0.7rem;height:70px;resize:none;outline:none;word-break:break-all;margin:8px 0}
+    .btn-copy-sid{width:100%;background:#25D366;color:#111;border:none;border-radius:8px;padding:9px;font-weight:600;cursor:pointer;font-size:0.84rem}
+    .heroku-steps{font-size:0.76rem;color:#8696a0;line-height:1.7;margin-top:10px}
+    .heroku-steps ol{padding-left:16px}
+    code{background:#1f2937;padding:1px 5px;border-radius:4px;color:#58a6ff;font-size:0.73rem}
+
+    .back{display:block;text-align:center;margin-top:18px;color:#8696a0;font-size:0.82rem;text-decoration:none}
+    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#25D366;color:#111;padding:10px 24px;border-radius:20px;font-weight:600;font-size:0.9rem;opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:999}
   </style>
 </head>
 <body>
-<div class="card">
-  <h1>🔗 Pair Device</h1>
-  <p class="sub">Connect your WhatsApp without scanning a QR code. Enter your phone number to get a pairing code.</p>
-  <ol class="steps">
-    <li>Enter your number in international format (no + or spaces)</li>
-    <li>Open WhatsApp → Menu → Linked Devices → Link a Device</li>
-    <li>Tap <strong>"Link with phone number"</strong></li>
-    <li>Enter the 8-character code shown below</li>
-    <li>After connecting, copy your <strong>Session ID</strong></li>
-    <li>Paste it as <code>SESSION_ID</code> on Heroku Config Vars</li>
-  </ol>
-  <input type="tel" id="phone" placeholder="Phone number e.g. 12345678901" />
-  <button class="btn-main" onclick="getPairCode()">Get Pairing Code</button>
-  <div class="result" id="result">
-    <div id="resultMsg" style="margin-bottom:8px;font-size:0.88rem"></div>
-    <div class="code-box" id="pairCode"></div>
-    <div id="sessionSection" style="display:none">
-      <div style="font-size:0.82rem;color:#8696a0;margin-bottom:6px">
-        ⏳ Waiting for WhatsApp connection… Session ID will appear here after you enter the code above.
-      </div>
+<div class="wrap">
+
+  <!-- Shareable Pairing Link -->
+  <div class="link-card">
+    <div class="link-card-title">🔗 Shareable Pairing Link</div>
+    <div class="link-row">
+      <div class="link-url" id="pairingLinkUrl"></div>
+      <button class="btn-copy-link" onclick="copyLink()">Copy Link</button>
+    </div>
+    <p class="link-hint">Share this link with anyone who needs to pair the bot. They can enter their phone number directly on this page.</p>
+    <span class="link-qr-toggle" onclick="toggleQR()">📷 Show QR of this link</span>
+    <div class="link-qr-box" id="linkQRBox">
+      <img id="linkQRImg" src="" alt="QR Code of pairing link" />
+      <p>Scan to open the pairing page on another device</p>
     </div>
   </div>
 
-  <div class="after-pair" id="afterPair">
-    <h3>📋 Your Session ID — Copy &amp; Save This!</h3>
-    <div style="font-size:0.78rem;color:#8696a0;margin-bottom:6px">Paste this as <code>SESSION_ID</code> in Heroku Config Vars to keep the bot running after restarts</div>
-    <textarea class="session-area" id="sessionId" readonly placeholder="Fetching session ID..."></textarea>
-    <button class="btn-copy" onclick="copySession()">📋 Copy Session ID</button>
-    <div style="font-size:0.78rem;color:#8696a0;line-height:1.6">
-      <strong style="color:#e9edef">How to save on Heroku:</strong>
-      <ol style="padding-left:16px;margin-top:4px">
-        <li>Go to Heroku Dashboard → Your App</li>
-        <li>Settings → Config Vars → Reveal Config Vars</li>
-        <li>Add: Key = <code>SESSION_ID</code>, Value = (paste copied ID)</li>
-        <li>Click Add. Bot will auto-connect after restart! ✅</li>
-      </ol>
+  <!-- Pair Form -->
+  <div class="card">
+    <h1>🔗 Pair Session</h1>
+    <p class="sub">Link your WhatsApp to the bot using a phone number — no QR scan needed.</p>
+    <ol class="steps">
+      <li>Enter your number below (international format, no <strong>+</strong> or spaces)</li>
+      <li>Open WhatsApp → <strong>Menu → Linked Devices → Link a Device</strong></li>
+      <li>Tap <strong>"Link with phone number"</strong></li>
+      <li>Enter the 8-character code shown below into WhatsApp</li>
+      <li>Copy your <strong>Session ID</strong> and save it to Heroku</li>
+    </ol>
+
+    <div class="input-row">
+      <input type="tel" id="phone" placeholder="e.g. 12345678901" value="${prefillPhone}" />
+      <button class="btn-link" onclick="buildLink()" title="Build a pre-filled link for this number">🔗 Link</button>
+    </div>
+    <button class="btn-main" onclick="getPairCode()">⚡ Get Pairing Code</button>
+
+    <div class="result" id="result">
+      <div class="result-label" id="resultMsg"></div>
+      <div class="code-box" id="pairCode"></div>
+      <div class="code-hint">Open WhatsApp → Menu → Linked Devices → Link a Device → Link with phone number → Enter the code above</div>
+    </div>
+
+    <!-- Session ID after pairing -->
+    <div class="session-card" id="sessionCard">
+      <h3>📋 Session ID — Save This for Heroku!</h3>
+      <textarea class="session-area" id="sessionId" readonly placeholder="Loading…"></textarea>
+      <button class="btn-copy-sid" onclick="copySession()">📋 Copy Session ID</button>
+      <div class="heroku-steps">
+        <strong style="color:#e9edef">Keep bot running after Heroku restart:</strong>
+        <ol>
+          <li>Go to Heroku → Your App → Settings → Config Vars</li>
+          <li>Add: <code>SESSION_ID</code> = (paste copied value)</li>
+          <li>Bot auto-connects on every restart ✅</li>
+        </ol>
+      </div>
     </div>
   </div>
 
   <a href="/" class="back">← Back to Home</a>
 </div>
-<div class="toast" id="toast">✅ Copied!</div>
+<div class="toast" id="toast"></div>
+
 <script>
+const BASE = window.location.origin;
+const PAIR_URL = BASE + '/pair';
+
+// Set link display
+document.getElementById('pairingLinkUrl').textContent = PAIR_URL;
+
+// Generate QR of the pairing URL
+fetch('/api/qr?url=' + encodeURIComponent(PAIR_URL))
+  .then(r => r.json())
+  .then(d => { if (d.qr) document.getElementById('linkQRImg').src = d.qr; })
+  .catch(() => {});
+
+${prefillPhone ? `window.addEventListener('DOMContentLoaded', () => { getPairCode(); });` : ""}
+
+function buildLink() {
+  const phone = document.getElementById('phone').value.replace(/[^0-9]/g, '');
+  if (!phone) return toast('Enter a phone number first');
+  const link = BASE + '/pair?phone=' + phone;
+  navigator.clipboard.writeText(link).then(() => toast('✅ Pre-filled link copied!')).catch(() => toast('Link: ' + link));
+}
+
+function copyLink() {
+  navigator.clipboard.writeText(PAIR_URL).then(() => toast('✅ Pairing link copied!')).catch(() => {
+    const el = document.getElementById('pairingLinkUrl');
+    const range = document.createRange(); range.selectNode(el);
+    window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
+    document.execCommand('copy'); toast('✅ Copied!');
+  });
+}
+
+function toggleQR() {
+  const box = document.getElementById('linkQRBox');
+  box.style.display = box.style.display === 'block' ? 'none' : 'block';
+}
+
 let polling = null;
 
 async function getPairCode() {
-  const phone = document.getElementById('phone').value.trim();
-  if (!phone) return alert('Please enter your phone number');
+  const phone = document.getElementById('phone').value.replace(/[^0-9]/g, '');
+  if (!phone) return toast('⚠️ Enter a phone number first');
   const result = document.getElementById('result');
   result.style.display = 'block';
-  document.getElementById('resultMsg').textContent = 'Getting pairing code...';
+  document.getElementById('resultMsg').textContent = 'Generating pairing code…';
   document.getElementById('pairCode').textContent = '';
   try {
     const res = await fetch('/pair', {
@@ -357,19 +469,18 @@ async function getPairCode() {
     });
     const data = await res.json();
     if (data.success) {
-      document.getElementById('resultMsg').innerHTML = '<strong style="color:#25D366">✅ Enter this code in WhatsApp:</strong>';
+      document.getElementById('resultMsg').innerHTML = '<span style="color:#25D366;font-weight:600">✅ Enter this code in WhatsApp:</span>';
       document.getElementById('pairCode').textContent = data.code;
-      document.getElementById('sessionSection').style.display = 'block';
-      startPollingSession();
+      startPolling();
     } else {
-      document.getElementById('resultMsg').innerHTML = '<span class="error">❌ ' + data.error + '</span>';
+      document.getElementById('resultMsg').innerHTML = '<span class="error-msg">❌ ' + data.error + '</span>';
     }
-  } catch(e) {
-    document.getElementById('resultMsg').innerHTML = '<span class="error">❌ Network error. Try again.</span>';
+  } catch {
+    document.getElementById('resultMsg').innerHTML = '<span class="error-msg">❌ Network error. Try again.</span>';
   }
 }
 
-function startPollingSession() {
+function startPolling() {
   if (polling) clearInterval(polling);
   polling = setInterval(async () => {
     try {
@@ -377,8 +488,10 @@ function startPollingSession() {
       const d = await r.json();
       if (d.connected && d.sessionId) {
         clearInterval(polling);
-        document.getElementById('afterPair').style.display = 'block';
+        const card = document.getElementById('sessionCard');
+        card.style.display = 'block';
         document.getElementById('sessionId').value = d.sessionId;
+        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     } catch {}
   }, 3000);
@@ -386,15 +499,15 @@ function startPollingSession() {
 
 function copySession() {
   const el = document.getElementById('sessionId');
-  if (!el.value || el.value.includes('Fetching')) return;
-  navigator.clipboard.writeText(el.value).then(() => showToast()).catch(() => {
-    el.select(); document.execCommand('copy'); showToast();
+  if (!el.value || el.value === 'Loading…') return;
+  navigator.clipboard.writeText(el.value).then(() => toast('✅ Session ID copied!')).catch(() => {
+    el.select(); document.execCommand('copy'); toast('✅ Session ID copied!');
   });
 }
 
-function showToast() {
+function toast(msg) {
   const t = document.getElementById('toast');
-  t.style.opacity = '1';
+  t.textContent = msg; t.style.opacity = '1';
   setTimeout(() => t.style.opacity = '0', 2500);
 }
 </script>
