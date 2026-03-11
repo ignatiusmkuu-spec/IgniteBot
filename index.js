@@ -1,3 +1,6 @@
+// Hint for libuv thread pool (effective when set before process start via Procfile)
+process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || "8";
+
 const {
   default: makeWASocket,
   DisconnectReason,
