@@ -79,7 +79,7 @@
 ### Step 3 — Deploy to Heroku
 
 <p align="center">
-  <a href="https://heroku.com/deploy">
+  <a href="https://heroku.com/deploy?template=https://github.com/ignatiusmkuu-spec/IgniteBot">
     <img src="https://www.herokucdn.com/deploy/button.svg" alt="Deploy to Heroku"/>
   </a>
 </p>
