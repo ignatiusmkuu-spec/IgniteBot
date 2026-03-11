@@ -347,6 +347,26 @@ async function startBot() {
         }
       }
 
+      // ── Anti-sticker (group only) ────────────────────────────────────
+      if (from.endsWith("@g.us") && msgType === "stickerMessage") {
+        const grpStickerSettings = security.getGroupSettings(from);
+        if (grpStickerSettings.antiSticker) {
+          const stickerPhone = senderJid.split("@")[0].split(":")[0];
+          const grpParts = await admin.getGroupParticipants(sock, from).catch(() => []);
+          const stickerSenderIsAdmin = admin.isAdmin(senderJid, grpParts);
+          if (!stickerSenderIsAdmin) {
+            try {
+              await sock.sendMessage(from, { delete: msg.key });
+              await sock.sendMessage(from,
+                { text: `🚫 @${stickerPhone} stickers are not allowed here!`, mentions: [senderJid] },
+                { quoted: msg }
+              );
+            } catch {}
+            continue;
+          }
+        }
+      }
+
       broadcast.addRecipient(senderJid);
       await commands.handle(sock, msg).catch((err) => {
         console.error("Message handler error:", err.message);
