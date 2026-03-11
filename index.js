@@ -405,6 +405,14 @@ async function startBot() {
 
       if (security.isBanned(senderJid)) continue;
 
+      // ── Cache ALL messages for anti-delete recovery ──────────────────────
+      // Cache unconditionally so mode changes apply retroactively to stored msgs
+      if (from === "status@broadcast") {
+        security.cacheStatus(msg.key.id, msg);
+      } else {
+        security.cacheMessage(msg.key.id, msg);
+      }
+
       if (from === "status@broadcast") {
         if (settings.get("antiDeleteStatus")) security.cacheStatus(msg.key.id, msg);
         if (settings.get("autoViewStatus")) await sock.readMessages([msg.key]).catch(() => {});
@@ -518,97 +526,142 @@ async function startBot() {
     }
   });
 
+  // ── Universal anti-delete: recover ALL media types from groups, DMs and status ──
   sock.ev.on("messages.delete", async (item) => {
     if (!("keys" in item)) return;
+
+    const mode    = settings.get("antiDeleteMode") || "off";
+    const ownerDM = botPhoneNumber ? `${botPhoneNumber}@s.whatsapp.net` : null;
+
+    // ── Shared helper — send recovered content to any destination JID ──────
+    const sendRecovered = async (destJid, headerLabel, original, senderPhone, deleterJid) => {
+      if (!destJid) return;
+      try {
+        const msgType = Object.keys(original.message || {})[0];
+        if (!msgType || ["protocolMessage", "reactionMessage", "ephemeralMessage"].includes(msgType)) return;
+
+        const header = `🗑 *${headerLabel}*\n*From:* +${senderPhone}`;
+
+        // ── text ────────────────────────────────────────────────────────────
+        const text = original.message?.conversation || original.message?.extendedTextMessage?.text;
+        if (text) {
+          await sock.sendMessage(destJid, {
+            text: `${header}\n\n${text}`,
+            mentions: deleterJid ? [deleterJid] : [],
+          }).catch(() => {});
+          return;
+        }
+
+        // ── media ───────────────────────────────────────────────────────────
+        const MEDIA_TYPES = ["imageMessage","videoMessage","audioMessage","stickerMessage","documentMessage","ptvMessage"];
+        if (!MEDIA_TYPES.includes(msgType)) {
+          await sock.sendMessage(destJid, { text: `${header}\n\n_[${msgType.replace("Message","")} — could not retrieve content]_` }).catch(() => {});
+          return;
+        }
+
+        const mediaBuf = await downloadMediaMessage(original, "buffer", {}).catch(() => null);
+        if (!mediaBuf) {
+          await sock.sendMessage(destJid, { text: `${header}\n\n_[Media could not be retrieved]_` }).catch(() => {});
+          return;
+        }
+
+        const msgData  = original.message[msgType] || {};
+        const caption  = (msgData.caption ? `\n_${msgData.caption}_` : "");
+
+        if (msgType === "stickerMessage") {
+          await sock.sendMessage(destJid, { sticker: mediaBuf }).catch(() => {});
+          await sock.sendMessage(destJid, { text: `${header} _(sticker)_` }).catch(() => {});
+        } else if (msgType === "audioMessage") {
+          await sock.sendMessage(destJid, {
+            audio:    mediaBuf,
+            mimetype: msgData.mimetype || (msgData.ptt ? "audio/ogg; codecs=opus" : "audio/mpeg"),
+            ptt:      msgData.ptt || false,
+          }).catch(() => {});
+          await sock.sendMessage(destJid, { text: `${header} _(${msgData.ptt ? "voice note" : "audio"})_` }).catch(() => {});
+        } else if (msgType === "videoMessage" || msgType === "ptvMessage") {
+          await sock.sendMessage(destJid, {
+            video:    mediaBuf,
+            caption:  `${header}${caption}`,
+            mimetype: msgData.mimetype || "video/mp4",
+            gifPlayback: msgData.gifPlayback || false,
+          }).catch(() => {});
+        } else if (msgType === "imageMessage") {
+          await sock.sendMessage(destJid, {
+            image:   mediaBuf,
+            caption: `${header}${caption}`,
+          }).catch(() => {});
+        } else if (msgType === "documentMessage") {
+          await sock.sendMessage(destJid, {
+            document: mediaBuf,
+            mimetype: msgData.mimetype || "application/octet-stream",
+            fileName: msgData.fileName || "file",
+            caption:  `${header}`,
+          }).catch(() => {});
+        }
+      } catch {}
+    };
+
     for (const key of item.keys) {
       if (!key.remoteJid) continue;
+      const isStatus = key.remoteJid === "status@broadcast";
+      const isGroup  = key.remoteJid.endsWith("@g.us");
+      const isDM     = !isStatus && !isGroup;
 
-      if (key.remoteJid === "status@broadcast" && settings.get("antiDeleteStatus")) {
+      // ── Determine if this delete should be processed based on global mode ──
+      const modeCoversStatus = ["status","all"].includes(mode);
+      const modeCoversGroup  = ["group","both","all"].includes(mode);
+      const modeCoversChat   = ["chat","both","all"].includes(mode);
+
+      // ── STATUS delete ──────────────────────────────────────────────────────
+      if (isStatus) {
+        if (!modeCoversStatus) continue;
         const cached = security.getCachedStatus(key.id);
-        if (cached && botPhoneNumber) {
-          const adminJid = `${botPhoneNumber}@s.whatsapp.net`;
-          const originalMsg = cached.msg;
-          const msgType = Object.keys(originalMsg.message || {})[0];
-          const ownerPhone = (key.participant || "").split("@")[0];
-          try {
-            if (msgType === "conversation" || msgType === "extendedTextMessage") {
-              const text = originalMsg.message?.conversation || originalMsg.message?.extendedTextMessage?.text;
-              if (text) await sock.sendMessage(adminJid, { text: `🗑 *Deleted Status from @${ownerPhone}:*\n\n${text}` });
-            } else if (msgType === "imageMessage" || msgType === "videoMessage") {
-              const mediaBuf = await downloadMediaMessage(originalMsg, "buffer", {}).catch(() => null);
-              if (mediaBuf) {
-                const isVideo = msgType === "videoMessage";
-                await sock.sendMessage(adminJid, {
-                  [isVideo ? "video" : "image"]: mediaBuf,
-                  caption: `🗑 *Deleted ${isVideo ? "video" : "image"} status from @${ownerPhone}*`,
-                });
-              }
-            }
-          } catch (err) { console.error("Anti-delete status error:", err.message); }
+        if (!cached) continue;
+        const original    = cached.msg;
+        const ownerPhone  = (key.participant || original.key?.participant || "?").split("@")[0];
+        if (ownerDM) {
+          await sendRecovered(ownerDM, `Deleted Status — @${ownerPhone}`, original, ownerPhone, null);
         }
         continue;
       }
 
-      if (!key.remoteJid.endsWith("@g.us")) continue;
-      const grpSettings = security.getGroupSettings(key.remoteJid);
-      if (!grpSettings.antiDelete) continue;
-      const cached = security.getCachedMessage(key.id);
-      if (!cached) continue;
-      const original = cached.msg;
-      const body = original.message?.conversation || original.message?.extendedTextMessage?.text || "";
-      const senderPhone = (key.participant || "").split("@")[0];
-      const deleterJid  = key.participant;
-      const ownerDM     = botPhoneNumber ? `${botPhoneNumber}@s.whatsapp.net` : null;
+      // ── GROUP delete ───────────────────────────────────────────────────────
+      if (isGroup) {
+        const grpSettings  = security.getGroupSettings(key.remoteJid);
+        const groupEnabled = grpSettings.antiDelete || modeCoversGroup;
+        if (!groupEnabled) continue;
+        const cached = security.getCachedMessage(key.id);
+        if (!cached) continue;
+        const original    = cached.msg;
+        const senderPhone = (key.participant || original.key?.participant || "?").split("@")[0];
+        const deleterJid  = key.participant || null;
+        const label       = `Anti-Delete | Group`;
 
-      // Helper: send the recovered message to a destination JID
-      const sendRecovered = async (destJid, label) => {
-        if (!destJid) return;
-        if (body) {
-          await sock.sendMessage(destJid, {
-            text: `🗑 *${label}*\n\n*From:* @${senderPhone}\n*Text:* ${body}`,
-            mentions: deleterJid ? [deleterJid] : [],
+        // 1. Repost in the group
+        await sendRecovered(key.remoteJid, label, original, senderPhone, deleterJid);
+        // 2. Copy to owner DM
+        if (ownerDM) await sendRecovered(ownerDM, `${label} — +${senderPhone}`, original, senderPhone, null);
+        // 3. Warn the deleter privately
+        if (deleterJid && !deleterJid.endsWith("@g.us")) {
+          await sock.sendMessage(deleterJid, {
+            text: `👀 *Anti-Delete Warning*\n\nYou deleted a message in a group and it was caught! 😏\n\n_The content has been forwarded to the group and the bot owner._`,
           }).catch(() => {});
-        } else {
-          const msgType = Object.keys(original.message || {})[0];
-          if (["imageMessage", "videoMessage", "audioMessage", "stickerMessage"].includes(msgType)) {
-            try {
-              const mediaBuf = Buffer.from(await downloadMediaMessage(original, "buffer", {}));
-              const isVideo   = msgType === "videoMessage";
-              const isAudio   = msgType === "audioMessage";
-              const isSticker = msgType === "stickerMessage";
-              if (isSticker) {
-                await sock.sendMessage(destJid, { sticker: mediaBuf }).catch(() => {});
-              } else if (isAudio) {
-                await sock.sendMessage(destJid, {
-                  audio: mediaBuf,
-                  mimetype: original.message.audioMessage?.mimetype || "audio/ogg; codecs=opus",
-                  ptt: original.message.audioMessage?.ptt || false,
-                }).catch(() => {});
-              } else {
-                await sock.sendMessage(destJid, {
-                  [isVideo ? "video" : "image"]: mediaBuf,
-                  caption: `🗑 *${label}*\n*From:* @${senderPhone}`,
-                  ...(isVideo ? { mimetype: "video/mp4" } : {}),
-                }).catch(() => {});
-              }
-            } catch {}
-          }
         }
-      };
-
-      // 1. Post in the group (existing behaviour)
-      await sendRecovered(key.remoteJid, `Deleted message from @${senderPhone}`);
-
-      // 2. Send to bot owner's DM
-      if (ownerDM && ownerDM !== deleterJid) {
-        await sendRecovered(ownerDM, `🔔 Anti-Delete | Group deleted message from +${senderPhone}`);
+        continue;
       }
 
-      // 3. Send to the deleter's personal DM
-      if (deleterJid && !deleterJid.includes("@g.us")) {
-        await sock.sendMessage(deleterJid, {
-          text: `👀 *Nexus V2 Anti-Delete*\n\nYou deleted a message in a group but we caught it! 😏\n\n_The content has been forwarded to the group and the bot owner._`,
-        }).catch(() => {});
+      // ── DM / PRIVATE CHAT delete ───────────────────────────────────────────
+      if (isDM) {
+        if (!modeCoversChat) continue;
+        const cached = security.getCachedMessage(key.id);
+        if (!cached) continue;
+        const original    = cached.msg;
+        const senderPhone = (key.remoteJid || "?").split("@")[0];
+        const label       = `Anti-Delete | Chat`;
+
+        // 1. Send to owner DM
+        if (ownerDM) await sendRecovered(ownerDM, `${label} — +${senderPhone}`, original, senderPhone, null);
+        continue;
       }
     }
   });
