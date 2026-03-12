@@ -303,6 +303,23 @@ async function startBot() {
         }
       }
 
+      // ── Pre-generate combined menu video (image + audio) in background ────────
+      const { buildCombinedMenuVideo, getCombinedMenuVideo } = commands;
+      if (!getCombinedMenuVideo()) {
+        const imgBuf  = settings.getMenuImage();
+        const songBuf = settings.getMenuSong();
+        if (imgBuf && songBuf) {
+          setTimeout(async () => {
+            try {
+              await buildCombinedMenuVideo(imgBuf, songBuf);
+              console.log("✅ Menu video pre-generated (image + audio combined)");
+            } catch (e) {
+              console.log("⚠️ Menu video pre-generation failed:", e.message);
+            }
+          }, 4000);
+        }
+      }
+
       // ── Startup alive message → all super-admins ──────────────────────────
       const { admins: adminNums } = require("./config");
       if (adminNums && adminNums.length) {
