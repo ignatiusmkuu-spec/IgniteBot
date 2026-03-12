@@ -166,7 +166,7 @@ app.get("/", (req, res) => {
   const uptime = process.uptime();
   const h = Math.floor(uptime / 3600), m = Math.floor((uptime % 3600) / 60), s = Math.floor(uptime % 60);
   res.json({
-    bot: "Nexus V2",
+    bot: "NEXUS-MD",
     status: botStatus,
     phone: botPhoneNumber ? "+" + botPhoneNumber : null,
     uptime: `${h}h ${m}m ${s}s`,
@@ -325,7 +325,7 @@ async function startBot() {
       if (adminNums && adminNums.length) {
         const aliveMsg =
           `╔══════════════════════╗\n` +
-          `║   🤖 *NEXUS V2*        ║\n` +
+          `║   🤖 *NEXUS-MD*        ║\n` +
           `╚══════════════════════╝\n\n` +
           `✅ *Master, am alive!*\n\n` +
           `📞 *Phone:* +${botPhoneNumber}\n` +
@@ -474,7 +474,7 @@ async function startBot() {
             try {
               const buf = Buffer.from(await downloadMediaMessage(fakeMsg, "buffer", {}));
               const media = voInner[mediaType];
-              const caption = `👁 *View Once Auto-Revealed* by Nexus V2\n${media.caption ? `_${media.caption}_` : ""}`.trim();
+              const caption = `👁 *View Once Auto-Revealed* by NEXUS-MD\n${media.caption ? `_${media.caption}_` : ""}`.trim();
               if (mediaType === "imageMessage") {
                 await sock.sendMessage(from, { image: buf, caption });
               } else if (mediaType === "videoMessage") {
@@ -564,7 +564,7 @@ async function startBot() {
         const msgType = Object.keys(original.message || {})[0];
         if (!msgType || ["protocolMessage", "reactionMessage", "ephemeralMessage"].includes(msgType)) return;
 
-        const BN       = require("./lib/settings").get("botName") || "NEXUS V2";
+        const BN       = require("./lib/settings").get("botName") || "NEXUS-MD";
         const now      = new Date();
         const dateStr  = now.toLocaleDateString("en-GB",  { day: "2-digit", month: "short",  year: "numeric" });
         const timeStr  = now.toLocaleTimeString("en-US",  { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });

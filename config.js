@@ -24,7 +24,7 @@ function saveJSON(name, data) {
 }
 
 module.exports = {
-  botName: "Nexus V2",
+  botName: "NEXUS-MD",
   prefix: ".",
   admins: (process.env.ADMIN_NUMBERS || "")
     .split(",")
