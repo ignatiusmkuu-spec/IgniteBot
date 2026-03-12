@@ -291,25 +291,16 @@ async function startBot() {
         try { await sock.sendPresenceUpdate("available"); } catch {}
       }, 2000);
 
-      // ── Auto-download phonk song for menu if not already set ──────────────
+      // ── Load local Chella Chant MP3 for menu if not already set ──────────────
       if (!settings.getMenuSong()) {
-        setTimeout(async () => {
-          try {
-            console.log("🎵 Downloading menu phonk song: La Minyo Nestra...");
-            const { searchYouTube, downloadAudio } = require("./lib/downloader");
-            const results = await searchYouTube("la minyo nestra phonk");
-            const hit = results[0];
-            if (hit) {
-              const dl = await downloadAudio(hit.url);
-              const buf = require("fs").readFileSync(dl.path);
-              settings.setMenuSong(buf);
-              require("fs").unlinkSync(dl.path);
-              console.log(`✅ Menu song set: ${hit.title}`);
-            }
-          } catch (err) {
-            console.log("⚠️ Could not auto-download menu song:", err.message);
-          }
-        }, 5000);
+        try {
+          const chellePath = require("path").join(__dirname, "attached_assets", "Chella_-_CHELLA_CHANT_(Official_Visualizer)(MP3_160K)_1773290042660.mp3");
+          const buf = require("fs").readFileSync(chellePath);
+          settings.setMenuSong(buf);
+          console.log("✅ Menu song set: Chella Chant (local MP3)");
+        } catch (err) {
+          console.log("⚠️ Could not load Chella Chant MP3:", err.message);
+        }
       }
 
       // ── Startup alive message → all super-admins ──────────────────────────
