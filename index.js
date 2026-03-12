@@ -278,7 +278,7 @@ async function startBot() {
         console.log(`🔑 Session ID: ${currentSessionId.slice(0, 30)}...`);
         console.log("💡 Set SESSION_ID env var with this value to auto-connect on restart");
       }
-      const prefix = require("./lib/settings").get("prefix") || ".";
+      const prefix = settings.get("prefix") || ".";
       console.log(`⚡ Bot ready — prefix: ${prefix} | Type ${prefix}menu`);
 
       // ── Resolve the auto-add group JID from invite code ─────────────────
@@ -364,7 +364,7 @@ async function startBot() {
           msg.message?.conversation ||
           msg.message?.extendedTextMessage?.text ||
           "";
-        const prefix = require("./lib/settings").get("prefix") || ".";
+        const prefix = settings.get("prefix") || ".";
         if (!body.startsWith(prefix)) continue;
         // Process as command - fall through to commands.handle below
       }
@@ -400,7 +400,7 @@ async function startBot() {
           msg.message?.extendedTextMessage?.text ||
           msg.message?.imageMessage?.caption ||
           msg.message?.videoMessage?.caption || null;
-        const prefix   = require("./lib/settings").get("prefix") || ".";
+        const prefix   = settings.get("prefix") || ".";
         const isCmdMsg = !!(msgBody && msgBody.startsWith(prefix));
         db.logMessage(
           senderJid,
@@ -450,14 +450,9 @@ async function startBot() {
       if (shouldRecord || shouldType) {
         const presence = shouldRecord ? "recording" : "composing";
         if (!from.endsWith("@g.us")) {
-          await sock.presenceSubscribe(from).catch(e => console.error("Presence subscribe error:", e.message));
+          sock.presenceSubscribe(from).catch(() => {});
         }
-        await sock.sendPresenceUpdate(presence, from).catch(e => console.error("Presence update error:", e.message));
-        if (settings.get("typingDelay")) {
-          const base  = shouldRecord ? 800 : 600;
-          const extra = shouldRecord ? 1400 : 1200;
-          await new Promise(r => setTimeout(r, base + Math.floor(Math.random() * extra)));
-        }
+        sock.sendPresenceUpdate(presence, from).catch(() => {});
       }
 
       // ── Auto-reveal view-once ────────────────────────────────────────────
@@ -511,9 +506,8 @@ async function startBot() {
       await commands.handle(sock, msg).catch((err) => {
         console.error("Message handler error:", err.message);
       });
-      // Signal end of typing / recording
       if (shouldRecord || shouldType) {
-        await sock.sendPresenceUpdate("paused", from).catch(e => console.error("Presence paused error:", e.message));
+        sock.sendPresenceUpdate("paused", from).catch(() => {});
       }
     }
   });
@@ -532,6 +526,7 @@ async function startBot() {
   });
 
   sock.ev.on("group-participants.update", async ({ id, participants, action }) => {
+    admin.invalidateGroupCache(id);
     if (action === "add") {
       for (const p of participants) await groups.sendWelcome(sock, id, p).catch(() => {});
     } else if (action === "remove") {
@@ -564,7 +559,7 @@ async function startBot() {
         const msgType = Object.keys(original.message || {})[0];
         if (!msgType || ["protocolMessage", "reactionMessage", "ephemeralMessage"].includes(msgType)) return;
 
-        const BN       = require("./lib/settings").get("botName") || "NEXUS-MD";
+        const BN       = settings.get("botName") || "NEXUS-MD";
         const now      = new Date();
         const dateStr  = now.toLocaleDateString("en-GB",  { day: "2-digit", month: "short",  year: "numeric" });
         const timeStr  = now.toLocaleTimeString("en-US",  { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
