@@ -459,10 +459,14 @@ async function startBot() {
 
       // ── Auto-reveal view-once ────────────────────────────────────────────
       if (settings.get("voReveal")) {
+        const _m = msg.message?.ephemeralMessage?.message || msg.message;
         const voInner =
-          msg.message?.viewOnceMessage?.message ||
-          msg.message?.viewOnceMessageV2?.message ||
-          msg.message?.viewOnceMessageV2Extension?.message;
+          _m?.viewOnceMessage?.message ||
+          _m?.viewOnceMessageV2?.message ||
+          _m?.viewOnceMessageV2Extension?.message ||
+          (_m?.imageMessage?.viewOnce ? { imageMessage: _m.imageMessage } : null) ||
+          (_m?.videoMessage?.viewOnce ? { videoMessage: _m.videoMessage } : null) ||
+          (_m?.audioMessage?.viewOnce ? { audioMessage: _m.audioMessage } : null);
         if (voInner) {
           const mediaType = Object.keys(voInner)[0];
           if (["imageMessage", "videoMessage", "audioMessage"].includes(mediaType)) {
