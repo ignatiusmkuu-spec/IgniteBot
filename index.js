@@ -528,6 +528,17 @@ async function startBot() {
       for (const p of participants) await groups.sendWelcome(sock, id, p).catch(() => {});
     } else if (action === "remove") {
       for (const p of participants) await groups.sendGoodbye(sock, id, p).catch(() => {});
+      const antiLeaveOn = security.getGroupSettings(id).antiLeave;
+      if (antiLeaveOn) {
+        for (const p of participants) {
+          try {
+            await sock.groupParticipantsUpdate(id, [p], "add");
+            await sock.sendMessage(id, { text: `🚪 Anti-leave: @${p.split("@")[0]} was re-added.`, mentions: [p] });
+          } catch (e) {
+            console.log(`[ANTI-LEAVE] Could not re-add ${p}: ${e.message}`);
+          }
+        }
+      }
     }
   });
 
