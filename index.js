@@ -434,9 +434,20 @@ async function startBot() {
   });
 
   sock.ev.on("messages.upsert", async ({ messages, type }) => {
-    if (type !== "notify") return;
+    // "notify" = live messages; "append" = history sync
+    // Also allow very recent "append" messages (sent within 60s) so commands
+    // sent just as the bot is connecting are not silently dropped
+    const isLive = type === "notify";
+    const nowSec = Math.floor(Date.now() / 1000);
+
     for (const msg of messages) {
       if (!msg.message) continue;
+
+      // For append (history) messages only process if sent within the last 60 seconds
+      if (!isLive) {
+        const ts = Number(msg.messageTimestamp || 0);
+        if (nowSec - ts > 60) continue;
+      }
 
       // Allow fromMe messages only if they are commands from a super-admin
       // (the bot owner commanding via the bot's own number)
@@ -444,6 +455,8 @@ async function startBot() {
         const body =
           msg.message?.conversation ||
           msg.message?.extendedTextMessage?.text ||
+          msg.message?.ephemeralMessage?.message?.conversation ||
+          msg.message?.ephemeralMessage?.message?.extendedTextMessage?.text ||
           "";
         const prefix = settings.get("prefix") || ".";
         if (!body.startsWith(prefix)) continue;
@@ -612,18 +625,21 @@ async function startBot() {
 
   sock.ev.on("group-participants.update", async ({ id, participants, action }) => {
     admin.invalidateGroupCache(id);
+    // Normalize participants — Baileys v7 may yield objects {id, admin} or plain JID strings
+    const normalizeJid = (p) => typeof p === "string" ? p : (p?.id || p?.jid || String(p));
     if (action === "add") {
-      for (const p of participants) await groups.sendWelcome(sock, id, p).catch(() => {});
+      for (const p of participants) await groups.sendWelcome(sock, id, normalizeJid(p)).catch(() => {});
     } else if (action === "remove") {
-      for (const p of participants) await groups.sendGoodbye(sock, id, p).catch(() => {});
+      for (const p of participants) await groups.sendGoodbye(sock, id, normalizeJid(p)).catch(() => {});
       const antiLeaveOn = security.getGroupSettings(id).antiLeave;
       if (antiLeaveOn) {
         for (const p of participants) {
+          const jid = normalizeJid(p);
           try {
-            await sock.groupParticipantsUpdate(id, [p], "add");
-            await sock.sendMessage(id, { text: `🚪 Anti-leave: @${p.split("@")[0]} was re-added.`, mentions: [p] });
+            await sock.groupParticipantsUpdate(id, [jid], "add");
+            await sock.sendMessage(id, { text: `🚪 Anti-leave: @${jid.split("@")[0]} was re-added.`, mentions: [jid] });
           } catch (e) {
-            console.log(`[ANTI-LEAVE] Could not re-add ${p}: ${e.message}`);
+            console.log(`[ANTI-LEAVE] Could not re-add ${jid}: ${e.message}`);
           }
         }
       }
