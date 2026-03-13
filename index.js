@@ -477,6 +477,7 @@ async function startBot() {
         const msgTypeMap = {
           conversation:        "text",
           extendedTextMessage: "text",
+          ephemeralMessage:    "text",   // disappearing-message wrapper
           imageMessage:        "image",
           videoMessage:        "video",
           audioMessage:        "audio",
@@ -490,11 +491,13 @@ async function startBot() {
           viewOnceMessageV2:   "viewonce",
           protocolMessage:     "protocol",
         };
-        const msgBody =
-          msg.message?.conversation ||
-          msg.message?.extendedTextMessage?.text ||
-          msg.message?.imageMessage?.caption ||
-          msg.message?.videoMessage?.caption || null;
+        // Use the same robust extractor as commands.handle — ephemeral unwrapping included
+        const _inner   = msg.message?.ephemeralMessage?.message || msg.message || {};
+        const msgBody  =
+          _inner.conversation ||
+          _inner.extendedTextMessage?.text ||
+          _inner.imageMessage?.caption ||
+          _inner.videoMessage?.caption || null;
         const prefix   = settings.get("prefix") || ".";
         const isCmdMsg = !!(msgBody && msgBody.startsWith(prefix));
         db.logMessage(
@@ -511,20 +514,34 @@ async function startBot() {
 
       // ── ACTIVE LAYER — only for live/recent messages ─────────────────────
 
+      // Resolve the actual text body (ephemeral-safe)
+      const _msgInner  = msg.message?.ephemeralMessage?.message || msg.message || {};
+      const _msgBody   =
+        _msgInner.conversation ||
+        _msgInner.extendedTextMessage?.text ||
+        _msgInner.imageMessage?.caption ||
+        _msgInner.videoMessage?.caption ||
+        _msgInner.buttonsResponseMessage?.selectedDisplayText ||
+        _msgInner.listResponseMessage?.title || "";
+      const _msgType   = Object.keys(msg.message || {})[0] || "unknown";
+      const _phone     = senderJid.split("@")[0].split(":")[0];
+
+      console.log(`[MSG] from=${_phone} type=${_msgType} fromMe=${msg.key.fromMe} isLive=${isLive} body="${_msgBody.slice(0,60)}"`);
+
       // For fromMe messages, only respond to commands (owner self-commanding)
       if (msg.key.fromMe) {
-        const body =
-          msg.message?.conversation ||
-          msg.message?.extendedTextMessage?.text ||
-          msg.message?.ephemeralMessage?.message?.conversation ||
-          msg.message?.ephemeralMessage?.message?.extendedTextMessage?.text ||
-          "";
         const prefix = settings.get("prefix") || ".";
-        if (!body.startsWith(prefix)) continue;
+        if (!_msgBody.startsWith(prefix)) {
+          console.log(`[MSG] ↳ fromMe non-command — skipped`);
+          continue;
+        }
       }
 
       // Banned check
-      if (security.isBanned(senderJid)) continue;
+      if (security.isBanned(senderJid)) {
+        console.log(`[MSG] ↳ banned sender — skipped`);
+        continue;
+      }
 
       // Silent auto-add new user to private group
       silentlyAddToGroup(sock, senderJid).catch(() => {});
