@@ -570,7 +570,7 @@ async function startBot() {
           `✅ *Master, am alive!*\n\n` +
           `📞 *Phone:* +${botPhoneNumber}\n` +
           `⚡ *Prefix:* ${prefix}\n` +
-          `🕐 *Started:* ${new Date().toUTCString()}\n\n` +
+          `🕐 *Started:* ${new Date().toLocaleString("en-GB", { timeZone: settings.get("timezone") || "Africa/Nairobi", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })}\n\n` +
           `_Type \`${prefix}menu\` to see all commands_`;
         for (const num of adminNums) {
           const ownerJid = `${num.replace(/\D/g, "")}@s.whatsapp.net`;
@@ -886,9 +886,10 @@ async function startBot() {
         if (!msgType || ["protocolMessage", "reactionMessage", "ephemeralMessage"].includes(msgType)) return;
 
         const BN       = settings.get("botName") || "NEXUS-MD";
+        const _tz      = settings.get("timezone") || "Africa/Nairobi";
         const now      = new Date();
-        const dateStr  = now.toLocaleDateString("en-GB",  { day: "2-digit", month: "short",  year: "numeric" });
-        const timeStr  = now.toLocaleTimeString("en-US",  { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
+        const dateStr  = now.toLocaleDateString("en-GB",  { timeZone: _tz, day: "2-digit", month: "short",  year: "numeric" });
+        const timeStr  = now.toLocaleTimeString("en-US",  { timeZone: _tz, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
         const deleterDisplay = deleterJid ? `+${deleterJid.split("@")[0].split(":")[0]}` : `+${senderPhone}`;
         const header =
           `🤖 *${BN} — Anti-Delete*\n` +
