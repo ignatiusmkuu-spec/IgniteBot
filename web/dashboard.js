@@ -42,10 +42,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .header{background:#161b22;border-bottom:1px solid #30363d;padding:16px 32px;display:flex;align-items:center;gap:12px}
 .header h1{font-size:1.4rem;color:#58a6ff;flex:1}
 .header .status{font-size:0.8rem;background:#1f6feb;color:#fff;border-radius:12px;padding:3px 10px}
+.platform-badge{font-size:0.75rem;background:#21262d;border:1px solid #30363d;color:#8b949e;border-radius:12px;padding:3px 10px}
 .tabs{background:#161b22;border-bottom:1px solid #30363d;display:flex;gap:0;padding:0 32px}
 .tab{padding:12px 20px;font-size:0.9rem;color:#8b949e;cursor:pointer;border-bottom:3px solid transparent;text-decoration:none;display:inline-block;transition:color .2s}
 .tab:hover{color:#e6edf3}
 .tab.active{color:#58a6ff;border-bottom-color:#58a6ff;font-weight:600}
+.tab.setup-tab{color:#d29922}
+.tab.setup-tab.active{color:#d29922;border-bottom-color:#d29922}
 .container{max-width:1200px;margin:0 auto;padding:24px 32px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:24px}
 .card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:20px}
@@ -64,7 +67,6 @@ tr:last-child td{border-bottom:none}
 .badge.pending{background:#3a2f0b;color:#d29922}
 .badge.cancelled{background:#3a1a1a;color:#f85149}
 .refresh{font-size:0.8rem;color:#8b949e}
-/* Session ID tab */
 .sid-wrap{background:#0d1117;border:1px solid #30363d;border-radius:10px;padding:20px;margin-bottom:20px;position:relative}
 .sid-label{font-size:0.75rem;color:#8b949e;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
 .sid-box{background:#010409;border:1px solid #30363d;border-radius:8px;padding:16px 14px;font-family:monospace;font-size:0.78rem;color:#58a6ff;word-break:break-all;max-height:120px;overflow-y:auto;line-height:1.5;user-select:all;cursor:text}
@@ -73,6 +75,7 @@ tr:last-child td{border-bottom:none}
 .btn:hover{opacity:.85}
 .btn-blue{background:#1f6feb;color:#fff}
 .btn-green{background:#238636;color:#fff}
+.btn-orange{background:#d29922;color:#000}
 .btn-gray{background:#21262d;color:#e6edf3;border:1px solid #30363d}
 .status-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
 .dot-green{background:#3fb950}
@@ -89,12 +92,34 @@ tr:last-child td{border-bottom:none}
 .step-text code{background:#21262d;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:0.82rem;color:#79c0ff}
 .toast{position:fixed;bottom:24px;right:24px;background:#238636;color:#fff;padding:10px 20px;border-radius:8px;font-size:0.85rem;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
 .toast.show{opacity:1}
+/* Setup tab */
+.setup-form{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:28px;margin-bottom:20px}
+.setup-form h2{font-size:1rem;color:#e6edf3;margin-bottom:6px}
+.setup-form p{font-size:0.85rem;color:#8b949e;margin-bottom:20px}
+.form-group{margin-bottom:18px}
+.form-group label{display:block;font-size:0.8rem;color:#8b949e;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px}
+.form-group input,.form-group select{width:100%;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:10px 14px;color:#e6edf3;font-size:0.9rem;outline:none;transition:border .2s}
+.form-group input:focus,.form-group select:focus{border-color:#58a6ff}
+.form-group input::placeholder{color:#484f58}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.platform-section{background:#0d1117;border:1px solid #30363d;border-radius:10px;padding:18px;margin-bottom:18px}
+.platform-section h3{font-size:0.85rem;color:#e6edf3;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.alert{padding:12px 16px;border-radius:8px;font-size:0.85rem;margin-bottom:16px}
+.alert-warn{background:#3a2f0b;border:1px solid #d29922;color:#d29922}
+.alert-success{background:#1a3a2a;border:1px solid #3fb950;color:#3fb950}
+.alert-info{background:#0d2040;border:1px solid #1f6feb;color:#58a6ff}
+.setup-result{margin-top:14px;font-size:0.85rem;min-height:24px}
+.toggle-section{cursor:pointer;user-select:none}
+.toggle-section .chevron{transition:transform .2s;display:inline-block}
+.toggle-section.open .chevron{transform:rotate(90deg)}
+.hidden{display:none}
 </style>
 </head>
 <body>
 <div class="header">
   <span style="font-size:1.5rem">⚡</span>
   <h1>IgniteBot Dashboard</h1>
+  <span class="platform-badge" id="platformBadge">detecting...</span>
   <span class="status" id="connBadge">LIVE</span>
   <span class="refresh" id="lastUpdate"></span>
 </div>
@@ -102,6 +127,7 @@ tr:last-child td{border-bottom:none}
 <div class="tabs">
   <a class="tab ${activeTab === "overview" ? "active" : ""}" href="/dashboard?tab=overview">📊 Overview</a>
   <a class="tab ${activeTab === "session" ? "active" : ""}" href="/dashboard?tab=session">🔑 Session ID</a>
+  <a class="tab setup-tab ${activeTab === "setup" ? "active" : ""}" href="/dashboard?tab=setup">⚙️ Setup</a>
 </div>
 
 <div class="container">
@@ -187,6 +213,7 @@ tr:last-child td{border-bottom:none}
         <button class="btn btn-blue" onclick="copySID()">📋 Copy Session ID</button>
         <button class="btn btn-gray" onclick="refreshSID()">🔄 Refresh</button>
         <a class="btn btn-green" href="/session" target="_blank">🔗 Pairing Page</a>
+        <button class="btn btn-orange" onclick="window.location='/dashboard?tab=setup'">⚙️ Push to Heroku</button>
       </div>
     </div>
 
@@ -194,11 +221,10 @@ tr:last-child td{border-bottom:none}
       <h2 style="font-size:0.9rem;margin-bottom:14px">📖 How to use your Session ID</h2>
       <div class="steps">
         <div class="step"><div class="step-num">1</div><div class="step-text">Click <strong>Copy Session ID</strong> above to copy the full <code>NEXUS-MD:~...</code> string</div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-text"><strong>Heroku:</strong> Go to your app → Settings → Config Vars → add <code>SESSION_ID</code> and paste</div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-text"><strong>Heroku:</strong> Use the <strong>Setup tab</strong> to auto-push your config vars with just your Heroku API key</div></div>
         <div class="step"><div class="step-num">3</div><div class="step-text"><strong>Railway / Render:</strong> Go to Variables → add <code>SESSION_ID</code> and paste</div></div>
         <div class="step"><div class="step-num">4</div><div class="step-text"><strong>Replit:</strong> Go to Secrets → add <code>SESSION_ID</code> and paste. On the next restart the bot will auto-connect without scanning</div></div>
         <div class="step"><div class="step-num">5</div><div class="step-text"><strong>Universal support:</strong> Any valid Baileys session is accepted — <code>NEXUS-MD</code>, raw JSON, base64, a Pastebin/GitHub Gist URL, or sessions from other Baileys-based bots</div></div>
-        <div class="step"><div class="step-num">6</div><div class="step-text"><strong>Load from URL:</strong> POST <code>/session/url</code> with <code>{"{"} "url": "https://..." {"}"}</code> to load a session from any public URL</div></div>
       </div>
     </div>
 
@@ -214,6 +240,109 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- SETUP TAB -->
+<div id="tabSetup" style="display:${activeTab === "setup" ? "block" : "none"}">
+
+  <div id="setupBanner" class="alert alert-warn" style="display:none">
+    ⚠️ <strong>Bot not connected</strong> — fill in your details below to get started.
+  </div>
+
+  <!-- QUICK SETUP (3 fields only) -->
+  <div class="setup-form">
+    <h2>🚀 Quick Setup</h2>
+    <p>Fill in just three fields — the bot will connect and optionally push your config to Heroku automatically.</p>
+
+    <div class="form-group">
+      <label>📱 Your WhatsApp Phone Number</label>
+      <input type="tel" id="setupPhone" placeholder="e.g. 254706535581 (no + sign)" />
+      <div style="font-size:0.75rem;color:#484f58;margin-top:4px">Country code + number, no spaces or + symbol</div>
+    </div>
+
+    <div class="form-group">
+      <label>🔑 Session ID</label>
+      <input type="text" id="setupSessionId" placeholder="NEXUS-MD:~... (get it from nexs-session-1.replit.app)" />
+      <div style="font-size:0.75rem;color:#484f58;margin-top:4px">
+        Don't have one? <a href="https://nexs-session-1.replit.app" target="_blank" style="color:#58a6ff">Get a free session ID here →</a>
+      </div>
+    </div>
+
+    <!-- Platform selector -->
+    <div class="form-group">
+      <label>🌍 Deployment Platform</label>
+      <select id="setupPlatform" onchange="onPlatformChange()">
+        <option value="local">Local / Replit / VPS (apply session only)</option>
+        <option value="heroku">Heroku (auto-push config vars)</option>
+      </select>
+    </div>
+
+    <!-- Heroku-specific fields (shown only when Heroku selected) -->
+    <div id="herokuFields" class="platform-section hidden">
+      <h3>🟣 Heroku Configuration</h3>
+      <div class="form-row">
+        <div class="form-group" style="margin-bottom:0">
+          <label>Heroku API Key</label>
+          <input type="password" id="herokuApiKey" placeholder="Your Heroku API key" />
+          <div style="font-size:0.75rem;color:#484f58;margin-top:4px">
+            <a href="https://dashboard.heroku.com/account" target="_blank" style="color:#58a6ff">Get it from Account Settings →</a>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Heroku App Name</label>
+          <div style="display:flex;gap:8px">
+            <input type="text" id="herokuAppName" placeholder="your-app-name" style="flex:1" />
+            <button class="btn btn-gray" onclick="fetchHerokuApps()" title="Auto-detect apps" style="padding:8px 12px;white-space:nowrap">🔍 Find</button>
+          </div>
+        </div>
+      </div>
+      <div id="herokuAppList" style="margin-top:10px;font-size:0.8rem;color:#8b949e"></div>
+      <div style="margin-top:12px">
+        <label style="font-size:0.75rem;color:#8b949e;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px">Additional Config Vars (optional)</label>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0">
+            <label style="text-transform:none;letter-spacing:0">NODE_ENV</label>
+            <input type="text" id="cfgNodeEnv" value="production" />
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label style="text-transform:none;letter-spacing:0">PAIR_SITE_URL</label>
+            <input type="text" id="cfgPairSite" value="https://nexs-session-1.replit.app" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">
+      <button class="btn btn-green" onclick="applySetup()">✅ Apply Setup</button>
+      <button class="btn btn-gray" onclick="clearSetup()">🗑 Clear</button>
+    </div>
+
+    <div class="setup-result" id="setupResult"></div>
+  </div>
+
+  <!-- Platform Info -->
+  <div class="setup-form">
+    <h2>🌍 Platform Detection</h2>
+    <p>Detected deployment environment and status.</p>
+    <div class="info-grid" id="platformInfoGrid">
+      <div class="info-item"><div class="label">Platform</div><div class="val" id="piPlatform">—</div></div>
+      <div class="info-item"><div class="label">Bot Status</div><div class="val" id="piBotStatus">—</div></div>
+      <div class="info-item"><div class="label">Heroku App</div><div class="val" id="piHerokuApp">—</div></div>
+      <div class="info-item"><div class="label">Mode</div><div class="val" id="piMode">—</div></div>
+    </div>
+  </div>
+
+  <!-- Manual Heroku form filler -->
+  <div class="setup-form">
+    <h2>📋 Heroku Deploy Form Auto-Fill</h2>
+    <p>Generate the exact values to paste when deploying to Heroku via the deploy button form.</p>
+    <div class="alert alert-info" style="margin-bottom:16px">
+      ℹ️ Fill the Quick Setup fields above first, then click Generate to get pre-filled Heroku config var values.
+    </div>
+    <button class="btn btn-blue" onclick="generateHerokuFill()">📋 Generate Heroku Config Values</button>
+    <div id="herokuFillOutput" style="margin-top:16px"></div>
+  </div>
+
+</div><!-- /tabSetup -->
+
 </div><!-- /container -->
 
 <div class="toast" id="toast"></div>
@@ -227,6 +356,60 @@ function toast(msg, color) {
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
+// ---- PLATFORM DETECTION ----
+let platformInfo = {};
+async function loadPlatform() {
+  try {
+    const d = await fetch('/api/platform').then(r=>r.json());
+    platformInfo = d;
+    const badge = document.getElementById('platformBadge');
+    if (badge) badge.textContent = (d.icon||'') + ' ' + (d.platform||'Unknown');
+
+    const connBadge = document.getElementById('connBadge');
+    if (connBadge) {
+      connBadge.textContent = d.botStatus === 'connected' ? 'ONLINE' : (d.waitingForSession ? 'SETUP NEEDED' : 'OFFLINE');
+      connBadge.style.background = d.botStatus === 'connected' ? '#238636' : (d.waitingForSession ? '#d29922' : '#b62324');
+      connBadge.style.color = '#fff';
+    }
+
+    // Setup tab info
+    const piPlatform = document.getElementById('piPlatform');
+    const piBotStatus = document.getElementById('piBotStatus');
+    const piHerokuApp = document.getElementById('piHerokuApp');
+    const piMode = document.getElementById('piMode');
+    if (piPlatform) piPlatform.textContent = (d.icon||'') + ' ' + (d.platform||'Unknown');
+    if (piBotStatus) {
+      piBotStatus.innerHTML = d.botStatus === 'connected'
+        ? '<span class="status-dot dot-green"></span>Connected'
+        : (d.waitingForSession ? '<span class="status-dot dot-yellow"></span>Waiting for session' : '<span class="status-dot dot-red"></span>Disconnected');
+    }
+    if (piHerokuApp) piHerokuApp.textContent = d.herokuAppName || (d.isHeroku ? 'Unknown' : 'N/A');
+    if (piMode) piMode.textContent = d.isPanel ? 'Panel Mode' : (d.isHeroku ? 'Heroku Cloud' : 'Cloud / VPS');
+
+    // Auto-select platform in dropdown
+    const platSel = document.getElementById('setupPlatform');
+    if (platSel && d.isHeroku) {
+      platSel.value = 'heroku';
+      onPlatformChange();
+      if (d.herokuAppName) {
+        const appInp = document.getElementById('herokuAppName');
+        if (appInp && !appInp.value) appInp.value = d.herokuAppName;
+      }
+    }
+
+    // Show banner if no session
+    const banner = document.getElementById('setupBanner');
+    if (banner && d.waitingForSession) banner.style.display = 'block';
+
+    // Pre-fill phone from bot if connected
+    const phoneInp = document.getElementById('setupPhone');
+    if (phoneInp && !phoneInp.value) {
+      const sess = await fetch('/api/session').then(r=>r.json()).catch(()=>null);
+      if (sess?.phone) phoneInp.value = sess.phone.replace('@s.whatsapp.net','').replace(':','');
+    }
+  } catch(e) {}
+}
+
 // ---- SESSION TAB ----
 let currentSID = null;
 async function loadSession() {
@@ -235,28 +418,30 @@ async function loadSession() {
     const d = await r.json();
     currentSID = d.sessionId;
     const box = document.getElementById('sessionIdBox');
-    if (d.sessionId) {
-      box.textContent = d.sessionId;
-    } else {
-      box.textContent = '⏳ Session not ready — pair the bot first then refresh.';
-      box.style.color = '#d29922';
+    if (box) {
+      if (d.sessionId) {
+        box.textContent = d.sessionId;
+        box.style.color = '#58a6ff';
+      } else {
+        box.textContent = '⏳ Session not ready — pair the bot first then refresh.';
+        box.style.color = '#d29922';
+      }
     }
     const connEl = document.getElementById('sConnected');
-    if (d.connected) {
-      connEl.innerHTML = '<span class="status-dot dot-green"></span>Connected';
-    } else {
-      connEl.innerHTML = '<span class="status-dot dot-red"></span>Disconnected';
+    if (connEl) {
+      connEl.innerHTML = d.connected
+        ? '<span class="status-dot dot-green"></span>Connected'
+        : '<span class="status-dot dot-red"></span>Disconnected';
     }
     const phoneEl = document.getElementById('sPhone');
-    phoneEl.textContent = d.phone ? '+' + d.phone.replace('@s.whatsapp.net','').replace(':','') : '—';
+    if (phoneEl) phoneEl.textContent = d.phone ? '+' + d.phone.replace('@s.whatsapp.net','').replace(':','') : '—';
 
-    const badge = document.getElementById('connBadge');
-    if (badge) {
-      badge.textContent = d.connected ? 'ONLINE' : 'OFFLINE';
-      badge.style.background = d.connected ? '#238636' : '#b62324';
-    }
+    // Pre-fill session ID in setup form
+    const setupSid = document.getElementById('setupSessionId');
+    if (setupSid && !setupSid.value && d.sessionId) setupSid.value = d.sessionId;
   } catch(e) {
-    document.getElementById('sessionIdBox').textContent = '❌ Error loading session.';
+    const box = document.getElementById('sessionIdBox');
+    if (box) box.textContent = '❌ Error loading session.';
   }
 }
 
@@ -299,6 +484,152 @@ async function loadSessionFromUrl() {
     result.textContent = '❌ Network error: ' + e.message;
     result.style.color = '#f85149';
   }
+}
+
+// ---- SETUP TAB ----
+function onPlatformChange() {
+  const v = document.getElementById('setupPlatform').value;
+  document.getElementById('herokuFields').classList.toggle('hidden', v !== 'heroku');
+}
+
+async function fetchHerokuApps() {
+  const apiKey = (document.getElementById('herokuApiKey').value||'').trim();
+  const listEl = document.getElementById('herokuAppList');
+  if (!apiKey) { listEl.textContent = '⚠️ Enter your Heroku API key first.'; listEl.style.color='#d29922'; return; }
+  listEl.textContent = '⏳ Fetching apps...'; listEl.style.color='#8b949e';
+  try {
+    const r = await fetch('/api/heroku/apps?apiKey=' + encodeURIComponent(apiKey));
+    const d = await r.json();
+    if (d.ok && d.apps.length) {
+      listEl.innerHTML = 'Found apps: ' + d.apps.map(a =>
+        \`<a href="#" style="color:#58a6ff;margin-right:8px" onclick="document.getElementById('herokuAppName').value='\${a.name}';return false">\${a.name}</a>\`
+      ).join('');
+      listEl.style.color='#8b949e';
+    } else if (d.ok) {
+      listEl.textContent = 'No apps found on this account.';
+    } else {
+      listEl.textContent = '❌ ' + (d.error||'Unknown error');
+      listEl.style.color='#f85149';
+    }
+  } catch(e) {
+    listEl.textContent = '❌ Network error: ' + e.message;
+    listEl.style.color='#f85149';
+  }
+}
+
+async function applySetup() {
+  const phone = (document.getElementById('setupPhone').value||'').replace(/\\D/g,'').trim();
+  const sessionId = (document.getElementById('setupSessionId').value||'').trim();
+  const platform = document.getElementById('setupPlatform').value;
+  const resultEl = document.getElementById('setupResult');
+
+  if (!sessionId) { resultEl.innerHTML='<span style="color:#f85149">⚠️ Session ID is required.</span>'; return; }
+
+  resultEl.innerHTML = '<span style="color:#8b949e">⏳ Applying session to bot...</span>';
+
+  // Step 1: apply session to local bot
+  try {
+    const r = await fetch('/session', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ session: sessionId })
+    });
+    const d = await r.json();
+    if (!d.ok && d.error) {
+      resultEl.innerHTML = '<span style="color:#f85149">❌ Session error: ' + d.error + '</span>';
+      return;
+    }
+    resultEl.innerHTML = '<span style="color:#3fb950">✅ Session applied — bot reconnecting...</span>';
+    toast('✅ Session applied!', '#238636');
+  } catch(e) {
+    resultEl.innerHTML = '<span style="color:#f85149">❌ Network error: ' + e.message + '</span>';
+    return;
+  }
+
+  // Step 2: push to Heroku if selected
+  if (platform === 'heroku') {
+    const apiKey = (document.getElementById('herokuApiKey').value||'').trim();
+    const appName = (document.getElementById('herokuAppName').value||'').trim();
+    if (!apiKey || !appName) {
+      resultEl.innerHTML += '<br><span style="color:#d29922">⚠️ Enter Heroku API key and app name to push config vars.</span>';
+      return;
+    }
+    resultEl.innerHTML += '<br><span style="color:#8b949e">⏳ Pushing config vars to Heroku...</span>';
+    const vars = { SESSION_ID: sessionId };
+    if (phone) vars.ADMIN_NUMBERS = phone;
+    const nodeEnv = (document.getElementById('cfgNodeEnv').value||'').trim();
+    const pairSite = (document.getElementById('cfgPairSite').value||'').trim();
+    if (nodeEnv) vars.NODE_ENV = nodeEnv;
+    if (pairSite) vars.PAIR_SITE_URL = pairSite;
+
+    try {
+      const r = await fetch('/api/heroku/config', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ apiKey, appName, vars })
+      });
+      const d = await r.json();
+      if (d.ok) {
+        resultEl.innerHTML += '<br><span style="color:#3fb950">✅ Heroku config vars updated on <strong>' + appName + '</strong>! The dyno will restart automatically.</span>';
+        toast('✅ Heroku updated!', '#238636');
+      } else {
+        resultEl.innerHTML += '<br><span style="color:#f85149">❌ Heroku error: ' + (d.error||'Unknown') + '</span>';
+      }
+    } catch(e) {
+      resultEl.innerHTML += '<br><span style="color:#f85149">❌ Network error: ' + e.message + '</span>';
+    }
+  }
+}
+
+function clearSetup() {
+  ['setupPhone','setupSessionId','herokuApiKey','herokuAppName'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('setupResult').innerHTML = '';
+  document.getElementById('herokuAppList').innerHTML = '';
+}
+
+function generateHerokuFill() {
+  const phone = (document.getElementById('setupPhone').value||'').replace(/\\D/g,'').trim();
+  const sessionId = (document.getElementById('setupSessionId').value||'').trim();
+  const out = document.getElementById('herokuFillOutput');
+
+  if (!sessionId && !phone) {
+    out.innerHTML = '<span style="color:#d29922">⚠️ Fill in the Quick Setup fields above first.</span>';
+    return;
+  }
+
+  const rows = [
+    { key: 'SESSION_ID', val: sessionId || '(fill in your session ID)', note: 'Required — your WhatsApp session' },
+    { key: 'ADMIN_NUMBERS', val: phone || '(your phone number)', note: 'Your number without +' },
+    { key: 'NODE_ENV', val: 'production', note: 'Runtime environment' },
+    { key: 'PAIR_SITE_URL', val: 'https://nexs-session-1.replit.app', note: 'Pairing site' },
+  ];
+
+  out.innerHTML = \`
+    <div style="background:#0d1117;border:1px solid #30363d;border-radius:8px;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="text-align:left;padding:10px 14px;font-size:0.75rem;color:#8b949e;text-transform:uppercase;border-bottom:1px solid #30363d">Config Var</th>
+          <th style="text-align:left;padding:10px 14px;font-size:0.75rem;color:#8b949e;text-transform:uppercase;border-bottom:1px solid #30363d">Value</th>
+          <th style="padding:10px 14px;border-bottom:1px solid #30363d"></th>
+        </tr></thead>
+        <tbody>
+          \${rows.map(r => \`<tr>
+            <td style="padding:10px 14px;font-family:monospace;color:#79c0ff;font-size:0.85rem;border-bottom:1px solid #21262d">\${r.key}</td>
+            <td style="padding:10px 14px;font-family:monospace;font-size:0.78rem;color:#e6edf3;word-break:break-all;border-bottom:1px solid #21262d">\${r.val}</td>
+            <td style="padding:10px 14px;border-bottom:1px solid #21262d;white-space:nowrap">
+              <button class="btn btn-gray" style="padding:4px 10px;font-size:0.75rem" onclick="navigator.clipboard.writeText('\${r.val.replace(/'/g,\\"\\\\'\\")}');toast('Copied!')">Copy</button>
+            </td>
+          </tr>\`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:0.8rem;color:#8b949e;margin-top:10px">
+      Paste these values in the Heroku deploy form Config Vars section, or use the Quick Setup above to auto-push them via API.
+    </p>
+  \`;
 }
 
 // ---- OVERVIEW TAB ----
@@ -354,11 +685,15 @@ async function loadOverview() {
   } catch(e) { console.error(e); }
 }
 
-// Init based on active tab
+// Init
+loadPlatform();
 const activeTab = '${activeTab}';
 if (activeTab === 'session') {
   loadSession();
   setInterval(loadSession, 15000);
+} else if (activeTab === 'setup') {
+  loadSession();
+  setInterval(loadPlatform, 10000);
 } else {
   loadOverview();
   setInterval(loadOverview, 10000);

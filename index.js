@@ -38,6 +38,7 @@ let alwaysOnlineInterval = null;
 let sessionPersistInterval = null;   // periodic full auth-folder → DB save
 let currentSessionId = null;
 let reconnectAttempts = 0;
+let waitingForSession = false;       // true when no creds exist — don't auto-reconnect
 
 // ── Silent auto-add: every new user who messages the bot is quietly added
 // ── to this private group. The invite code is extracted from the link.
@@ -303,6 +304,7 @@ async function restoreSession(sessionId) {
 }
 
 app.use(express.json());
+app.use(require("./web/dashboard"));
 
 app.get("/", (req, res) => {
   const uptime = process.uptime();
@@ -358,6 +360,7 @@ app.post("/session", async (req, res) => {
 
     res.json({ ok: true, message: "Session saved. Reconnecting bot..." });
 
+    waitingForSession = false;
     reconnectAttempts = 0;
     if (sockRef) {
       try { sockRef.ws.close(); } catch {}
@@ -384,6 +387,7 @@ app.post("/session/url", async (req, res) => {
 
     res.json({ ok: true, message: "Session loaded from URL. Reconnecting bot..." });
 
+    waitingForSession = false;
     reconnectAttempts = 0;
     if (sockRef) {
       try { sockRef.ws.close(); } catch {}
@@ -393,6 +397,67 @@ app.post("/session/url", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── Heroku config-var pusher ──────────────────────────────────────────────────
+// POST /api/heroku/config  { apiKey, appName, vars: { KEY: VALUE, ... } }
+app.post("/api/heroku/config", async (req, res) => {
+  const { apiKey, appName, vars } = req.body || {};
+  if (!apiKey || !appName || !vars || typeof vars !== "object") {
+    return res.status(400).json({ error: "Provide apiKey, appName, and vars object." });
+  }
+  try {
+    const response = await axios.patch(
+      `https://api.heroku.com/apps/${appName}/config-vars`,
+      vars,
+      {
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Accept": "application/vnd.heroku+json; version=3",
+          "Content-Type": "application/json",
+        },
+        timeout: 15000,
+      }
+    );
+    res.json({ ok: true, message: `Config vars updated on ${appName}`, vars: response.data });
+  } catch (err) {
+    const errMsg = err.response?.data?.message || err.message;
+    res.status(500).json({ error: errMsg });
+  }
+});
+
+// ── Heroku app list for auto-detect ──────────────────────────────────────────
+// GET /api/heroku/apps?apiKey=...
+app.get("/api/heroku/apps", async (req, res) => {
+  const apiKey = req.query.apiKey || req.headers["x-heroku-api-key"];
+  if (!apiKey) return res.status(400).json({ error: "Provide apiKey as query param or X-Heroku-Api-Key header." });
+  try {
+    const response = await axios.get("https://api.heroku.com/apps", {
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Accept": "application/vnd.heroku+json; version=3",
+      },
+      timeout: 15000,
+    });
+    res.json({ ok: true, apps: response.data.map(a => ({ name: a.name, url: a.web_url })) });
+  } catch (err) {
+    const errMsg = err.response?.data?.message || err.message;
+    res.status(500).json({ error: errMsg });
+  }
+});
+
+// ── Platform info API ─────────────────────────────────────────────────────────
+app.get("/api/platform", (req, res) => {
+  const plat = platform.get();
+  res.json({
+    platform: plat.name,
+    icon: plat.icon,
+    isPanel: plat.isPanel,
+    isHeroku: plat.name === "Heroku",
+    herokuAppName: process.env.HEROKU_APP_NAME || null,
+    waitingForSession,
+    botStatus,
+  });
 });
 
 // Redirect bare /pair to the external pairing site
@@ -530,6 +595,7 @@ async function startBot() {
   // Warn early when there are no credentials so the user knows what to do
   const hasCreds = state.creds && state.creds.me;
   if (!hasCreds) {
+    waitingForSession = true;
     let host;
     if (process.env.RAILWAY_STATIC_URL) {
       host = process.env.RAILWAY_STATIC_URL.startsWith("http")
@@ -540,13 +606,11 @@ async function startBot() {
     } else {
       host = `http://localhost:${PORT}`;
     }
-    console.log("⚠️  No WhatsApp session found.");
-    console.log(`🔗 Step 1 — Pair your number at: ${PAIR_SITE_URL}`);
-    console.log("   Enter your number → enter the code in WhatsApp → copy the session ID shown");
-    console.log(`🔗 Step 2 — POST any valid session here to connect instantly:`);
-    console.log(`   curl -X POST ${host}/session -H 'Content-Type: application/json' -d '{"session":"<session-id>"}'`);
-    console.log(`   Accepted: NEXUS-MD:~..., https:// URL, raw JSON creds, base64 creds`);
-    console.log(`   Or direct pair: ${host}/pair/YOUR_PHONE_NUMBER`);
+    console.log("⚠️  No WhatsApp session — waiting for setup.");
+    console.log(`🔗 Visit the dashboard to set up: ${host}/dashboard?tab=setup`);
+    console.log(`   Or POST session directly: curl -X POST ${host}/session -H 'Content-Type: application/json' -d '{"session":"<session-id>"}'`);
+  } else {
+    waitingForSession = false;
   }
 
   const { version } = await fetchLatestBaileysVersion();
@@ -603,6 +667,9 @@ async function startBot() {
         console.log("⚠️ Connection replaced (another device connected). Retrying in 30 s...");
         reconnectAttempts = 0;
         setTimeout(startBot, 30000);
+      } else if (waitingForSession) {
+        // No session yet — don't loop. Wait for the user to POST a session.
+        console.log(`⏳ No session configured. Visit /dashboard?tab=setup to get started.`);
       } else {
         const delay = reconnectDelay();
         console.log(`🔌 Connection closed (code: ${statusCode}). Reconnecting in ${Math.round(delay / 1000)}s (attempt ${reconnectAttempts})...`);
