@@ -5,6 +5,9 @@ auth_info_baileys/
 data/menu_combined.mp4
 data/menu_song.mp3
 
+# Private unobfuscated sources — NEVER commit these
+.private/
+
 # Replit IDE files — not needed on Heroku or GitHub
 .replit
 replit.nix
