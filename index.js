@@ -406,6 +406,36 @@ _server.on("error", (err) => {
   }
 });
 
+// ── Keep-alive self-ping (Heroku / Render Eco dynos sleep after 30 min) ──────
+// Set APP_URL to your app's public URL (e.g. https://mybot.herokuapp.com) to
+// enable automatic pinging so the dyno never idles.
+(function startKeepAlive() {
+  const appUrl = process.env.APP_URL;
+  const plat   = platform.get();
+  if (!appUrl || !plat.isSleepy) return;
+  const INTERVAL = 14 * 60 * 1000; // 14 minutes
+  setInterval(async () => {
+    try {
+      await axios.get(appUrl, { timeout: 10000 });
+      console.log(`💓 Keep-alive ping → ${appUrl}`);
+    } catch { /* silent — dyno still alive */ }
+  }, INTERVAL);
+  console.log(`💓 Keep-alive enabled (pinging ${appUrl} every 14 min)`);
+})();
+
+// ── Graceful shutdown (SIGTERM from panel stop / Heroku restart) ─────────────
+async function gracefulShutdown(signal) {
+  console.log(`\n🛑 ${signal} received — shutting down gracefully…`);
+  try { if (sockRef) await sockRef.end(); } catch {}
+  _server.close(() => {
+    console.log("✅ HTTP server closed. Goodbye!");
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(0), 8000); // force-exit after 8 s
+}
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT",  () => gracefulShutdown("SIGINT"));
+
 
 // ── Global console filter — suppress libsignal / Baileys decryption noise ──
 const _SIGNAL_NOISE = /Bad MAC|decrypt|session_cipher|libsignal|Session error|queue_job|Closing session|SessionEntry|chainKey|indexInfo|registrationId|ephemeralKey|ECONNREFUSED.*5432/i;
@@ -459,10 +489,12 @@ async function startBot() {
   const noop = () => {};
   const logger = { trace: noop, debug: noop, info: noop, warn: noop, error: noop, fatal: noop, child() { return this; }, level: "silent" };
 
+  const plat = platform.get();
   const sock = makeWASocket({
     version,
     logger,
-    printQRInTerminal: false,
+    // Show QR in terminal on panels/VPS; cloud platforms use web pairing UI
+    printQRInTerminal: plat.printQR || !!process.env.PRINT_QR,
     auth: {
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(state.keys, logger),
