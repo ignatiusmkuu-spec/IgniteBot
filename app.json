@@ -1,9 +1,14 @@
 {
-  "name": "IgniteBot",
-  "description": "Full-featured WhatsApp Bot with 30+ features: AI chat, sticker maker, media downloader, group management, e-commerce, booking system, analytics dashboard and more.",
-  "keywords": ["whatsapp", "bot", "nodejs", "baileys"],
+  "name": "NEXUS-MD",
+  "description": "Full-featured WhatsApp Bot — AI chat, sticker maker, media downloader, group management, antidelete, autocall block, analytics dashboard and more.",
+  "keywords": [
+    "whatsapp", "bot", "nodejs", "baileys", "whatsapp-bot",
+    "baileys-md", "bot-wa", "bot-md", "whatsapp-multi-device",
+    "sticker", "anime", "whatsapp-sticker-bot"
+  ],
   "repository": "https://github.com/ignatiusmkuu-spec/IgniteBot",
-  "logo": "",
+  "logo": "https://files.catbox.moe/0uzc42.jpg",
+  "website": "https://github.com/ignatiusmkuu-spec/IgniteBot#readme",
   "success_url": "/",
   "stack": "heroku-22",
   "addons": [
@@ -13,33 +18,63 @@
     }
   ],
   "env": {
+    "SESSION": {
+      "description": "Paste your SESSION_ID received after linking your WhatsApp — get it free at https://nexs-session-1.replit.app then paste here. Required for the bot to connect.",
+      "required": true,
+      "value": ""
+    },
     "SESSION_ID": {
-      "description": "Your WhatsApp session ID — must start with NEXUS-MD:~... Get it free at https://nexs-session-1.replit.app then paste it here.",
+      "description": "Same as SESSION — alternative key accepted. Paste your NEXUS-MD:~... session string here.",
       "required": false,
       "value": ""
     },
     "ADMIN_NUMBERS": {
       "description": "Comma-separated bot owner/admin phone numbers WITHOUT the + sign. Example: 254706535581,254781346242",
+      "required": true,
+      "value": ""
+    },
+    "BOTNAME": {
+      "description": "The display name for your bot. Example: NEXUS-MD",
+      "required": false,
+      "value": "NEXUS-MD"
+    },
+    "BAD_WORD": {
+      "description": "Comma-separated list of words that trigger the anti-badword kick. Example: fuck,pussy,slut,bitch",
+      "required": false,
+      "value": "fuck,pussy,slut,bitch,cock,stupid"
+    },
+    "MENU_TYPE": {
+      "description": "Menu display style — enter VIDEO, IMAGE or LINK.",
+      "required": false,
+      "value": "VIDEO"
+    },
+    "HEROKU_API": {
+      "description": "Your Heroku API key. Allows the bot to update its own config vars and restart dynos without redeploying. Get it from https://dashboard.heroku.com/account",
+      "required": false,
+      "value": ""
+    },
+    "DATABASE_URL": {
+      "description": "PostgreSQL connection string — auto-added by the Heroku Postgres add-on. Leave blank; Heroku fills this in automatically.",
       "required": false,
       "value": ""
     },
     "APP_URL": {
-      "description": "Auto-detected from your app name — leave blank. Only set this if you use a custom domain (e.g. https://mybot.herokuapp.com).",
+      "description": "Auto-detected from HEROKU_APP_NAME — leave blank unless you use a custom domain (e.g. https://mybot.herokuapp.com).",
       "required": false,
       "value": ""
     },
     "PAIR_SITE_URL": {
-      "description": "External pairing site for generating NEXUS-MD session IDs.",
+      "description": "External pairing site for generating session IDs.",
       "required": false,
       "value": "https://nexs-session-1.replit.app"
     },
     "PORT": {
-      "description": "HTTP port for the web dashboard. Heroku assigns this automatically. Panels: set to any open port (default: 5000).",
+      "description": "HTTP port for the web dashboard. Heroku assigns this automatically. For panels: default 5000.",
       "required": false,
       "value": "5000"
     },
     "PRINT_QR": {
-      "description": "Set to 'true' to force-print the WhatsApp QR code in the terminal/logs (useful on any platform where you have console access).",
+      "description": "Set to 'true' to print the WhatsApp QR code in the terminal (useful on VPS/panel with console access).",
       "required": false,
       "value": ""
     },
@@ -50,12 +85,9 @@
   },
   "features": ["dyno-metadata"],
   "buildpacks": [
-    {
-      "url": "https://github.com/jonathanong/heroku-buildpack-ffmpeg-latest.git"
-    },
-    {
-      "url": "heroku/nodejs"
-    }
+    { "url": "heroku/nodejs" },
+    { "url": "https://github.com/clhuang/heroku-buildpack-webp-binaries.git" },
+    { "url": "https://github.com/jonathanong/heroku-buildpack-ffmpeg-latest.git" }
   ],
   "formation": {
     "web": {

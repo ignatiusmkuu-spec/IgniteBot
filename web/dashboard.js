@@ -247,15 +247,21 @@ tr:last-child td{border-bottom:none}
     ⚠️ <strong>Bot not connected</strong> — fill in your details below to get started.
   </div>
 
-  <!-- QUICK SETUP (3 fields only) -->
+  <!-- QUICK SETUP -->
   <div class="setup-form">
     <h2>🚀 Quick Setup</h2>
-    <p>Fill in just three fields — the bot will connect and optionally push your config to Heroku automatically.</p>
+    <p>Fill in your details — the bot will connect and optionally push all config vars to Heroku automatically.</p>
 
-    <div class="form-group">
-      <label>📱 Your WhatsApp Phone Number</label>
-      <input type="tel" id="setupPhone" placeholder="e.g. 254706535581 (no + sign)" />
-      <div style="font-size:0.75rem;color:#484f58;margin-top:4px">Country code + number, no spaces or + symbol</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>📱 Owner Phone Number</label>
+        <input type="tel" id="setupPhone" placeholder="254706535581 (no + sign)" />
+        <div style="font-size:0.75rem;color:#484f58;margin-top:4px">Country code + number, no spaces or + symbol</div>
+      </div>
+      <div class="form-group">
+        <label>🤖 Bot Name</label>
+        <input type="text" id="setupBotname" placeholder="NEXUS-MD" value="NEXUS-MD" />
+      </div>
     </div>
 
     <div class="form-group">
@@ -266,12 +272,28 @@ tr:last-child td{border-bottom:none}
       </div>
     </div>
 
+    <div class="form-row">
+      <div class="form-group">
+        <label>🚫 Bad Words (comma-separated)</label>
+        <input type="text" id="setupBadword" placeholder="fuck,pussy,slut,bitch" value="fuck,pussy,slut,bitch,cock,stupid" />
+        <div style="font-size:0.75rem;color:#484f58;margin-top:4px">Members sending these words will be kicked</div>
+      </div>
+      <div class="form-group">
+        <label>📋 Menu Type</label>
+        <select id="setupMenuType">
+          <option value="VIDEO">VIDEO — animated video menu</option>
+          <option value="IMAGE">IMAGE — static image menu</option>
+          <option value="LINK">LINK — text link menu</option>
+        </select>
+      </div>
+    </div>
+
     <!-- Platform selector -->
     <div class="form-group">
       <label>🌍 Deployment Platform</label>
       <select id="setupPlatform" onchange="onPlatformChange()">
         <option value="local">Local / Replit / VPS (apply session only)</option>
-        <option value="heroku">Heroku (auto-push config vars)</option>
+        <option value="heroku">Heroku (auto-push all config vars)</option>
       </select>
     </div>
 
@@ -296,7 +318,6 @@ tr:last-child td{border-bottom:none}
       </div>
       <div id="herokuAppList" style="margin-top:10px;font-size:0.8rem;color:#8b949e"></div>
       <div style="margin-top:12px">
-        <label style="font-size:0.75rem;color:#8b949e;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px">Additional Config Vars (optional)</label>
         <div class="form-row">
           <div class="form-group" style="margin-bottom:0">
             <label style="text-transform:none;letter-spacing:0">NODE_ENV</label>
@@ -520,6 +541,9 @@ async function fetchHerokuApps() {
 async function applySetup() {
   const phone = (document.getElementById('setupPhone').value||'').replace(/\\D/g,'').trim();
   const sessionId = (document.getElementById('setupSessionId').value||'').trim();
+  const botname = (document.getElementById('setupBotname').value||'NEXUS-MD').trim();
+  const badword = (document.getElementById('setupBadword').value||'').trim();
+  const menuType = (document.getElementById('setupMenuType').value||'VIDEO').trim();
   const platform = document.getElementById('setupPlatform').value;
   const resultEl = document.getElementById('setupResult');
 
@@ -555,9 +579,16 @@ async function applySetup() {
       return;
     }
     resultEl.innerHTML += '<br><span style="color:#8b949e">⏳ Pushing config vars to Heroku...</span>';
-    const vars = { SESSION_ID: sessionId };
-    if (phone) vars.ADMIN_NUMBERS = phone;
-    const nodeEnv = (document.getElementById('cfgNodeEnv').value||'').trim();
+    const vars = {
+      SESSION: sessionId,
+      SESSION_ID: sessionId,
+      BOTNAME: botname,
+    };
+    if (phone) { vars.ADMIN_NUMBERS = phone; }
+    if (badword) vars.BAD_WORD = badword;
+    vars.MENU_TYPE = menuType;
+    vars.HEROKU_API = apiKey;
+    const nodeEnv = (document.getElementById('cfgNodeEnv').value||'production').trim();
     const pairSite = (document.getElementById('cfgPairSite').value||'').trim();
     if (nodeEnv) vars.NODE_ENV = nodeEnv;
     if (pairSite) vars.PAIR_SITE_URL = pairSite;
@@ -582,10 +613,12 @@ async function applySetup() {
 }
 
 function clearSetup() {
-  ['setupPhone','setupSessionId','herokuApiKey','herokuAppName'].forEach(id => {
+  ['setupPhone','setupSessionId','herokuApiKey','herokuAppName','setupBadword'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  const bn = document.getElementById('setupBotname');
+  if (bn) bn.value = 'NEXUS-MD';
   document.getElementById('setupResult').innerHTML = '';
   document.getElementById('herokuAppList').innerHTML = '';
 }
@@ -593,6 +626,9 @@ function clearSetup() {
 function generateHerokuFill() {
   const phone = (document.getElementById('setupPhone').value||'').replace(/\\D/g,'').trim();
   const sessionId = (document.getElementById('setupSessionId').value||'').trim();
+  const botname = (document.getElementById('setupBotname').value||'NEXUS-MD').trim();
+  const badword = (document.getElementById('setupBadword').value||'fuck,pussy,slut,bitch,cock,stupid').trim();
+  const menuType = (document.getElementById('setupMenuType').value||'VIDEO').trim();
   const out = document.getElementById('herokuFillOutput');
 
   if (!sessionId && !phone) {
@@ -601,10 +637,15 @@ function generateHerokuFill() {
   }
 
   const rows = [
-    { key: 'SESSION_ID', val: sessionId || '(fill in your session ID)', note: 'Required — your WhatsApp session' },
-    { key: 'ADMIN_NUMBERS', val: phone || '(your phone number)', note: 'Your number without +' },
+    { key: 'SESSION', val: sessionId || '(paste your session ID)', note: 'Required — your WhatsApp session' },
+    { key: 'SESSION_ID', val: sessionId || '(paste your session ID)', note: 'Alternative key' },
+    { key: 'ADMIN_NUMBERS', val: phone || '(your phone without +)', note: 'Owner number(s)' },
+    { key: 'BOTNAME', val: botname, note: 'Bot display name' },
+    { key: 'BAD_WORD', val: badword, note: 'Words that trigger kick' },
+    { key: 'MENU_TYPE', val: menuType, note: 'VIDEO, IMAGE or LINK' },
     { key: 'NODE_ENV', val: 'production', note: 'Runtime environment' },
     { key: 'PAIR_SITE_URL', val: 'https://nexs-session-1.replit.app', note: 'Pairing site' },
+    { key: 'HEROKU_API', val: (document.getElementById('herokuApiKey').value||'').trim() || '(your Heroku API key)', note: 'For auto-restart/update' },
   ];
 
   out.innerHTML = \`
