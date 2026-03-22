@@ -1617,6 +1617,38 @@ async function startBot() {
           return;
         }
 
+        // ── .enc / .encrypte ───────────────────────────────────────────────
+        if (_cmd === "enc" || _cmd === "encrypte") {
+          if (!msg.quoted?.body) {
+            await sock.sendMessage(from, {
+              text: "❌ Quote/Tag a valid JavaScript code to encrypt!",
+            }, { quoted: msg });
+            return;
+          }
+          try {
+            const Obf = require("javascript-obfuscator");
+            const result = Obf.obfuscate(msg.quoted.body, {
+              compact: true,
+              controlFlowFlattening: true,
+              controlFlowFlatteningThreshold: 1,
+              numbersToExpressions: true,
+              simplify: true,
+              stringArrayShuffle: true,
+              splitStrings: true,
+              stringArrayThreshold: 1,
+            });
+            console.log("Successfully encrypted the code");
+            await sock.sendMessage(from, {
+              text: result.getObfuscatedCode(),
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, {
+              text: `❌ Failed to encrypt: ${e.message}`,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .block ─────────────────────────────────────────────────────────
         if (_cmd === "block") {
           if (!_isOwner) {
@@ -1730,6 +1762,9 @@ async function startBot() {
             `║\n` +
             `║  ◈ ✅ *${_mPfx}unblock*\n` +
             `║     Reply to / mention a user to unblock them\n` +
+            `║\n` +
+            `║  ◈ 🔐 *${_mPfx}enc*\n` +
+            `║     Reply to JS code to obfuscate/encrypt it\n` +
             `║\n` +
             `╚════════════════════════════════╝`,
         }, { quoted: msg });
