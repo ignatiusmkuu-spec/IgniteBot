@@ -3305,7 +3305,7 @@ async function startBot() {
               `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
               `┏━━━━━━━━━━━━━━━━━━━━━━┓\n` +
               `  ⚡ *NEXUS TECH SYSTEM*\n` +
-              `  🔹 Power • Speed • AI\n` +
+              `  🔹 Powered by Ignatius Perez\n` +
               `┗━━━━━━━━━━━━━━━━━━━━━━┛`;
 
             // Send menu song FIRST, then gif/video + menu text caption
