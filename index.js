@@ -456,6 +456,37 @@ app.post("/api/heroku/config", async (req, res) => {
   }
 });
 
+// ── Heroku app creator ───────────────────────────────────────────────────────
+// POST /api/heroku/create  { apiKey, appName, region, vars: { KEY: VALUE, ... } }
+app.post("/api/heroku/create", async (req, res) => {
+  const { apiKey, appName, region, vars } = req.body || {};
+  if (!apiKey) return res.status(400).json({ error: "Heroku API key is required." });
+  const headers = {
+    "Authorization": `Bearer ${apiKey}`,
+    "Accept": "application/vnd.heroku+json; version=3",
+    "Content-Type": "application/json",
+  };
+  try {
+    // Step 1: create the app
+    const createPayload = { stack: "heroku-22" };
+    if (appName) createPayload.name = appName.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+    if (region === "eu") createPayload.region = "eu";
+    const createResp = await axios.post("https://api.heroku.com/apps", createPayload, { headers, timeout: 20000 });
+    const createdName = createResp.data.name;
+    const webUrl = createResp.data.web_url;
+
+    // Step 2: push config vars if any
+    if (vars && typeof vars === "object" && Object.keys(vars).length) {
+      await axios.patch(`https://api.heroku.com/apps/${createdName}/config-vars`, vars, { headers, timeout: 15000 });
+    }
+
+    res.json({ ok: true, appName: createdName, webUrl, message: `App ${createdName} created and config vars set.` });
+  } catch (err) {
+    const errMsg = err.response?.data?.message || err.response?.data?.id || err.message;
+    res.status(500).json({ error: errMsg });
+  }
+});
+
 // ── Heroku app list for auto-detect ──────────────────────────────────────────
 // GET /api/heroku/apps?apiKey=...
 app.get("/api/heroku/apps", async (req, res) => {

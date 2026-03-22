@@ -10,6 +10,10 @@ router.get("/dashboard", (req, res) => {
   res.send(getDashboardHTML(tab));
 });
 
+router.get("/add-session", (req, res) => {
+  res.redirect("/dashboard?tab=add");
+});
+
 router.get("/api/stats", async (req, res) => {
   const stats = await analytics.getStats();
   const topCommands = await analytics.getTopCommands(10);
@@ -49,6 +53,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .tab.active{color:#58a6ff;border-bottom-color:#58a6ff;font-weight:600}
 .tab.setup-tab{color:#d29922}
 .tab.setup-tab.active{color:#d29922;border-bottom-color:#d29922}
+.tab.add-tab{color:#3fb950}
+.tab.add-tab.active{color:#3fb950;border-bottom-color:#3fb950}
 .container{max-width:1200px;margin:0 auto;padding:24px 32px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:24px}
 .card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:20px}
@@ -128,6 +134,7 @@ tr:last-child td{border-bottom:none}
   <a class="tab ${activeTab === "overview" ? "active" : ""}" href="/dashboard?tab=overview">📊 Overview</a>
   <a class="tab ${activeTab === "session" ? "active" : ""}" href="/dashboard?tab=session">🔑 Session ID</a>
   <a class="tab setup-tab ${activeTab === "setup" ? "active" : ""}" href="/dashboard?tab=setup">⚙️ Setup</a>
+  <a class="tab add-tab ${activeTab === "add" ? "active" : ""}" href="/dashboard?tab=add">➕ Add Session</a>
 </div>
 
 <div class="container">
@@ -367,7 +374,156 @@ tr:last-child td{border-bottom:none}
 
 </div><!-- /tabSetup -->
 
-</div><!-- /container -->
+<!-- ADD SESSION TAB -->
+<div id="tabAdd" style="display:${activeTab === "add" ? "block" : "none"}">
+
+  <div class="setup-form">
+    <h2>➕ Add Session / Deploy New App</h2>
+    <p>Create a brand-new Heroku app with your bot config, or just apply a session to this running bot. Fill in the fields below and click <strong>Deploy App</strong>.</p>
+  </div>
+
+  <!-- App Name + Region -->
+  <div class="setup-form">
+    <h2 style="margin-bottom:6px">🏷 App Details</h2>
+    <p>Leave the app name blank and Heroku will auto-generate one.</p>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>App Name</label>
+        <input type="text" id="addAppName" placeholder="my-nexus-bot (optional)" />
+        <div style="font-size:0.75rem;color:#484f58;margin-top:4px">Lowercase letters, numbers, and hyphens only</div>
+      </div>
+      <div class="form-group">
+        <label>Heroku API Key <span style="color:#f85149">*</span></label>
+        <input type="password" id="addHerokuKey" placeholder="Your Heroku API key" />
+        <div style="font-size:0.75rem;color:#484f58;margin-top:4px">
+          <a href="https://dashboard.heroku.com/account" target="_blank" style="color:#58a6ff">Get it from Account Settings →</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Location -->
+    <div class="form-group">
+      <label>Location</label>
+      <p style="font-size:0.82rem;color:#8b949e;margin-bottom:12px">Choose a Common Runtime region for this app.</p>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <label style="display:flex;align-items:center;gap:12px;background:#0d1117;border:2px solid #388bfd;border-radius:8px;padding:14px 18px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:0.9rem">
+          <input type="radio" name="addRegion" value="us" checked style="accent-color:#388bfd;width:16px;height:16px" />
+          <span style="flex:1"><strong style="color:#e6edf3">Common Runtime</strong><br><span style="font-size:0.78rem;color:#8b949e">CEDAR</span></span>
+          <span style="font-size:1.2rem">🇺🇸</span><span style="color:#8b949e">United States</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:12px;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px 18px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:0.9rem" id="euRegionLabel">
+          <input type="radio" name="addRegion" value="eu" style="accent-color:#388bfd;width:16px;height:16px" onchange="updateRegionStyle()" />
+          <span style="flex:1"><strong style="color:#e6edf3">Common Runtime</strong><br><span style="font-size:0.78rem;color:#8b949e">CEDAR</span></span>
+          <span style="font-size:1.2rem">🇮🇪</span><span style="color:#8b949e">Europe</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resources info -->
+  <div class="setup-form">
+    <h2 style="margin-bottom:6px">📦 Resources</h2>
+    <p style="font-size:0.85rem;color:#8b949e;margin-bottom:16px">These resources will be provisioned when the app deploys. Heroku resources are prorated to the second — you only pay for the resources you use.</p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:12px 16px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:1.2rem">🌐</span>
+          <div><div style="font-size:0.9rem;color:#e6edf3">web</div><div style="font-size:0.78rem;color:#8b949e">Standard-1X dyno</div></div>
+        </div>
+        <span style="color:#8b949e;font-size:0.85rem">~$0.035/hour</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:12px 16px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:1.2rem">🐘</span>
+          <div><div style="font-size:0.9rem;color:#e6edf3">Heroku Postgres</div><div style="font-size:0.78rem;color:#8b949e">Essential 0 add-on</div></div>
+        </div>
+        <span style="color:#8b949e;font-size:0.85rem">~$0.007/hour</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Config Vars -->
+  <div class="setup-form">
+    <h2 style="margin-bottom:6px">⚙️ Config Vars</h2>
+    <p style="font-size:0.85rem;color:#8b949e;margin-bottom:20px">These are the environment variables set on your new Heroku app. Required fields must be filled.</p>
+
+    <div class="form-group">
+      <label>ADMIN_NUMBERS <span style="color:#f85149;font-size:0.75rem;background:#3a1a1a;padding:2px 6px;border-radius:4px;margin-left:4px">Required</span></label>
+      <div style="font-size:0.78rem;color:#8b949e;margin-bottom:6px">Your WhatsApp number WITHOUT the + sign. This makes you the bot owner. Example: 254706535581. Multiple owners: 254706535581,254781346242</div>
+      <input type="tel" id="addAdminNumbers" placeholder="254706535581" />
+    </div>
+
+    <div class="form-group">
+      <label>SESSION_ID <span style="color:#f85149;font-size:0.75rem;background:#3a1a1a;padding:2px 6px;border-radius:4px;margin-left:4px">Required</span></label>
+      <div style="font-size:0.78rem;color:#8b949e;margin-bottom:6px">Your WhatsApp session ID. Don't have one? <a href="https://nexs-session-1.replit.app" target="_blank" style="color:#58a6ff">Get a free session ID here →</a></div>
+      <input type="text" id="addSessionId" placeholder="NEXUS-MD:~..." />
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-gray" style="font-size:0.78rem;padding:6px 12px" onclick="fillAddSessionFromBot()">📋 Use current bot session</button>
+        <button class="btn btn-gray" style="font-size:0.78rem;padding:6px 12px" onclick="window.open('https://nexs-session-1.replit.app','_blank')">🌐 Get session ID</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>BOTNAME</label>
+      <div style="font-size:0.78rem;color:#8b949e;margin-bottom:6px">Your bot display name shown in menus and messages.</div>
+      <input type="text" id="addBotname" value="NEXUS-MD" placeholder="NEXUS-MD" />
+    </div>
+
+    <div class="form-group">
+      <label>DATABASE_URL</label>
+      <div style="font-size:0.78rem;color:#8b949e;margin-bottom:6px">PostgreSQL connection string — automatically filled in by the Heroku Postgres add-on above. Leave this blank.</div>
+      <input type="text" id="addDatabaseUrl" placeholder="(auto-filled by Heroku Postgres — leave blank)" disabled style="opacity:0.5;cursor:not-allowed" />
+    </div>
+
+    <div class="form-group">
+      <label>BAD_WORD</label>
+      <div style="font-size:0.78rem;color:#8b949e;margin-bottom:6px">Comma-separated list of words that will get a member kicked from the group.</div>
+      <input type="text" id="addBadword" value="fuck,pussy,slut,bitch,cock,stupid" placeholder="fuck,pussy,slut,bitch" />
+    </div>
+
+    <div class="form-group">
+      <label>MENU_TYPE</label>
+      <div style="font-size:0.78rem;color:#8b949e;margin-bottom:6px">How the bot serves the .menu command.</div>
+      <select id="addMenuType">
+        <option value="VIDEO">VIDEO — animated video menu</option>
+        <option value="IMAGE">IMAGE — static image menu</option>
+        <option value="LINK">LINK — text link menu</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>PAIR_SITE_URL</label>
+      <div style="font-size:0.78rem;color:#8b949e;margin-bottom:6px">External pairing site for generating Session IDs.</div>
+      <input type="text" id="addPairSite" value="https://nexs-session-1.replit.app" />
+    </div>
+
+    <div style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-green" style="padding:12px 28px;font-size:1rem" onclick="deployHerokuApp()">🚀 Deploy App</button>
+      <button class="btn btn-blue" onclick="applyAddSessionLocal()">⚡ Apply Session to This Bot Only</button>
+      <button class="btn btn-gray" onclick="clearAddForm()">🗑 Clear</button>
+    </div>
+
+    <div id="addResult" style="margin-top:18px;font-size:0.88rem;min-height:24px;line-height:1.7"></div>
+  </div>
+
+  <!-- Success box (hidden until deploy) -->
+  <div id="addSuccessBox" style="display:none" class="setup-form">
+    <h2 style="color:#3fb950;margin-bottom:10px">✅ App Deployed!</h2>
+    <div class="info-grid">
+      <div class="info-item"><div class="label">App Name</div><div class="val" id="addSuccessName" style="color:#3fb950">—</div></div>
+      <div class="info-item"><div class="label">App URL</div><div class="val" id="addSuccessUrl" style="font-size:0.9rem">—</div></div>
+    </div>
+    <div class="alert alert-success" style="margin-top:14px">
+      ✅ Your Heroku app is deploying. It may take 2-3 minutes to come online. Visit the URL above once it's ready.
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-blue" onclick="window.open(document.getElementById('addSuccessUrl').textContent,'_blank')">🌐 Open App</button>
+      <a class="btn btn-gray" href="https://dashboard.heroku.com" target="_blank">🟣 Heroku Dashboard</a>
+    </div>
+  </div>
+
+</div><!-- /tabAdd -->
 
 <div class="toast" id="toast"></div>
 
@@ -686,6 +842,131 @@ function generateHerokuFill() {
   \`;
 }
 
+// ---- ADD SESSION TAB ----
+function updateRegionStyle() {
+  const radios = document.querySelectorAll('input[name="addRegion"]');
+  radios.forEach(r => {
+    const label = r.closest('label');
+    if (r.checked) {
+      label.style.border = '2px solid #388bfd';
+      label.style.background = '#0d1117';
+    } else {
+      label.style.border = '1px solid #30363d';
+      label.style.background = '#161b22';
+    }
+  });
+}
+
+// Wire up region radios after DOM loads
+document.querySelectorAll('input[name="addRegion"]').forEach(r => r.addEventListener('change', updateRegionStyle));
+
+async function fillAddSessionFromBot() {
+  try {
+    const d = await fetch('/api/session').then(r => r.json());
+    if (d.sessionId) {
+      document.getElementById('addSessionId').value = d.sessionId;
+      toast('✅ Session filled from bot!', '#238636');
+    } else {
+      toast('⚠️ No active session yet — pair the bot first.', '#d29922');
+    }
+    if (d.phone) {
+      const phone = d.phone.replace('@s.whatsapp.net', '').replace(':', '').replace(/\\D/g, '');
+      const adminEl = document.getElementById('addAdminNumbers');
+      if (adminEl && !adminEl.value) adminEl.value = phone;
+    }
+  } catch(e) {
+    toast('❌ Could not load session: ' + e.message, '#b62324');
+  }
+}
+
+async function deployHerokuApp() {
+  const apiKey    = (document.getElementById('addHerokuKey').value || '').trim();
+  const appName   = (document.getElementById('addAppName').value || '').trim();
+  const region    = document.querySelector('input[name="addRegion"]:checked')?.value || 'us';
+  const admin     = (document.getElementById('addAdminNumbers').value || '').replace(/\\D/g, '').trim();
+  const sessionId = (document.getElementById('addSessionId').value || '').trim();
+  const botname   = (document.getElementById('addBotname').value || 'NEXUS-MD').trim();
+  const badword   = (document.getElementById('addBadword').value || '').trim();
+  const menuType  = (document.getElementById('addMenuType').value || 'VIDEO');
+  const pairSite  = (document.getElementById('addPairSite').value || '').trim();
+  const resultEl  = document.getElementById('addResult');
+
+  if (!apiKey) { resultEl.innerHTML = '<span style="color:#f85149">❌ Heroku API key is required.</span>'; return; }
+  if (!admin)  { resultEl.innerHTML = '<span style="color:#f85149">❌ ADMIN_NUMBERS is required.</span>'; return; }
+  if (!sessionId) { resultEl.innerHTML = '<span style="color:#f85149">❌ SESSION_ID is required.</span>'; return; }
+
+  resultEl.innerHTML = '<span style="color:#8b949e">⏳ Creating Heroku app… this may take 15-30 seconds…</span>';
+  document.getElementById('addSuccessBox').style.display = 'none';
+
+  const vars = {
+    ADMIN_NUMBERS: admin,
+    SESSION_ID: sessionId,
+    SESSION: sessionId,
+    BOTNAME: botname,
+    MENU_TYPE: menuType,
+    HEROKU_API: apiKey,
+  };
+  if (badword) vars.BAD_WORD = badword;
+  if (pairSite) vars.PAIR_SITE_URL = pairSite;
+
+  try {
+    const r = await fetch('/api/heroku/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey, appName: appName || undefined, region, vars }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      resultEl.innerHTML = \`<span style="color:#3fb950">✅ App <strong>\${d.appName}</strong> created! Config vars pushed. Dyno is starting…</span>\`;
+      toast('✅ Heroku app deployed!', '#238636');
+      document.getElementById('addSuccessName').textContent = d.appName;
+      document.getElementById('addSuccessUrl').textContent = d.webUrl;
+      document.getElementById('addSuccessBox').style.display = 'block';
+    } else {
+      resultEl.innerHTML = '<span style="color:#f85149">❌ Heroku error: ' + (d.error || 'Unknown') + '</span>';
+    }
+  } catch(e) {
+    resultEl.innerHTML = '<span style="color:#f85149">❌ Network error: ' + e.message + '</span>';
+  }
+}
+
+async function applyAddSessionLocal() {
+  const sessionId = (document.getElementById('addSessionId').value || '').trim();
+  const resultEl  = document.getElementById('addResult');
+  if (!sessionId) { resultEl.innerHTML = '<span style="color:#f85149">❌ Enter a Session ID first.</span>'; return; }
+  resultEl.innerHTML = '<span style="color:#8b949e">⏳ Applying session to this bot…</span>';
+  try {
+    const r = await fetch('/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session: sessionId }),
+    });
+    const d = await r.json();
+    if (d.ok || !d.error) {
+      resultEl.innerHTML = '<span style="color:#3fb950">✅ Session applied — bot is reconnecting. Check the Overview tab for status.</span>';
+      toast('✅ Session applied!', '#238636');
+    } else {
+      resultEl.innerHTML = '<span style="color:#f85149">❌ ' + (d.error || 'Unknown error') + '</span>';
+    }
+  } catch(e) {
+    resultEl.innerHTML = '<span style="color:#f85149">❌ Network error: ' + e.message + '</span>';
+  }
+}
+
+function clearAddForm() {
+  ['addAppName','addHerokuKey','addAdminNumbers','addSessionId','addBadword'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const bn = document.getElementById('addBotname');
+  if (bn) bn.value = 'NEXUS-MD';
+  document.getElementById('addResult').innerHTML = '';
+  document.getElementById('addSuccessBox').style.display = 'none';
+  // reset region to US
+  const usRadio = document.querySelector('input[name="addRegion"][value="us"]');
+  if (usRadio) { usRadio.checked = true; updateRegionStyle(); }
+}
+
 // ---- OVERVIEW TAB ----
 async function loadOverview() {
   try {
@@ -748,6 +1029,10 @@ if (activeTab === 'session') {
 } else if (activeTab === 'setup') {
   loadSession();
   setInterval(loadPlatform, 10000);
+} else if (activeTab === 'add') {
+  // Pre-fill session from bot if available
+  fillAddSessionFromBot();
+  setInterval(loadPlatform, 15000);
 } else {
   loadOverview();
   setInterval(loadOverview, 10000);
