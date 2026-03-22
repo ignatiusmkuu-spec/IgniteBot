@@ -1663,6 +1663,162 @@ async function startBot() {
           return;
         }
 
+        // ── .inbox — fetch temp-mail messages ───────────────────────────────
+        if (_cmd === "inbox") {
+          if (!_args.trim()) {
+            await sock.sendMessage(from, {
+              text: `📬 Usage: \`${_pfx}inbox <your-tempmail-address>\``,
+            }, { quoted: msg });
+            return;
+          }
+          try {
+            const res = await axios.get(
+              `https://tempmail.apinepdev.workers.dev/api/getmessage?email=${encodeURIComponent(_args.trim())}`,
+              { timeout: 15000 }
+            );
+            const data = res.data;
+            if (!data?.messages?.length) {
+              await sock.sendMessage(from, {
+                text: "📭 No messages found. Your inbox might be empty.",
+              }, { quoted: msg });
+              return;
+            }
+            for (const message of data.messages) {
+              const sender  = message.sender;
+              const subject = message.subject;
+              let body = "", date = "";
+              try {
+                const parsed = JSON.parse(message.message);
+                body = parsed.body || "";
+                date = parsed.date ? new Date(parsed.date).toLocaleString() : "";
+              } catch { body = message.message || ""; }
+              await sock.sendMessage(from, {
+                text: `👥 *Sender:* ${sender}\n📝 *Subject:* ${subject}\n🕜 *Date:* ${date}\n📩 *Message:*\n${body}`,
+              }, { quoted: msg });
+            }
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Failed to fetch inbox: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .save — save a WhatsApp status to your DM (owner only) ──────────
+        if (_cmd === "save") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ This command is for the owner only." }, { quoted: msg });
+            return;
+          }
+          const qMsg  = msg.quoted?.message || null;
+          const qChat = msg.quoted?.key?.remoteJid || "";
+          if (!qMsg || !qChat.includes("status@broadcast")) {
+            await sock.sendMessage(from, {
+              text: "❌ Reply to a *status* message to save it.",
+            }, { quoted: msg });
+            return;
+          }
+          try {
+            const qType = Object.keys(qMsg)[0];
+            const isImage = qType === "imageMessage";
+            const isVideo = qType === "videoMessage";
+            if (!isImage && !isVideo) {
+              await sock.sendMessage(from, {
+                text: "❌ Only image and video statuses can be saved.",
+              }, { quoted: msg });
+              return;
+            }
+            const mediaBuf = await downloadMediaMessage(
+              { key: msg.quoted.key, message: qMsg },
+              "buffer", {}
+            );
+            const caption = qMsg[qType]?.caption || "Saved from status";
+            if (isImage) {
+              await sock.sendMessage(senderJid, { image: mediaBuf, caption });
+            } else {
+              await sock.sendMessage(senderJid, { video: mediaBuf, caption });
+            }
+            await sock.sendMessage(from, { react: { text: "🦹‍♂️", key: msg.key } });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Failed to save status: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .velma — AI chatbot via bk9.dev (Llama) ─────────────────────────
+        if (_cmd === "velma") {
+          if (!_args.trim()) {
+            await sock.sendMessage(from, {
+              text: `🤖 Hello! I'm Velma AI. How can I help you?\n\nUsage: \`${_pfx}velma <question>\``,
+            }, { quoted: msg });
+            return;
+          }
+          try {
+            const res = await axios.get(
+              `https://api.bk9.dev/ai/llama?q=${encodeURIComponent(_args.trim())}`,
+              { timeout: 30000 }
+            );
+            const answer = res.data?.BK9;
+            if (!answer) throw new Error("No response from AI");
+            await sock.sendMessage(from, { text: answer }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, {
+              text: "❌ An error occurred while fetching the AI response. Please try again.",
+            }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .epl / .epl-table — Premier League standings ────────────────────
+        if (_cmd === "epl" || _cmd === "epl-table") {
+          try {
+            const res = await axios.get("https://api.dreaded.site/api/standings/PL", { timeout: 15000 });
+            const standings = res.data?.data;
+            if (!standings) throw new Error("No data returned");
+            await sock.sendMessage(from, {
+              text: `*Current EPL Table Standings:*\n\n${standings}`,
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, {
+              text: "❌ Unable to fetch EPL standings. Please try again.",
+            }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .hacker2 — hacker image overlay effect ───────────────────────────
+        if (_cmd === "hacker2") {
+          const qMsg  = msg.quoted?.message || null;
+          const qType = qMsg ? Object.keys(qMsg)[0] : null;
+          if (!qMsg || qType !== "imageMessage") {
+            await sock.sendMessage(from, {
+              text: "👋 Quote a clear image (of yourself or a person) to apply the hacker effect.",
+            }, { quoted: msg });
+            return;
+          }
+          let tmpPath = null;
+          try {
+            const mediaBuf = await downloadMediaMessage(
+              { key: msg.quoted.key, message: qMsg },
+              "buffer", {}
+            );
+            tmpPath = path.join(process.cwd(), "data", `hacker2_${Date.now()}.jpg`);
+            fs.writeFileSync(tmpPath, mediaBuf);
+            const uploadtoimgur = require("./lib/imgur");
+            const imgurUrl      = await uploadtoimgur(tmpPath);
+            const resultUrl     = `https://aemt.me/hacker2?link=${encodeURIComponent(imgurUrl)}`;
+            await sock.sendMessage(from, {
+              image: { url: resultUrl },
+              caption: "Converted by *NEXUS MD*! 🦄",
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Hacker effect failed: ${e.message}` }, { quoted: msg });
+          } finally {
+            if (tmpPath && fs.existsSync(tmpPath)) {
+              try { fs.unlinkSync(tmpPath); } catch {}
+            }
+          }
+          return;
+        }
+
         // ── .pinterest / .pin — download Pinterest image or video ──────────
         if (_cmd === "pinterest" || _cmd === "pin") {
           if (!_args.trim()) {
@@ -2445,6 +2601,21 @@ async function startBot() {
             `║\n` +
             `║  ◈ 🔒 *${_mPfx}close / ${_mPfx}mute*\n` +
             `║     Lock group — only admins can send messages\n` +
+            `║\n` +
+            `║  ◈ 📬 *${_mPfx}inbox <email>*\n` +
+            `║     Fetch messages from a temp-mail inbox\n` +
+            `║\n` +
+            `║  ◈ 💾 *${_mPfx}save*\n` +
+            `║     Reply to a status to save it to your DM (owner)\n` +
+            `║\n` +
+            `║  ◈ 🤖 *${_mPfx}velma <question>*\n` +
+            `║     Chat with Velma AI (Llama-powered)\n` +
+            `║\n` +
+            `║  ◈ ⚽ *${_mPfx}epl / ${_mPfx}epl-table*\n` +
+            `║     Show current Premier League standings\n` +
+            `║\n` +
+            `║  ◈ 🖥️ *${_mPfx}hacker2*\n` +
+            `║     Apply hacker effect to a quoted image\n` +
             `║\n` +
             `╚════════════════════════════════╝`,
         }, { quoted: msg });
