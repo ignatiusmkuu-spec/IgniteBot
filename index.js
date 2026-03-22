@@ -1367,6 +1367,47 @@ async function startBot() {
           return;
         }
 
+        // ── .crt — creator card ────────────────────────────────────────────
+        if (_cmd === "crt" || _cmd === "creator") {
+          try {
+            const _bannerPath = path.join(process.cwd(), "assets", "repo-banner.jpg");
+            const _drillPath  = path.join(process.cwd(), "attached_assets", "ignatius_drill_1774096946211.mp3");
+            const _caption =
+              `╔══════════════════════════╗\n` +
+              `║   🔥 *IGNATIUS DRILL* 🔥   ║\n` +
+              `╚══════════════════════════╝\n\n` +
+              `🤖 *${settings.get("botName") || "NEXUS-MD"}*\n` +
+              `${"─".repeat(30)}\n\n` +
+              `✨ *I'm proudly made by*\n` +
+              `👨‍💻 *IGNATIUS PEREZ*\n\n` +
+              `💚 Support us by forking our repo on GitHub!\n\n` +
+              `🔗 *GitHub:*\n` +
+              `https://github.com/ignatiusmkuu-spec/IgniteBot\n\n` +
+              `⭐ _Star the repo • Fork it • Share it_\n` +
+              `${"─".repeat(30)}\n` +
+              `_Built with ❤️ by Ignatius Perez_`;
+
+            if (fs.existsSync(_bannerPath)) {
+              await sock.sendMessage(from, {
+                image:   fs.readFileSync(_bannerPath),
+                caption: _caption,
+              }, { quoted: msg });
+            } else {
+              await sock.sendMessage(from, { text: _caption }, { quoted: msg });
+            }
+            if (fs.existsSync(_drillPath)) {
+              await sock.sendMessage(from, {
+                audio:    fs.readFileSync(_drillPath),
+                mimetype: "audio/mpeg",
+                fileName: "Ignatius Drill.mp3",
+              }, { quoted: msg });
+            }
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Creator card error: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .setmenuvideo ──────────────────────────────────────────────────
         if (_cmd === "setmenuvideo") {
           if (!admin.isSuperAdmin(senderJid)) {
