@@ -1044,14 +1044,26 @@ async function startBot() {
     const shouldRecord = isVoiceOrAudio && settings.get("autoRecording");
     const shouldType   = !isVoiceOrAudio && settings.get("autoTyping");
     const presenceType = shouldRecord ? "recording" : "composing";
+
+    // Helper: send presence with error visibility instead of silent swallow
+    const _sendPresence = (type, toJid) =>
+      sock.sendPresenceUpdate(type, toJid).catch(err =>
+        console.warn(`[PRESENCE] ${type} → ${toJid?.split("@")[0]} failed: ${err.message}`)
+      );
+
     // Re-send presence every 10 s (WhatsApp clears it after ~25 s if not renewed)
     let presenceInterval = null;
     if (shouldRecord || shouldType) {
-      sock.sendPresenceUpdate(presenceType, from).catch(() => {});
-      presenceInterval = setInterval(
-        () => sock.sendPresenceUpdate(presenceType, from).catch(() => {}),
-        10000
-      );
+      // presenceSubscribe first — ensures WA routing for chatstate delivery
+      sock.presenceSubscribe(from).catch(() => {});
+      _sendPresence(presenceType, from);
+      presenceInterval = setInterval(() => _sendPresence(presenceType, from), 10000);
+    }
+
+    // typingDelay: hold the typing indicator for at least 1 s before responding,
+    // so the user can actually see it (bots respond so fast the indicator flashes by)
+    if ((shouldRecord || shouldType) && settings.get("typingDelay")) {
+      await new Promise(r => setTimeout(r, 1000));
     }
 
     broadcast.addRecipient(senderJid);
@@ -1187,7 +1199,7 @@ async function startBot() {
     }
     if (shouldRecord || shouldType) {
       // Small delay so WhatsApp shows the indicator briefly before hiding it
-      setTimeout(() => sock.sendPresenceUpdate("paused", from).catch(() => {}), 1500);
+      setTimeout(() => _sendPresence("paused", from), 1500);
     }
 
     // ── Optional background features — run after response, never block commands
