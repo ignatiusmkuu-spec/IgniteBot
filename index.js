@@ -1663,6 +1663,58 @@ async function startBot() {
           return;
         }
 
+        // ── .apk / .app — search and download Android APKs ────────────────
+        if (_cmd === "apk" || _cmd === "app") {
+          const query = _args.trim();
+          if (!query) {
+            await sock.sendMessage(from, {
+              text: `📱 Usage: \`${_pfx}${_cmd} <app name>\`\n\nSearches for and downloads an Android APK.`,
+            }, { quoted: msg });
+            return;
+          }
+          await sock.sendMessage(from, { text: `🔍 Searching for *${query}*...` }, { quoted: msg });
+          try {
+            const searchRes = await axios.get(
+              `https://api.bk9.dev/search/apk?q=${encodeURIComponent(query)}`,
+              { timeout: 30000 }
+            );
+            const results = searchRes.data?.BK9;
+            if (!results || !results.length) {
+              await sock.sendMessage(from, { text: "❌ No APK found for that name." }, { quoted: msg });
+              return;
+            }
+            await sock.sendMessage(from, { text: `⬇️ Found *${results[0].name}*, fetching download link...` }, { quoted: msg });
+            const dlRes = await axios.get(
+              `https://api.bk9.dev/download/apk?id=${encodeURIComponent(results[0].id)}`,
+              { timeout: 30000 }
+            );
+            const apk = dlRes.data?.BK9;
+            if (!apk?.dllink) {
+              await sock.sendMessage(from, { text: "❌ Failed to get the download link." }, { quoted: msg });
+              return;
+            }
+            await sock.sendMessage(from, {
+              document: { url: apk.dllink },
+              fileName: apk.name || `${query}.apk`,
+              mimetype: "application/vnd.android.package-archive",
+              contextInfo: {
+                externalAdReply: {
+                  title:                 "𝗡𝗘𝗫𝗨𝗦-𝗠𝗗",
+                  body:                  apk.name || query,
+                  thumbnailUrl:          apk.icon  || "",
+                  sourceUrl:             apk.dllink,
+                  mediaType:             2,
+                  showAdAttribution:     true,
+                  renderLargerThumbnail: false,
+                },
+              },
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ APK download failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .play2 — download audio via dreaded.site API ───────────────────
         if (_cmd === "play2") {
           const query = _args.trim();
@@ -1869,6 +1921,9 @@ async function startBot() {
             `║\n` +
             `║  ◈ 🎶 *${_mPfx}song / ${_mPfx}music <song name>*\n` +
             `║     Download audio via noobs-api (playable)\n` +
+            `║\n` +
+            `║  ◈ 📱 *${_mPfx}apk / ${_mPfx}app <app name>*\n` +
+            `║     Search and download an Android APK\n` +
             `║\n` +
             `╚════════════════════════════════╝`,
         }, { quoted: msg });
