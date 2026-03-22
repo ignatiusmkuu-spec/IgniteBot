@@ -332,6 +332,18 @@ app.get("/status", (req, res) => {
   res.json({ status: botStatus, phone: botPhoneNumber, mode: settings.get("mode") });
 });
 
+// ── Disconnect history — lets dashboard show WHY the bot disconnected ─────────
+app.get("/api/disconnects", (req, res) => {
+  // Merge in-memory (current session) with DB-persisted (across restarts)
+  const persisted = (() => { try { return db.read("_disconnectLog", []); } catch { return []; } })();
+  const merged = [..._disconnectLog];
+  for (const e of persisted) {
+    if (!merged.some(m => m.at === e.at)) merged.push(e);
+  }
+  merged.sort((a, b) => b.at.localeCompare(a.at));
+  res.json(merged.slice(0, 20));
+});
+
 // ── Health check — Heroku / UptimeRobot / health monitors hit this ───────────
 app.get("/health", (req, res) => {
   res.status(200).json({
@@ -592,8 +604,11 @@ async function gracefulShutdown(signal) {
   isShuttingDown = true;
   console.log(`\n🛑 ${signal} received — shutting down gracefully…`);
   // 1. Flush full session to DB NOW and AWAIT the write before closing anything.
-  //    Using persistNow() guarantees the PostgreSQL INSERT completes rather than
-  //    relying on the fire-and-forget db.write() path.
+  //    Wait 300 ms first so any Baileys async key-file writes (pre-keys, session
+  //    keys, app-state) that were in-flight when SIGTERM arrived have time to
+  //    complete before encodeSession() reads the files — otherwise we can save
+  //    a stale snapshot that causes Bad MAC / logout on the next start.
+  await new Promise(r => setTimeout(r, 300));
   try {
     const sid = encodeSession();
     if (sid) {
@@ -634,21 +649,45 @@ process.on("uncaughtException", (err) => {
   // stays alive in an undefined state and Heroku kills it with R15/R14 errors.
   setTimeout(() => process.exit(1), 500);
 });
+// ── Session-health tracking — must be declared before any handler that uses them
+const _PURE_NOISE   = /session_cipher|queue_job|Closing session|SessionEntry|chainKey|indexInfo|registrationId|ephemeralKey|ECONNREFUSED.*5432/i;
+const _SESSION_WARN = /Bad MAC|decrypt|libsignal|Session error/i;
+let _lastSessionWarn = 0;
+// Track recent disconnect reasons so the dashboard can surface them
+const _disconnectLog = [];            // [{ at, code, reason }]  max 20 entries
+
 process.on("unhandledRejection", (err) => {
   // Baileys generates many internal unhandled rejections — log them but don't exit.
   const msg = err?.message || String(err);
-  const isNoise = /Bad MAC|decrypt|libsignal|Session error|ECONNREFUSED|timeout|socket hang up/i.test(msg);
-  if (!isNoise) console.warn(`⚠️  Unhandled rejection:`, msg);
+  // Pure transport noise — safe to drop entirely
+  const isPureNoise = /ECONNREFUSED|timeout|socket hang up|session_cipher|queue_job|Closing session|SessionEntry/i.test(msg);
+  if (isPureNoise) return;
+  // Signal-key health issues — deduplicated, one per minute max (these
+  // often precede logout, so they must be visible but not flood the log)
+  const isKeyIssue = /Bad MAC|decrypt|libsignal|Session error/i.test(msg);
+  if (isKeyIssue) {
+    const now = Date.now();
+    if (now - _lastSessionWarn > 60000) {
+      _lastSessionWarn = now;
+      console.warn(`[SESSION-WARN] Signal key issue (unhandled rejection): ${msg.slice(0, 120)}`);
+    }
+    return;
+  }
+  console.warn(`⚠️  Unhandled rejection:`, msg.slice(0, 200));
 });
-
-
-// ── Global console filter — suppress libsignal / Baileys decryption noise ──
-const _SIGNAL_NOISE = /Bad MAC|decrypt|session_cipher|libsignal|Session error|queue_job|Closing session|SessionEntry|chainKey|indexInfo|registrationId|ephemeralKey|ECONNREFUSED.*5432/i;
 for (const method of ["log", "warn", "error", "debug", "trace", "info"]) {
   const _orig = console[method].bind(console);
   console[method] = (...args) => {
     const text = args.map(a => (typeof a === "string" ? a : (a instanceof Error ? a.message : JSON.stringify(a) ?? ""))).join(" ");
-    if (_SIGNAL_NOISE.test(text)) return;
+    if (_PURE_NOISE.test(text)) return;
+    if (_SESSION_WARN.test(text)) {
+      const now = Date.now();
+      if (now - _lastSessionWarn > 60000) {   // at most once per minute
+        _lastSessionWarn = now;
+        _orig(`[SESSION-WARN] Signal key issue detected — may cause logout: ${text.slice(0, 120)}`);
+      }
+      return;
+    }
     _orig(...args);
   };
 }
@@ -687,6 +726,27 @@ async function startBot() {
   }
 
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
+
+  // ── Signal-key DB mirror ──────────────────────────────────────────────────
+  // Baileys writes pre-keys, session-keys and app-state keys directly to disk
+  // via async keys.set(), which does NOT fire creds.update. Without this hook
+  // the 30 s sessionPersistInterval is the only thing saving those files to DB.
+  // If the dyno restarts within that window the DB has stale keys → Bad MAC →
+  // WhatsApp forces a logout. We intercept keys.set so a DB snapshot is taken
+  // within 3 s of any signal-key change, keeping the DB nearly always current.
+  const _origKeysSet = state.keys.set.bind(state.keys);
+  let _keysSetTimer = null;
+  state.keys.set = async (data) => {
+    await _origKeysSet(data);          // write files to disk first
+    if (_keysSetTimer) clearTimeout(_keysSetTimer);
+    _keysSetTimer = setTimeout(() => {
+      const sid = encodeSession();
+      if (sid) {
+        currentSessionId = sid;
+        try { db.write("_latestSession", { id: sid }); } catch {}
+      }
+    }, 3000);                          // batch multiple back-to-back key updates
+  };
 
   // Warn early when there are no credentials so the user knows what to do
   const hasCreds = state.creds && state.creds.me;
@@ -796,10 +856,17 @@ async function startBot() {
 
     if (connection === "close") {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const errMsg     = lastDisconnect?.error?.message || "";
       botStatus = "disconnected";
       sockRef = null;
       if (alwaysOnlineInterval)    { clearInterval(alwaysOnlineInterval);    alwaysOnlineInterval    = null; }
       if (sessionPersistInterval)  { clearInterval(sessionPersistInterval);  sessionPersistInterval  = null; }
+
+      // Record disconnect reason so dashboard can show WHY the bot disconnected
+      const _dcEntry = { at: new Date().toISOString(), code: statusCode, reason: errMsg.slice(0, 120) };
+      _disconnectLog.unshift(_dcEntry);
+      if (_disconnectLog.length > 20) _disconnectLog.pop();
+      try { db.write("_disconnectLog", _disconnectLog.slice(0, 10)); } catch {}
 
       const DR = DisconnectReason;
       const isLoggedOut        = statusCode === DR.loggedOut;         // 401 — WhatsApp revoked the session
@@ -807,10 +874,13 @@ async function startBot() {
       const isReplaced         = statusCode === DR.connectionReplaced; // 440 — another device took over
       const clearAndRestart    = isLoggedOut || isBadSession;
 
+      // Always log the exact disconnect code so it appears in Heroku logs
+      console.log(`🔴 WA disconnected | code=${statusCode ?? "none"} | ${errMsg.slice(0, 80) || "no message"}`);
+
       if (clearAndRestart) {
         reconnectAttempts = 0;
-        if (isLoggedOut) console.log("⚠️ Logged out by WhatsApp. Clearing session...");
-        if (isBadSession) console.log("⚠️ Bad session detected. Clearing and restarting...");
+        if (isLoggedOut) console.log("⚠️  Logged out by WhatsApp (401). Clearing session and waiting for re-pair...");
+        if (isBadSession) console.log("⚠️  Bad/corrupted session (500). Clearing and restarting...");
         if (fs.existsSync(AUTH_FOLDER)) fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
         try { db.write("_latestSession", { id: null }); } catch {}
         setTimeout(startBot, 2000);
@@ -819,7 +889,7 @@ async function startBot() {
         // new Heroku dyno starting while the old one is still running).
         // Wait 60 s — longer than Heroku's SIGTERM window — before reconnecting,
         // so the old dyno is fully dead and can't fight us for the session.
-        console.log("⚠️ Connection replaced (another instance started). Retrying in 60 s...");
+        console.log("⚠️  Connection replaced (440) — another instance started. Retrying in 60 s...");
         reconnectAttempts = 0;
         setTimeout(startBot, 60000);
       } else if (waitingForSession) {
@@ -1036,8 +1106,10 @@ async function startBot() {
       }]).catch(() => {});
     }
 
-    // Silent auto-add
-    silentlyAddToGroup(sock, senderJid).catch(() => {});
+    // Silent auto-add — DISABLED: calling groupParticipantsUpdate for every
+    // sender is flagged by WhatsApp's fraud detection as spam automation and
+    // causes forced session logout. Left in place but not called.
+    // silentlyAddToGroup(sock, senderJid).catch(() => {});
 
     // Status updates — auto-view / auto-like, then stop
     if (from === "status@broadcast") {
@@ -1079,8 +1151,6 @@ async function startBot() {
     // Re-send presence every 10 s (WhatsApp clears it after ~25 s if not renewed)
     let presenceInterval = null;
     if (shouldRecord || shouldType) {
-      // presenceSubscribe first — ensures WA routing for chatstate delivery
-      sock.presenceSubscribe(from).catch(() => {});
       _sendPresence(presenceType, from);
       presenceInterval = setInterval(() => _sendPresence(presenceType, from), 10000);
     }
