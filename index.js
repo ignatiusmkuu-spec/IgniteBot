@@ -1663,6 +1663,121 @@ async function startBot() {
           return;
         }
 
+        // ── .sticker / .s — convert quoted image or video to sticker ─────────
+        if (_cmd === "sticker" || _cmd === "s") {
+          const quotedMsg = msg.quoted?.message || null;
+          const quotedType = quotedMsg ? Object.keys(quotedMsg)[0] : null;
+          const isImage = quotedType === "imageMessage";
+          const isVideo = quotedType === "videoMessage";
+          if (!quotedMsg || (!isImage && !isVideo)) {
+            await sock.sendMessage(from, {
+              text: "❌ Quote an image or a short video to convert it to a sticker.",
+            }, { quoted: msg });
+            return;
+          }
+          try {
+            const { Sticker, StickerTypes } = require("wa-sticker-formatter");
+            const mediaBuf = await downloadMediaMessage(
+              { key: msg.quoted.key, message: quotedMsg },
+              "buffer", {}
+            );
+            const botName  = settings.get("botName") || "NEXUS-MD";
+            const sticker  = new Sticker(mediaBuf, {
+              pack:       botName,
+              author:     "IgniteBot",
+              type:       StickerTypes.FULL,
+              categories: ["🤩", "🎉"],
+              id:         "12345",
+              quality:    70,
+              background: "transparent",
+            });
+            const stickerBuf = await sticker.toBuffer();
+            await sock.sendMessage(from, { sticker: stickerBuf }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, {
+              text: `❌ Sticker creation failed: ${e.message}`,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .dp — fetch a user's profile picture ───────────────────────────
+        if (_cmd === "dp") {
+          if (!msg.quoted) {
+            await sock.sendMessage(from, {
+              text: `📸 Usage: \`${_pfx}dp\` while replying to a user's message.`,
+            }, { quoted: msg });
+            return;
+          }
+          const targetJid = msg.quoted.sender;
+          let ppUrl;
+          try {
+            ppUrl = await sock.profilePictureUrl(targetJid, "image");
+          } catch {
+            ppUrl = "https://tinyurl.com/yx93l6da";
+          }
+          let displayName = targetJid.split("@")[0];
+          try { displayName = await sock.getName?.(targetJid) || displayName; } catch {}
+          await sock.sendMessage(from, {
+            image:   { url: ppUrl },
+            caption: `📸 Profile picture of *${displayName}*`,
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .list / .vars — show all available commands ─────────────────────
+        if (_cmd === "list" || _cmd === "vars") {
+          const _pfxV = settings.get("prefix") || ".";
+          const listText =
+            `╔═══「 📋 *ᴄᴏᴍᴍᴀɴᴅ ʟɪꜱᴛ* 」═══╗\n║\n` +
+            `║  𝟏  ignatius ➣ Get NEXUS-MD contact\n` +
+            `║  𝟐  Broadcast ➣ Sends message to all groups\n` +
+            `║  𝟑  Join ➣ Tag group link with join\n` +
+            `║  𝟒  Botpp ➣ Change bot's account dp\n` +
+            `║  𝟓  Block ➣ Block them fake friends\n` +
+            `║  𝟔  Kill ➣ Kills group in seconds\n` +
+            `║  𝟕  Unblock ➣ Give fake friends a second chance\n` +
+            `║  𝟖  Setvar ➣ Set vars in heroku\n` +
+            `║  𝟗  Sticker ➣ Converts a photo/short video to a sticker\n` +
+            `║  𝟏𝟎 Toimg ➣ Converts a sticker to a photo\n` +
+            `║  𝟏𝟏 Play ➣ Get your favourite song\n` +
+            `║  𝟏𝟐 Whatsong ➣ Get the title of the song\n` +
+            `║  𝟏𝟑 Yts ➣ Get YouTube videos\n` +
+            `║  𝟏𝟒 Movie ➣ Get your favourite movie details\n` +
+            `║  𝟏𝟓 Mix ➣ Combines +2 emojis\n` +
+            `║  𝟏𝟔 Ai-img ➣ Get an AI photo\n` +
+            `║  𝟏𝟕 Gpt ➣ Here to answer your questions\n` +
+            `║  𝟏𝟖 Dp ➣ Gets a person's dp\n` +
+            `║  𝟏𝟗 Speed ➣ Checks bot's speed\n` +
+            `║  𝟐𝟎 Alive ➣ Check whether the bot is still kicking\n` +
+            `║  𝟐𝟏 Runtime ➣ When did bot started operating\n` +
+            `║  𝟐𝟐 Script ➣ Get bot script\n` +
+            `║  𝟐𝟑 Owner ➣ Get owner(s) contact\n` +
+            `║  𝟐𝟒 Vars ➣ See all variables\n` +
+            `║  𝟐𝟓 Promote ➣ Gives one admin role\n` +
+            `║  𝟐𝟔 Demote ➣ Demotes from group admin to a member\n` +
+            `║  𝟐𝟕 Delete ➣ Delete a message\n` +
+            `║  𝟐𝟖 Remove/kick ➣ Kick that terrorist from a group\n` +
+            `║  𝟐𝟗 Foreigners ➣ Get foreign numbers\n` +
+            `║  𝟑𝟎 Close ➣ Time for group members to take a break\n` +
+            `║  𝟑𝟏 Open ➣ Everyone can chat in a group\n` +
+            `║  𝟑𝟐 Icon ➣ Change group icon\n` +
+            `║  𝟑𝟑 Subject ➣ Change group subject\n` +
+            `║  𝟑𝟒 Desc ➣ Get group description\n` +
+            `║  𝟑𝟓 Leave ➣ The group is boring, time for bot to leave\n` +
+            `║  𝟑𝟔 Tagall ➣ Tag everyone in a group chat\n` +
+            `║  𝟑𝟕 Hidetag ➣ Attention! Someone has something to say\n` +
+            `║  𝟑𝟖 Revoke ➣ Reset group link\n` +
+            `║  𝟑𝟗 Apk ➣ Search & download Android APK\n` +
+            `║  𝟒𝟎 Song/Music ➣ Download audio (playable)\n` +
+            `║  𝟒𝟏 Play2 ➣ Download audio as file + audio\n` +
+            `║  𝟒𝟐 Lyrics ➣ Fetch song lyrics with art\n` +
+            `║  𝟒𝟑 Enc ➣ Obfuscate/encrypt JavaScript code\n` +
+            `║\n╚════════════════════════════════╝`;
+          await sock.sendMessage(from, { text: listText }, { quoted: msg });
+          return;
+        }
+
         // ── .lyrics — fetch song lyrics with thumbnail ─────────────────────
         if (_cmd === "lyrics") {
           const query = _args.trim();
@@ -1968,6 +2083,15 @@ async function startBot() {
             `║\n` +
             `║  ◈ 🎤 *${_mPfx}lyrics <song name>*\n` +
             `║     Fetch lyrics with album art thumbnail\n` +
+            `║\n` +
+            `║  ◈ 🎭 *${_mPfx}sticker / ${_mPfx}s*\n` +
+            `║     Quote image/video to convert to sticker\n` +
+            `║\n` +
+            `║  ◈ 📸 *${_mPfx}dp*\n` +
+            `║     Reply to a user to get their profile picture\n` +
+            `║\n` +
+            `║  ◈ 📋 *${_mPfx}list / ${_mPfx}vars*\n` +
+            `║     Show the full command list\n` +
             `║\n` +
             `╚════════════════════════════════╝`,
         }, { quoted: msg });
