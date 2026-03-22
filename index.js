@@ -1275,9 +1275,12 @@ async function startBot() {
         const _cmd  = _rest.split(/\s+/)[0]?.toLowerCase() || "";
         const _args = _rest.slice(_cmd.length).trim();
 
+        // Owner check: fromMe (bot's own WhatsApp account) OR listed in ADMIN_NUMBERS
+        const _isOwner = msg.key.fromMe === true || admin.isSuperAdmin(senderJid);
+
         // ── .antidelete / .antidel ─────────────────────────────────────────
         if (_cmd === "antidelete" || _cmd === "antidel") {
-          if (!admin.isSuperAdmin(senderJid)) {
+          if (!_isOwner) {
             await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
             return;
           }
@@ -1343,7 +1346,7 @@ async function startBot() {
 
         // ── .setmenusong ───────────────────────────────────────────────────
         if (_cmd === "setmenusong") {
-          if (!admin.isSuperAdmin(senderJid)) {
+          if (!_isOwner) {
             await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
             return;
           }
@@ -1410,7 +1413,7 @@ async function startBot() {
 
         // ── .setmenuvideo ──────────────────────────────────────────────────
         if (_cmd === "setmenuvideo") {
-          if (!admin.isSuperAdmin(senderJid)) {
+          if (!_isOwner) {
             await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
             return;
           }
