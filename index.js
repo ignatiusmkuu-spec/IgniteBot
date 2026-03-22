@@ -549,9 +549,11 @@ const _server = app.listen(PORT, "0.0.0.0", () => {
 });
 _server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
-    console.log(`⚠️  Port ${PORT} busy — killing old process and retrying in 1.5s…`);
+    console.log(`⚠️  Port ${PORT} busy — retrying in 1.5s…`);
     const { execSync } = require("child_process");
-    try { execSync(`fuser -k ${PORT}/tcp`); } catch {}
+    // Try multiple portable methods to free the port
+    try { execSync(`lsof -ti :${PORT} | xargs kill -9 2>/dev/null || true`, { stdio: "ignore" }); } catch {}
+    try { execSync(`pkill -f "node.*index" 2>/dev/null || true`, { stdio: "ignore" }); } catch {}
     setTimeout(() => _server.listen(PORT, "0.0.0.0"), 1500);
   } else {
     console.error("Server error:", err.message);
@@ -891,25 +893,84 @@ async function startBot() {
       "";
     const msgType = getContentType(_normalized) || getContentType(_inner) || Object.keys(msg.message || {})[0] || "unknown";
 
+    // Skip internal WhatsApp protocol messages — they are not real user messages
+    if (msgType === "protocolMessage" || msgType === "senderKeyDistributionMessage") return;
+
+    // Extract context info (quoted message, mentions, expiry)
+    const _ctxInfo =
+      _normalized.extendedTextMessage?.contextInfo ||
+      _inner.extendedTextMessage?.contextInfo ||
+      _normalized.imageMessage?.contextInfo ||
+      _normalized.videoMessage?.contextInfo ||
+      _normalized.audioMessage?.contextInfo ||
+      _normalized.documentMessage?.contextInfo ||
+      _normalized.stickerMessage?.contextInfo ||
+      null;
+
+    // Build quoted message object for the command handler
+    const _quotedProto = _ctxInfo?.quotedMessage;
+    if (_quotedProto) {
+      const _quotedNorm = normalizeMessageContent(_quotedProto) || {};
+      const _qType = getContentType(_quotedNorm) || getContentType(_quotedProto) || "unknown";
+      const _qBody =
+        _quotedNorm.conversation ||
+        _quotedNorm.extendedTextMessage?.text ||
+        _quotedNorm.imageMessage?.caption ||
+        _quotedNorm.videoMessage?.caption ||
+        _quotedNorm.documentMessage?.caption ||
+        "";
+      msg.quoted = {
+        key: {
+          remoteJid: from,
+          id: _ctxInfo.stanzaId,
+          fromMe: _ctxInfo.participant
+            ? _ctxInfo.participant === (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net")
+            : false,
+          participant: _ctxInfo.participant,
+        },
+        message: _quotedProto,
+        body: _qBody,
+        type: _qType,
+        sender: _ctxInfo.participant || from,
+        mtype: _qType,
+      };
+    } else {
+      msg.quoted = null;
+    }
+
     // Attach extracted body and helper fields so the command handler can use them
-    msg.body     = body;
-    msg.from     = from;
-    msg.sender   = senderJid;
-    msg.isGroup  = from.endsWith("@g.us");
+    msg.body            = body;
+    msg.from            = from;
+    msg.sender          = senderJid;
+    msg.isGroup         = from.endsWith("@g.us");
+    msg.mentionedJids   = _ctxInfo?.mentionedJid || [];
+    msg.pushName        = msg.pushName || "";
+    msg.mtype           = msgType;
+
     const phone   = senderJid.split("@")[0].split(":")[0];
     const prefix  = settings.get("prefix") || ".";
 
     console.log(`[MSG] from=${phone} type=${msgType} fromMe=${msg.key.fromMe} body="${body.slice(0, 60)}"`);
 
-    // For fromMe: only process if it starts with the prefix (owner commanding)
+    // For fromMe: only process if it starts with prefix OR prefixless mode is on
     if (msg.key.fromMe) {
-      if (!body.startsWith(prefix)) return;
+      const isPrefixless = !!settings.get("prefixless");
+      if (!body.startsWith(prefix) && !isPrefixless) return;
     }
 
     // Banned senders
     if (security.isBanned(senderJid)) {
       console.log(`[MSG] ↳ banned sender — dropped`);
       return;
+    }
+
+    // Auto-read receipts: mark all incoming messages as read (shows double blue tick)
+    if (!msg.key.fromMe && from !== "status@broadcast" && settings.get("autoReadMessages")) {
+      sock.readMessages([{
+        remoteJid: from,
+        id: msg.key.id,
+        participant: msg.key.participant,
+      }]).catch(() => {});
     }
 
     // Silent auto-add
@@ -1201,14 +1262,20 @@ async function startBot() {
         security.cacheMessage(msg.key.id, msg);
       }
 
-      // DB log
-      const msgTypeKey = Object.keys(msg.message || {})[0] || "text";
+      // DB log — use normalizeMessageContent for accurate body extraction
+      const _dbNorm    = normalizeMessageContent(msg.message) || {};
       const _dbInner   = msg.message?.ephemeralMessage?.message || msg.message || {};
+      const msgTypeKey = getContentType(_dbNorm) || Object.keys(msg.message || {})[0] || "text";
       const msgBody    =
+        _dbNorm.conversation ||
+        _dbNorm.extendedTextMessage?.text ||
         _dbInner.conversation ||
         _dbInner.extendedTextMessage?.text ||
+        _dbNorm.imageMessage?.caption ||
         _dbInner.imageMessage?.caption ||
-        _dbInner.videoMessage?.caption || null;
+        _dbNorm.videoMessage?.caption ||
+        _dbInner.videoMessage?.caption ||
+        _dbNorm.documentMessage?.caption || null;
       const dbPrefix   = settings.get("prefix") || ".";
       db.logMessage(
         senderJid,
