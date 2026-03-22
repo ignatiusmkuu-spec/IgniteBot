@@ -26,6 +26,7 @@ const db = require("./lib/db");
 const platform = require("./lib/platform");
 const premium = require("./lib/premium");
 const axios = require("axios");
+const downloader = require("./lib/downloader");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -1263,6 +1264,138 @@ async function startBot() {
     if (body.startsWith(settings.get("prefix") || ".") || msg.key.fromMe === false) {
       console.log(`[CMD→] from=${msg.sender?.split("@")[0]} body="${body.slice(0, 60)}" fromMe=${msg.key.fromMe}`);
     }
+
+    // ── Built-in command interceptors ─────────────────────────────────────────
+    // These always run before the main handler so they work even if the
+    // obfuscated commands.js code is broken for these specific commands.
+    {
+      const _pfx  = settings.get("prefix") || ".";
+      if (body.startsWith(_pfx)) {
+        const _rest = body.slice(_pfx.length).trim();
+        const _cmd  = _rest.split(/\s+/)[0]?.toLowerCase() || "";
+        const _args = _rest.slice(_cmd.length).trim();
+
+        // ── .antidelete / .antidel ─────────────────────────────────────────
+        if (_cmd === "antidelete" || _cmd === "antidel") {
+          if (!admin.isSuperAdmin(senderJid)) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          const VALID_MODES = ["off", "on", "group", "chat", "both", "all", "status"];
+          let val = _args.toLowerCase().trim();
+          if (val === "on") val = "both";
+          if (!VALID_MODES.includes(val)) {
+            const cur = settings.get("antiDeleteMode") || "off";
+            await sock.sendMessage(from, {
+              text: `⚙️ *Anti-Delete*\n\nUsage: \`${_pfx}antidelete [on|off|group|chat|both|all|status]\`\n\n` +
+                    `• *on / both* — groups + private chats\n` +
+                    `• *group* — groups only\n` +
+                    `• *chat* — private chats only\n` +
+                    `• *all* — groups + chats + statuses\n` +
+                    `• *off* — disabled\n\n` +
+                    `Current: \`${cur}\``,
+            }, { quoted: msg });
+            return;
+          }
+          settings.set("antiDeleteMode", val);
+          await sock.sendMessage(from, {
+            text: `✅ Anti-Delete set to *${val.toUpperCase()}*`,
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .play / .song ──────────────────────────────────────────────────
+        if (_cmd === "play" || _cmd === "song") {
+          const query = _args.trim();
+          if (!query) {
+            await sock.sendMessage(from, { text: `🎵 Usage: \`${_pfx}${_cmd} <song name or YouTube URL>\`` }, { quoted: msg });
+            return;
+          }
+          await sock.sendMessage(from, { text: `🔍 Searching for *${query}*...` }, { quoted: msg });
+          try {
+            let targetUrl = query;
+            let songTitle = query;
+            if (!query.startsWith("http")) {
+              const results = await downloader.searchYouTube(query);
+              if (!results || !results.length) {
+                await sock.sendMessage(from, { text: `❌ No results found for: _${query}_` }, { quoted: msg });
+                return;
+              }
+              targetUrl = results[0].url;
+              songTitle = results[0].title || query;
+            }
+            await sock.sendMessage(from, {
+              text: `⬇️ Downloading: *${songTitle}*\n_Please wait a moment..._`,
+            }, { quoted: msg });
+            const { path: audioPath, title } = await downloader.downloadAudio(targetUrl);
+            const audioBuf = fs.readFileSync(audioPath);
+            try { fs.unlinkSync(audioPath); } catch {}
+            await sock.sendMessage(from, {
+              audio:    audioBuf,
+              mimetype: "audio/mpeg",
+              fileName: `${title || songTitle}.mp3`,
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Download failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .setmenusong ───────────────────────────────────────────────────
+        if (_cmd === "setmenusong") {
+          if (!admin.isSuperAdmin(senderJid)) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          const _audioMsg = _inner?.audioMessage;
+          if (!_audioMsg) {
+            await sock.sendMessage(from, {
+              text: `🎵 Send an audio file with caption \`${_pfx}setmenusong\` to set the menu song.`,
+            }, { quoted: msg });
+            return;
+          }
+          try {
+            const buf = Buffer.from(await downloadMediaMessage(msg, "buffer", {}));
+            settings.setMenuSong(buf);
+            settings.clearMenuCombined();
+            await sock.sendMessage(from, {
+              text: "✅ Menu song updated! It will play on the next `.menu` call.",
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Failed to save menu song: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .setmenuvideo ──────────────────────────────────────────────────
+        if (_cmd === "setmenuvideo") {
+          if (!admin.isSuperAdmin(senderJid)) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          const _videoMsg = _inner?.videoMessage;
+          if (!_videoMsg) {
+            await sock.sendMessage(from, {
+              text: `🎬 Send a video file with caption \`${_pfx}setmenuvideo\` to set the menu video.`,
+            }, { quoted: msg });
+            return;
+          }
+          try {
+            const buf = Buffer.from(await downloadMediaMessage(msg, "buffer", {}));
+            settings.setMenuVideo(buf);
+            settings.clearMenuCombined();
+            await sock.sendMessage(from, {
+              text: "✅ Menu video updated! It will play on the next `.menu` call.",
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Failed to save menu video: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+      }
+    }
+    // ── End built-in interceptors ─────────────────────────────────────────────
+
     await commands.handle(sock, msg).catch(err => {
       console.error(`[CMD✗] from=${msg.sender?.split("@")[0]} body="${body.slice(0,40)}" err=${err.message}`);
     });
