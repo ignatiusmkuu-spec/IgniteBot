@@ -752,15 +752,24 @@ async function _eagerCacheMedia(msg) {
 }
 
 async function fetchSettings() {
-  const all = settings.getAll();
+  const data = await getSettings();
   return {
-    autobio:   all.autobio      ?? false,
-    autolike:  all.autoLikeStatus ?? false,
-    welcome:   all.welcome      ?? false,
-    autoview:  all.autoViewStatus ?? true,
-    mode:      all.mode         ?? "public",
-    prefix:    all.prefix       ?? ".",
-    anticall:  all.antiCall     ?? false,
+    wapresence:  data.wapresence  ?? "online",
+    autoread:    data.autoread    ?? "off",
+    mode:        data.mode        ?? "public",
+    prefix:      data.prefix      ?? ".",
+    autolike:    data.autolike    ?? "on",
+    autoview:    data.autoview    ?? "on",
+    antilink:    data.antilink    ?? "on",
+    antilinkall: data.antilinkall ?? "off",
+    antidelete:  data.antidelete  ?? "on",
+    antitag:     data.antitag     ?? "on",
+    antibot:     data.antibot     ?? "off",
+    welcome:     data.welcome     ?? "off",
+    autobio:     data.autobio     ?? "off",
+    badword:     data.badword     ?? "on",
+    gptdm:       data.gptdm       ?? "off",
+    anticall:    data.anticall    ?? "off",
   };
 }
 
@@ -2982,6 +2991,155 @@ async function startperez() {
           return;
         }
 
+        // ── .video — YouTube video downloader ──────────────────────────────
+        if (_cmd === "video") {
+          const query = _args.trim();
+          if (!query) {
+            await sock.sendMessage(from, {
+              text: `🎬 Usage: \`${_pfx}video <search query>\`\n\nSearches YouTube and sends the video file.`,
+            }, { quoted: msg });
+            return;
+          }
+          await sock.sendMessage(from, { text: `🔍 Searching YouTube for *${query}*...` }, { quoted: msg });
+          try {
+            const yts = require("yt-search");
+            const { videos } = await yts(query);
+            if (!videos || !videos.length) {
+              await sock.sendMessage(from, { text: "❌ No video found for that query." }, { quoted: msg });
+              return;
+            }
+            const videoUrl = videos[0].url;
+            await sock.sendMessage(from, { text: `⬇️ Downloading *${videos[0].title}*...` }, { quoted: msg });
+            const apis = [
+              `https://api-rin-tohsaka.vercel.app/download/ytmp4?url=${encodeURIComponent(videoUrl)}`,
+              `https://api.davidcyriltech.my.id/download/ytmp4?url=${encodeURIComponent(videoUrl)}`,
+              `https://www.dark-yasiya-api.site/download/ytmp4?url=${encodeURIComponent(videoUrl)}`,
+              `https://api.giftedtech.web.id/api/download/dlmp4?url=${encodeURIComponent(videoUrl)}&apikey=gifted-md`,
+              `https://api.dreaded.site/api/ytdl/video?url=${encodeURIComponent(videoUrl)}`,
+            ];
+            let downloadData;
+            for (const api of apis) {
+              try {
+                const res = await axios.get(api, { timeout: 30000 });
+                if (res.data?.success) { downloadData = res.data; break; }
+              } catch {}
+            }
+            if (!downloadData?.result?.download_url) {
+              await sock.sendMessage(from, { text: "❌ Failed to fetch video from all APIs. Try again later." }, { quoted: msg });
+              return;
+            }
+            const dlUrl = downloadData.result.download_url;
+            const title = downloadData.result.title || videos[0].title;
+            await sock.sendMessage(from, {
+              document: { url: dlUrl },
+              mimetype: "video/mp4",
+              fileName: `${title}.mp4`,
+              caption: "𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗",
+            }, { quoted: msg });
+            await sock.sendMessage(from, {
+              video: { url: dlUrl },
+              mimetype: "video/mp4",
+              caption: "𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗",
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Video download failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .facebook / .fb / .fbdl — Facebook video downloader ────────────
+        if (_cmd === "facebook" || _cmd === "fb" || _cmd === "fbdl") {
+          const url = _args.trim();
+          if (!url) {
+            await sock.sendMessage(from, {
+              text: `📘 Usage: \`${_pfx}${_cmd} <facebook video link>\``,
+            }, { quoted: msg });
+            return;
+          }
+          if (!url.includes("facebook.com")) {
+            await sock.sendMessage(from, { text: "❌ That is not a Facebook link." }, { quoted: msg });
+            return;
+          }
+          await sock.sendMessage(from, { text: "⬇️ Downloading Facebook video..." }, { quoted: msg });
+          try {
+            const res = await axios.get(
+              `https://api.dreaded.site/api/facebook?url=${encodeURIComponent(url)}`,
+              { timeout: 30000 }
+            );
+            const data = res.data;
+            if (!data || data.status !== 200 || !data.facebook?.sdVideo) {
+              await sock.sendMessage(from, {
+                text: "❌ Could not fetch the video. Make sure the post is public and try again.",
+              }, { quoted: msg });
+              return;
+            }
+            await sock.sendMessage(from, {
+              video: { url: data.facebook.sdVideo },
+              caption: "𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗",
+              gifPlayback: false,
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Facebook download failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .anime / .random-anime — random anime info ──────────────────────
+        if (_cmd === "anime" || _cmd === "random-anime") {
+          try {
+            const res = await axios.get("https://api.jikan.moe/v4/random/anime", { timeout: 15000 });
+            const d = res.data?.data;
+            if (!d) throw new Error("Empty response from API");
+            const caption =
+              `📺 *Title:* ${d.title}\n` +
+              `🎬 *Episodes:* ${d.episodes ?? "N/A"}\n` +
+              `📡 *Status:* ${d.status}\n` +
+              `📝 *Synopsis:* ${d.synopsis?.slice(0, 300) ?? "N/A"}...\n` +
+              `🔗 *URL:* ${d.url}`;
+            await sock.sendMessage(from, {
+              image: { url: d.images.jpg.image_url },
+              caption,
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Failed to fetch anime info: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .instagram / .igdl / .ig — Instagram video/photo downloader ─────
+        if (_cmd === "instagram" || _cmd === "igdl" || _cmd === "ig") {
+          const url = _args.trim();
+          if (!url) {
+            await sock.sendMessage(from, {
+              text: `📸 Usage: \`${_pfx}${_cmd} <instagram post link>\``,
+            }, { quoted: msg });
+            return;
+          }
+          if (!url.includes("instagram.com")) {
+            await sock.sendMessage(from, { text: "❌ That is not a valid Instagram link." }, { quoted: msg });
+            return;
+          }
+          await sock.sendMessage(from, { text: "⬇️ Downloading Instagram media..." }, { quoted: msg });
+          try {
+            const { igdl } = require("ruhend-scraper");
+            const result = await igdl(url);
+            if (!result?.data?.length) {
+              await sock.sendMessage(from, { text: "❌ No media found at that link." }, { quoted: msg });
+              return;
+            }
+            for (let i = 0; i < Math.min(20, result.data.length); i++) {
+              await sock.sendMessage(from, {
+                video: { url: result.data[i].url },
+                mimetype: "video/mp4",
+                caption: "𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗",
+              }, { quoted: msg });
+            }
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Instagram download failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .enc / .encrypte ───────────────────────────────────────────────
         if (_cmd === "enc" || _cmd === "encrypte") {
           if (!msg.quoted?.body) {
@@ -3966,7 +4124,7 @@ async function startperez() {
   });
 }
 
-const { initializeDatabase } = require('./database/config');
+const { initializeDatabase, getSettings } = require('./database/config');
 
 db.init()
   .then(async () => {
