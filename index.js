@@ -403,7 +403,7 @@ app.post("/session", async (req, res) => {
     if (sockRef) {
       try { sockRef.ws.close(); } catch {}
     } else {
-      setTimeout(startBot, 500);
+      setTimeout(startperez, 500);
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -439,7 +439,7 @@ app.post("/session/url", async (req, res) => {
     if (sockRef) {
       try { sockRef.ws.close(); } catch {}
     } else {
-      setTimeout(startBot, 500);
+      setTimeout(startperez, 500);
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -751,7 +751,35 @@ async function _eagerCacheMedia(msg) {
   } catch {}
 }
 
-async function startBot() {
+async function fetchSettings() {
+  const all = settings.getAll();
+  return {
+    autobio:   all.autobio      ?? false,
+    autolike:  all.autoLikeStatus ?? false,
+    welcome:   all.welcome      ?? false,
+    autoview:  all.autoViewStatus ?? true,
+    mode:      all.mode         ?? "public",
+    prefix:    all.prefix       ?? ".",
+    anticall:  all.antiCall     ?? false,
+  };
+}
+
+async function startperez() {
+
+  let autobio, autolike, welcome, autoview, mode, prefix, anticall;
+
+  try {
+    const s = await fetchSettings();
+    console.log("😴 settings object:", s);
+
+    ({ autobio, autolike, welcome, autoview, mode, prefix, anticall } = s);
+
+    console.log("✅ Settings loaded successfully.... indexfile");
+  } catch (error) {
+    console.error("❌ Failed to load settings:...indexfile", error.message || error);
+    return;
+  }
+
   // If the auth folder is empty or missing (e.g. container restarted mid-cycle
   // and the startup DB-restore ran but was skipped this call), try the DB again.
   const credsPath = path.join(AUTH_FOLDER, "creds.json");
@@ -807,7 +835,7 @@ async function startBot() {
     // Creating a socket without credentials causes a failed WhatsApp connection
     // attempt that closes immediately, which triggers Heroku's crash/restart loop.
     // The HTTP server (already listening) keeps the process alive stably.
-    // When the user POSTs a session via /session, startBot() is called again.
+    // When the user POSTs a session via /session, startperez() is called again.
     return;
   }
 
@@ -921,7 +949,7 @@ async function startBot() {
         if (isBadSession) console.log("⚠️  Bad/corrupted session (500). Clearing and restarting...");
         if (fs.existsSync(AUTH_FOLDER)) fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
         try { db.write("_latestSession", { id: null }); } catch {}
-        setTimeout(startBot, 2000);
+        setTimeout(startperez, 2000);
       } else if (isReplaced) {
         // Another WhatsApp instance connected with the same session (e.g. a
         // new Heroku dyno starting while the old one is still running).
@@ -929,14 +957,14 @@ async function startBot() {
         // so the old dyno is fully dead and can't fight us for the session.
         console.log("⚠️  Connection replaced (440) — another instance started. Retrying in 60 s...");
         reconnectAttempts = 0;
-        setTimeout(startBot, 60000);
+        setTimeout(startperez, 60000);
       } else if (waitingForSession) {
         // No session yet — don't loop. Wait for the user to POST a session.
         console.log(`⏳ No session configured. Visit /dashboard?tab=setup to get started.`);
       } else {
         const delay = reconnectDelay();
         console.log(`🔌 Connection closed (code: ${statusCode}). Reconnecting in ${Math.round(delay / 1000)}s (attempt ${reconnectAttempts})...`);
-        setTimeout(startBot, delay);
+        setTimeout(startperez, delay);
       }
     }
 
@@ -3977,7 +4005,7 @@ db.init()
         } catch (_) {}
       }
     }
-    return startBot();
+    return startperez();
   })
   .catch((err) => {
     console.error("Fatal bot error:", err);
