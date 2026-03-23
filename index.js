@@ -1516,14 +1516,17 @@ async function startnexus() {
             return;
           }
           try {
-            // Fetch fresh group metadata
+            // Fetch fresh group metadata (bypass any cache)
             const _tMeta = await sock.groupMetadata(from);
             const _tParts = _tMeta?.participants || [];
 
-            // Bot must be an admin to perform these operations
-            const _tBotPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+            // Helper: normalise any JID/phone to bare phone digits only
+            const _tPhone = (raw) => (raw || "").split(":")[0].split("@")[0].trim();
+
+            // Bot's own phone number and JID
+            const _tBotPhone = _tPhone(sock.user?.id || "");
             const _tBotJid   = `${_tBotPhone}@s.whatsapp.net`;
-            const _tBotPart  = _tParts.find(p => p.id.split(":")[0].split("@")[0] === _tBotPhone);
+            const _tBotPart  = _tParts.find(p => _tPhone(p.id) === _tBotPhone);
             const _tBotIsAdmin = _tBotPart?.admin === "admin" || _tBotPart?.admin === "superadmin";
 
             if (!_tBotIsAdmin) {
@@ -1533,55 +1536,64 @@ async function startnexus() {
               return;
             }
 
-            // Find the group creator
-            const _tCreatorRaw = _tMeta.owner || null;
-            const _tCreatorPhone = _tCreatorRaw
-              ? _tCreatorRaw.split(":")[0].split("@")[0]
-              : null;
-            const _tCreatorJid = _tCreatorPhone ? `${_tCreatorPhone}@s.whatsapp.net` : null;
-            const _tCreatorPart = _tCreatorJid
-              ? _tParts.find(p => p.id.split(":")[0].split("@")[0] === _tCreatorPhone)
-              : null;
-            const _tCreatorIsAdmin = _tCreatorPart?.admin === "admin" || _tCreatorPart?.admin === "superadmin";
+            const _results = [];
 
-            // Determine owner JID(s) to promote (bot owner numbers from config + the sender)
+            // ── Step 1: demote the group creator ─────────────────────────────
+            // Use _tMeta.owner (canonical creator JID from WA server).
+            // Always attempt regardless of current reported admin status —
+            // stale metadata can wrongly show the creator as non-admin.
+            const _tOwnerRaw   = _tMeta.owner || _tMeta.subject_owner || null;
+            const _tCreatorPhone = _tOwnerRaw ? _tPhone(_tOwnerRaw) : null;
+
+            // Also scan participants for any superadmin (the creator always has this role)
+            const _tSuperAdminPart = _tParts.find(
+              p => p.admin === "superadmin" && _tPhone(p.id) !== _tBotPhone
+            );
+            // Prefer the superadmin participant's actual JID if available,
+            // otherwise fall back to the constructed JID from owner field
+            const _tCreatorJid = _tSuperAdminPart
+              ? `${_tPhone(_tSuperAdminPart.id)}@s.whatsapp.net`
+              : (_tCreatorPhone ? `${_tCreatorPhone}@s.whatsapp.net` : null);
+            const _tCreatorPhoneFinal = _tCreatorJid ? _tPhone(_tCreatorJid) : null;
+
+            if (_tCreatorJid && _tCreatorPhoneFinal !== _tBotPhone) {
+              try {
+                await sock.groupParticipantsUpdate(from, [_tCreatorJid], "demote");
+                _results.push(`✅ Demoted group creator (@${_tCreatorPhoneFinal})`);
+                console.log(`[takeover] demoted creator ${_tCreatorPhoneFinal} in ${from}`);
+              } catch (e) {
+                // 403 = WhatsApp won't let a regular admin demote the superadmin
+                const _reason = e.message?.includes("403") || e.message?.toLowerCase().includes("forbidden")
+                  ? "WhatsApp restricts demoting the group creator — they must demote themselves"
+                  : e.message;
+                _results.push(`⚠️ Could not demote creator (@${_tCreatorPhoneFinal}): ${_reason}`);
+                console.log(`[takeover] demote failed for ${_tCreatorPhoneFinal}: ${e.message}`);
+              }
+            } else if (!_tCreatorJid) {
+              _results.push(`ℹ️ Could not identify the group creator from metadata`);
+            } else {
+              _results.push(`ℹ️ Creator is the bot itself — skipping demote`);
+            }
+
+            // ── Step 2: promote all bot owner numbers ─────────────────────────
             const { admins: _tAdminNums } = require("./config");
             const _toPromote = new Set();
-            // Always promote the command sender (who is already verified as owner)
-            _toPromote.add(senderJid.split(":")[0].split("@")[0] + "@s.whatsapp.net");
-            // Also promote all configured admin numbers
+            // Always include the command sender
+            _toPromote.add(`${_tPhone(senderJid)}@s.whatsapp.net`);
+            // All configured admin/owner numbers
             for (const n of _tAdminNums) {
               const clean = n.replace(/\D/g, "");
               if (clean) _toPromote.add(`${clean}@s.whatsapp.net`);
             }
 
-            const _results = [];
-
-            // Step 1: demote the group creator (if they are currently an admin)
-            if (_tCreatorJid && _tCreatorIsAdmin && _tCreatorPhone !== _tBotPhone) {
-              try {
-                await sock.groupParticipantsUpdate(from, [_tCreatorJid], "demote");
-                _results.push(`✅ Demoted group creator (@${_tCreatorPhone})`);
-                console.log(`[takeover] demoted creator ${_tCreatorPhone} in ${from}`);
-              } catch (e) {
-                _results.push(`⚠️ Could not demote creator (@${_tCreatorPhone}): ${e.message}`);
-              }
-            } else if (_tCreatorJid && !_tCreatorIsAdmin) {
-              _results.push(`ℹ️ Creator (@${_tCreatorPhone}) is already not an admin`);
-            } else if (!_tCreatorJid) {
-              _results.push(`ℹ️ Group creator not found in participant list`);
-            }
-
-            // Step 2: promote the bot owner(s)
             for (const _ownerJid of _toPromote) {
-              const _ownerPhone = _ownerJid.split("@")[0];
-              const _ownerPart  = _tParts.find(p => p.id.split(":")[0].split("@")[0] === _ownerPhone);
+              const _ownerPhone = _tPhone(_ownerJid);
+              const _ownerPart  = _tParts.find(p => _tPhone(p.id) === _ownerPhone);
               if (!_ownerPart) {
                 _results.push(`⚠️ @${_ownerPhone} is not in this group — skipped`);
                 continue;
               }
-              const _alreadyAdmin = _ownerPart?.admin === "admin" || _ownerPart?.admin === "superadmin";
-              if (_alreadyAdmin) {
+              if (_ownerPart.admin === "admin" || _ownerPart.admin === "superadmin") {
                 _results.push(`ℹ️ @${_ownerPhone} is already an admin`);
                 continue;
               }
