@@ -3347,6 +3347,8 @@ async function startnexus() {
               `┃ ✦ ${_pfx}quote\n` +
               `┃ ✦ ${_pfx}inspire\n` +
               `┃ ✦ ${_pfx}roll\n` +
+              `┃ ✦ ${_pfx}anime\n` +
+              `┃ ✦ ${_pfx}random-anime\n` +
               `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
               `╭━━━〔 ✍️ *TEXT LAB* 〕━━━⬣\n` +
               `┃ ⌘ ${_pfx}aesthetic\n` +
@@ -3373,8 +3375,15 @@ async function startnexus() {
               `┃ ▶ ${_pfx}music\n` +
               `┃ ▶ ${_pfx}dl\n` +
               `┃ ▶ ${_pfx}download\n` +
+              `┃ ▶ ${_pfx}video\n` +
               `┃ ▶ ${_pfx}fbdl\n` +
               `┃ ▶ ${_pfx}facebook\n` +
+              `┃ ▶ ${_pfx}fb\n` +
+              `┃ ▶ ${_pfx}instagram\n` +
+              `┃ ▶ ${_pfx}igdl\n` +
+              `┃ ▶ ${_pfx}ig\n` +
+              `┃ ▶ ${_pfx}apk\n` +
+              `┃ ▶ ${_pfx}app\n` +
               `┃ ▶ ${_pfx}pindl\n` +
               `┃ ▶ ${_pfx}pinterest\n` +
               `┃ ▶ ${_pfx}sticker\n` +
