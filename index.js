@@ -1285,6 +1285,66 @@ async function startnexus() {
       } catch {}
     }
 
+    // ── Antilink — detect and remove any link in groups, kick the sender ─────
+    // Runs for every group message (not just commands) when antilink is "on".
+    // Admins/owners/bot itself are exempt. The bot must be a group admin to
+    // delete messages and kick; if not, it will only warn.
+    if (msg.isGroup && !msg.key.fromMe) {
+      const _antilinkEnabled = settings.get("antilink") === "on";
+      const _antilinkAllEnabled = settings.get("antilinkall") === "on";
+      if (_antilinkEnabled || _antilinkAllEnabled) {
+        const _isOwnerOrSudo = admin.isSuperAdmin(senderJid);
+        if (!_isOwnerOrSudo && body) {
+          // Broad link pattern — matches http/https, www, and common short-link domains
+          const _linkPattern = /https?:\/\/[^\s]+|www\.[^\s]+|(?:wa\.me|t\.me|discord\.gg|discord\.com\/invite|bit\.ly|tinyurl\.com|rb\.gy|shorturl\.at|is\.gd|buff\.ly|ow\.ly)\/[^\s]*/i;
+          // WhatsApp group invite links specifically
+          const _groupInvitePattern = /chat\.whatsapp\.com\/[A-Za-z0-9]+/i;
+
+          const _hasAnyLink       = _linkPattern.test(body) || _groupInvitePattern.test(body);
+          const _hasGroupInvite   = _groupInvitePattern.test(body);
+          const _shouldAct        = _antilinkAllEnabled ? _hasAnyLink : _hasGroupInvite || (_antilinkEnabled && _hasAnyLink);
+
+          if (_shouldAct) {
+            try {
+              const _groupMeta   = await sock.groupMetadata(from).catch(() => null);
+              const _participants = _groupMeta?.participants || [];
+              const _botRawJid   = sock.user?.id || "";
+              const _botPhone    = _botRawJid.split(":")[0].split("@")[0];
+              const _botPart     = _participants.find(p => p.id.split(":")[0].split("@")[0] === _botPhone);
+              const _isBotAdmin  = _botPart?.admin === "admin" || _botPart?.admin === "superadmin";
+
+              // Check if sender is a group admin — group admins are exempt
+              const _senderPart   = _participants.find(p => p.id.split(":")[0] + "@s.whatsapp.net" === senderJid || p.id === senderJid);
+              const _senderIsGrpAdmin = _senderPart?.admin === "admin" || _senderPart?.admin === "superadmin";
+              if (_senderIsGrpAdmin) {
+                // Group admins are allowed to share links — skip enforcement
+              } else if (_isBotAdmin) {
+                // Delete the offending message
+                await sock.sendMessage(from, { delete: msg.key }).catch(() => {});
+                // Notify and kick
+                await sock.sendMessage(from, {
+                  text: `⛔ @${phone} *Links are not allowed in this group!*\nYou have been removed.`,
+                  mentions: [senderJid],
+                }).catch(() => {});
+                await sock.groupParticipantsUpdate(from, [senderJid], "remove").catch(() => {});
+                console.log(`[antilink] removed ${phone} from ${from} for sharing a link`);
+              } else {
+                // Bot is not admin — just warn and delete if possible
+                await sock.sendMessage(from, { delete: msg.key }).catch(() => {});
+                await sock.sendMessage(from, {
+                  text: `⛔ @${phone} *Links are not allowed in this group!*\n_(Make me admin to also remove the sender)_`,
+                  mentions: [senderJid],
+                }).catch(() => {});
+              }
+              return;
+            } catch (_alErr) {
+              console.error("[antilink] error:", _alErr.message);
+            }
+          }
+        }
+      }
+    }
+
     // ── Fancy text reply handler ──────────────────────────────────────────────
     const { fancyReplyHandlers } = commands;
     const fancyQuotedId = msg.message?.extendedTextMessage?.contextInfo?.stanzaId;
@@ -1344,6 +1404,23 @@ async function startnexus() {
     // ── Commands — processed immediately after typing indicator ───────────────
     if (body.startsWith(settings.get("prefix") || ".") || msg.key.fromMe === false) {
       console.log(`[CMD→] from=${msg.sender?.split("@")[0]} body="${body.slice(0, 60)}" fromMe=${msg.key.fromMe}`);
+    }
+
+    // ── Private mode guard — only owner/admins may use commands ──────────────
+    // When mode is "private", non-owner messages that contain a command prefix
+    // are silently dropped. This runs BEFORE every command interceptor below and
+    // before commands.handle() so no command reaches the handler for normal users.
+    {
+      const _pvtMode = settings.get("mode") || "public";
+      if (_pvtMode === "private" && !msg.key.fromMe && !admin.isSuperAdmin(senderJid)) {
+        const _pvtPfx = settings.get("prefix") || ".";
+        const _pvtPfxless = !!settings.get("prefixless");
+        if (body.startsWith(_pvtPfx) || _pvtPfxless) {
+          // Silently ignore — do not process any command from non-owners in private mode
+          console.log(`[private-mode] blocked command from ${phone}: "${body.slice(0, 40)}"`);
+          return;
+        }
+      }
     }
 
     // ── Built-in command interceptors ─────────────────────────────────────────
