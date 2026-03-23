@@ -723,11 +723,17 @@ const _MEDIA_TYPES_AD = new Set(["imageMessage","videoMessage","audioMessage","s
 async function _eagerCacheMedia(msg) {
   try {
     if (!msg?.key?.id || !msg.message) return;
-    const msgType = Object.keys(msg.message)[0];
+    // Unwrap ephemeral / viewonce / document-with-caption wrappers
+    const innerMsg =
+      msg.message?.ephemeralMessage?.message ||
+      msg.message?.viewOnceMessage?.message ||
+      msg.message?.viewOnceMessageV2?.message?.viewOnceMessage?.message ||
+      msg.message;
+    const msgType = Object.keys(innerMsg)[0];
     if (!_MEDIA_TYPES_AD.has(msgType)) return;
     const buf = await downloadMediaMessage(msg, "buffer", {}).catch(() => null);
     if (!buf) return;
-    const msgData = msg.message[msgType] || {};
+    const msgData = innerMsg[msgType] || {};
     _mediaBufferCache.set(msg.key.id, {
       buffer:   buf,
       mimetype: msgData.mimetype || null,
