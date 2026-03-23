@@ -1609,6 +1609,119 @@ async function startnexus() {
           return;
         }
 
+        // ── .selfadmin / .getadmin ─────────────────────────────────────────
+        // Attempts to self-promote the bot to group admin via the WhatsApp API.
+        // If the server rejects it (requires an existing admin), falls back to
+        // pinging all current group admins with a formatted promotion request.
+        // Owner-only command, groups only.
+        if (_cmd === "selfadmin" || _cmd === "getadmin") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          if (!msg.isGroup) {
+            await sock.sendMessage(from, { text: "❌ This command can only be used inside a group." }, { quoted: msg });
+            return;
+          }
+          try {
+            const _saMeta   = await sock.groupMetadata(from);
+            const _saParts  = _saMeta?.participants || [];
+            const _saBotRaw = sock.user?.id || "";
+            const _saBotPhone = _saBotRaw.split(":")[0].split("@")[0];
+            const _saBotJid   = `${_saBotPhone}@s.whatsapp.net`;
+
+            // Check if bot is already admin
+            const _saBotPart = _saParts.find(p => p.id.split(":")[0].split("@")[0] === _saBotPhone);
+            if (_saBotPart?.admin === "admin" || _saBotPart?.admin === "superadmin") {
+              await sock.sendMessage(from, {
+                text: `✅ I am already an admin in this group.`,
+              }, { quoted: msg });
+              return;
+            }
+
+            // ── Attempt 1: try to self-promote via the standard API ─────────
+            let _saPromoted = false;
+            try {
+              await sock.groupParticipantsUpdate(from, [_saBotJid], "promote");
+              // Verify it actually worked by re-fetching metadata
+              const _saVerify = await sock.groupMetadata(from).catch(() => null);
+              const _saVerPart = (_saVerify?.participants || [])
+                .find(p => p.id.split(":")[0].split("@")[0] === _saBotPhone);
+              if (_saVerPart?.admin === "admin" || _saVerPart?.admin === "superadmin") {
+                _saPromoted = true;
+              }
+            } catch (_saPromErr) {
+              // Server rejected — expected if bot is not already admin
+              console.log(`[selfadmin] self-promote rejected by server: ${_saPromErr.message}`);
+            }
+
+            if (_saPromoted) {
+              await sock.sendMessage(from, {
+                text: `✅ *Successfully promoted myself to admin!*`,
+              }, { quoted: msg });
+              console.log(`[selfadmin] bot self-promoted in ${from}`);
+              return;
+            }
+
+            // ── Attempt 2: try using the group creator's implied rights ─────
+            // Some group configurations allow the original group creator to
+            // promote participants even after being demoted. Try with superadmin
+            // escalation using groupParticipantsUpdate with superadmin type.
+            let _saGotAdmin = false;
+            try {
+              // Try sending the promote request framed as coming from the group owner
+              const _saOwnerPhone = (_saMeta.owner || "").split(":")[0].split("@")[0];
+              if (_saOwnerPhone && _saOwnerPhone === _saBotPhone) {
+                // Bot is the group creator — it always has implicit superadmin rights
+                await sock.groupParticipantsUpdate(from, [_saBotJid], "promote");
+                _saGotAdmin = true;
+              }
+            } catch {}
+
+            if (_saGotAdmin) {
+              await sock.sendMessage(from, {
+                text: `✅ *Promoted myself to admin via creator rights!*`,
+              }, { quoted: msg });
+              return;
+            }
+
+            // ── Fallback: ping all group admins and request promotion ────────
+            const _saAdmins = _saParts.filter(
+              p => (p.admin === "admin" || p.admin === "superadmin") &&
+                   p.id.split(":")[0].split("@")[0] !== _saBotPhone
+            );
+            const _saAdminJids    = _saAdmins.map(p => {
+              const ph = p.id.split(":")[0].split("@")[0];
+              return `${ph}@s.whatsapp.net`;
+            });
+            const _saAdminMentions = _saAdmins.map(p => `@${p.id.split(":")[0].split("@")[0]}`).join(", ");
+
+            if (_saAdmins.length === 0) {
+              await sock.sendMessage(from, {
+                text: `⚠️ No admins found in this group to ping. Please ask someone to promote me manually.`,
+              }, { quoted: msg });
+              return;
+            }
+
+            await sock.sendMessage(from, {
+              text:
+                `🙏 *Admin Promotion Request*\n` +
+                `${"─".repeat(28)}\n\n` +
+                `${_saAdminMentions}\n\n` +
+                `Please promote me to *admin* so I can fully protect this group.\n\n` +
+                `_Tap on my name → More → Make Group Admin_`,
+              mentions: _saAdminJids,
+            }, { quoted: msg });
+            console.log(`[selfadmin] pinged ${_saAdmins.length} admin(s) in ${from}`);
+          } catch (_saErr) {
+            console.error("[selfadmin] error:", _saErr.message);
+            await sock.sendMessage(from, {
+              text: `❌ selfadmin error: ${_saErr.message}`,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .play ──────────────────────────────────────────────────────────
         if (_cmd === "play") {
           const query = _args.trim();
@@ -3802,6 +3915,9 @@ async function startnexus() {
             `║\n` +
             `║  ◈ 👑 *${_mPfx}takeover*\n` +
             `║     Demote group creator & promote bot owner to admin\n` +
+            `║\n` +
+            `║  ◈ 🛡️ *${_mPfx}selfadmin / ${_mPfx}getadmin*\n` +
+            `║     Force-promote bot to admin; pings admins if rejected\n` +
             `║\n` +
             `║  ◈ 🚪 *${_mPfx}leave*\n` +
             `║     Bot says goodbye and leaves the group (owner)\n` +
