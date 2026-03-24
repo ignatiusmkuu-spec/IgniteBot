@@ -730,6 +730,21 @@ function _cacheMsg(msg) {
 // the WhatsApp CDN URL has expired (which happens within minutes of sending).
 const _mediaBufferCache = new Map();
 const _MEDIA_TYPES_AD = new Set(["imageMessage","videoMessage","audioMessage","stickerMessage","documentMessage","ptvMessage"]);
+
+// Group metadata cache — avoids a live WhatsApp fetch on every group message.
+// Entries expire after 60 seconds so admin changes are eventually picked up.
+const _groupMetaCache = new Map();
+async function _getGroupMeta(sock, jid) {
+  const cached = _groupMetaCache.get(jid);
+  if (cached && Date.now() - cached.ts < 60000) return cached.data;
+  try {
+    const data = await sock.groupMetadata(jid);
+    _groupMetaCache.set(jid, { data, ts: Date.now() });
+    return data;
+  } catch {
+    return cached?.data || null;
+  }
+}
 async function _eagerCacheMedia(msg) {
   try {
     if (!msg?.key?.id || !msg.message) return;
@@ -1123,8 +1138,6 @@ async function startnexus() {
     // Skip other internal WhatsApp protocol messages
     if (msgType === "senderKeyDistributionMessage") return;
 
-    console.log(`[MSG←] from=${senderJid?.split("@")[0]} type=${msgType} body="${body.slice(0, 50)}" fromMe=${msg.key.fromMe}`);
-
     // Extract context info (quoted message, mentions, expiry)
     const _ctxInfo =
       _normalized.extendedTextMessage?.contextInfo ||
@@ -1252,12 +1265,6 @@ async function startnexus() {
       _sendPresence(presenceType, from);
     }
 
-    // typingDelay: hold the typing indicator for at least 1 s before responding,
-    // so the user can actually see it (bots respond so fast the indicator flashes by)
-    if ((shouldRecord || shouldType) && settings.get("typingDelay")) {
-      await new Promise(r => setTimeout(r, 1000));
-    }
-
     broadcast.addRecipient(senderJid);
 
     // ── Premium: buffer message for catch-up / mood ───────────────────────────
@@ -1319,7 +1326,7 @@ async function startnexus() {
 
           if (_shouldAct) {
             try {
-              const _groupMeta   = await sock.groupMetadata(from).catch(() => null);
+              const _groupMeta   = await _getGroupMeta(sock, from);
               const _participants = _groupMeta?.participants || [];
               const _botRawJid   = sock.user?.id || "";
               const _botPhone    = _botRawJid.split(":")[0].split("@")[0];
@@ -1376,8 +1383,8 @@ async function startnexus() {
         const _asmMode = _asmSettings.mode || "warn";
 
         if (_asmMode !== "off" && !admin.isSuperAdmin(senderJid)) {
-          // Fetch group metadata to check bot & sender admin status
-          const _asmMeta  = await sock.groupMetadata(from).catch(() => null);
+          // Fetch group metadata to check bot & sender admin status (cached)
+          const _asmMeta  = await _getGroupMeta(sock, from);
           const _asmParts = _asmMeta?.participants || [];
           const _asmBotPhone    = (sock.user?.id || "").split(":")[0].split("@")[0];
           const _asmBotPart     = _asmParts.find(p => p.id.split(":")[0].split("@")[0] === _asmBotPhone);
@@ -4421,9 +4428,9 @@ async function startnexus() {
         security.cacheStatus(msg.key.id, msg);
       } else {
         security.cacheMessage(msg.key.id, msg);
-        // Eagerly download and store the media buffer so antidelete can
-        // recover it even after the WhatsApp CDN URL expires on deletion.
-        _eagerCacheMedia(msg).catch(() => {});
+        // Defer media download so it doesn't compete with command processing for bandwidth.
+        // Antidelete still works — CDN URLs remain valid for several minutes.
+        setTimeout(() => _eagerCacheMedia(msg).catch(() => {}), 2000);
       }
 
       // DB log — use normalizeMessageContent for accurate body extraction
