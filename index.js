@@ -577,8 +577,27 @@ app.get("/pair", (req, res) => {
 app.get("/pair/:phone", async (req, res) => {
   const phone = req.params.phone.replace(/\D/g, "");
   if (!phone) return res.json({ error: "Provide phone number e.g. /pair/254706535581" });
-  if (botStatus === "connected") return res.json({ error: "Bot already connected!", phone: botPhoneNumber });
+
+  // ── CRITICAL SAFETY GUARD ─────────────────────────────────────────────────
+  // requestPairingCode() must NEVER be called when a session already exists.
+  // Calling it on a socket that has credentials tells WhatsApp "start a new
+  // pairing", which immediately revokes the current session (force-logout 401).
+  // We block this endpoint whenever:
+  //   • The bot is already connected (live session)
+  //   • waitingForSession === false (credentials exist even if momentarily offline)
+  //   • A valid session is stored in the DB (belt-and-suspenders)
+  if (!waitingForSession) {
+    return res.json({ error: "Bot already has a session. Disconnect and clear the session before re-pairing." });
+  }
+  if (botStatus === "connected") {
+    return res.json({ error: "Bot already connected!", phone: botPhoneNumber });
+  }
+  const _storedSess = db.read("_latestSession", null);
+  if (_storedSess?.id) {
+    return res.json({ error: "A stored session exists. Clear it from the dashboard before requesting a new pairing code." });
+  }
   if (!sockRef) return res.json({ error: "Bot socket not ready yet, try again in a few seconds." });
+
   try {
     pairingPhone = phone;
     const code = await sockRef.requestPairingCode(phone);
