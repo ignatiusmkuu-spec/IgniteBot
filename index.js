@@ -4436,6 +4436,59 @@ async function startnexus() {
           return;
         }
 
+        // ── .detect — look up a WhatsApp user by mention or phone number ───
+        if (_cmd === "detect") {
+          const _detMentioned = msg.mentionedJids?.[0] || (msg.quoted ? msg.quoted.sender : null);
+          const _detNumArg    = _args.trim().replace(/[^0-9]/g, "");
+          let   _detJid       = _detMentioned
+            || (_detNumArg ? _detNumArg + "@s.whatsapp.net" : null);
+
+          if (!_detJid) {
+            await sock.sendMessage(from, {
+              text: `🔍 *Usage:* \`${_pfx}detect @user\` or \`${_pfx}detect <phone number>\`\n*Example:* \`${_pfx}detect 254700000000\``,
+            }, { quoted: msg });
+            return;
+          }
+
+          try {
+            const _detResults = await sock.onWhatsApp(_detJid).catch(() => []);
+            if (!_detResults?.[0]?.exists) {
+              await sock.sendMessage(from, {
+                text: `❌ That number is not registered on WhatsApp.`,
+              }, { quoted: msg });
+              return;
+            }
+
+            const _detPhone = _detJid.split("@")[0];
+            let   _detName  = `+${_detPhone}`;
+            try {
+              const _detMeta = await sock.profilePictureUrl(_detJid, "image").catch(() => null);
+              _detName = (await sock.getName?.(_detJid).catch(() => null)) || _detName;
+              const _detMsg =
+                `🔍 *User Found!*\n\n` +
+                `📱 *Number:* +${_detPhone}\n` +
+                `👤 *Name:* ${_detName}\n` +
+                `✅ *On WhatsApp:* Yes`;
+
+              if (_detMeta) {
+                await sock.sendMessage(from, {
+                  image:   { url: _detMeta },
+                  caption: _detMsg,
+                }, { quoted: msg });
+              } else {
+                await sock.sendMessage(from, { text: _detMsg }, { quoted: msg });
+              }
+            } catch {
+              await sock.sendMessage(from, {
+                text: `🔍 *User Found!*\n\n📱 *Number:* +${_detPhone}\n✅ *On WhatsApp:* Yes`,
+              }, { quoted: msg });
+            }
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Detect failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .block ─────────────────────────────────────────────────────────
         if (_cmd === "block") {
           if (!_isOwner) {
