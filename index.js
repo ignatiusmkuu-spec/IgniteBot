@@ -4121,6 +4121,9 @@ async function startnexus() {
           leaves:     "https://en.ephoto360.com/green-brush-text-effect-typography-maker-online-153.html",
           sand:       "https://en.ephoto360.com/write-names-and-messages-on-the-sand-online-582.html",
           child:      "https://en.ephoto360.com/write-text-on-wet-glass-online-589.html",
+          snow:       "https://en.ephoto360.com/create-a-snow-3d-text-effect-free-online-621.html",
+          impressive: "https://en.ephoto360.com/create-3d-colorful-paint-text-effect-online-801.html",
+          ice:        "https://en.ephoto360.com/ice-text-effect-online-101.html",
         };
         if (_textArtMap[_cmd]) {
           const _taText = _args.trim();
@@ -4363,6 +4366,72 @@ async function startnexus() {
             await sock.sendMessage(from, { text: _gTxt.trim() }, { quoted: msg });
           } catch (e) {
             await sock.sendMessage(from, { text: `❌ Google search failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .weather — current weather for a city ──────────────────────────
+        if (_cmd === "weather") {
+          const _city = _args.trim();
+          if (!_city) {
+            await sock.sendMessage(from, {
+              text: `🌤️ *Usage:* \`${_pfx}weather <city>\`\n*Example:* \`${_pfx}weather Nairobi\``,
+            }, { quoted: msg });
+            return;
+          }
+          try {
+            const _wRes  = await axios.get(
+              `https://wttr.in/${encodeURIComponent(_city)}?format=j1`,
+              { timeout: 15000 }
+            );
+            const _w     = _wRes.data;
+            const _cur   = _w.current_condition[0];
+            const _area  = _w.nearest_area[0];
+            const _wCity = _area.areaName[0].value;
+            const _wCtry = _area.country[0].value;
+            await sock.sendMessage(from, {
+              text:
+                `🌤️ *WEATHER REPORT*\n` +
+                `━━━━━━━━━━━━━━━━\n` +
+                `📍 *Location:* ${_wCity}, ${_wCtry}\n` +
+                `🌡️ *Temperature:* ${_cur.temp_C}°C (Feels like ${_cur.FeelsLikeC}°C)\n` +
+                `🌥️ *Condition:* ${_cur.weatherDesc[0].value}\n` +
+                `💧 *Humidity:* ${_cur.humidity}%\n` +
+                `💨 *Wind Speed:* ${_cur.windspeedKmph} km/h\n` +
+                `━━━━━━━━━━━━━━━━\n` +
+                `⚡ _Powered by NEXUS-MD_`,
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, {
+              text: `❌ Couldn't get weather for *${_city}*. Check the city name and try again.`,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .gpass / .genpassword — generate a secure random password ───────
+        if (_cmd === "gpass" || _cmd === "genpassword") {
+          try {
+            const _crypto2  = require("crypto");
+            const _lenArg   = parseInt(_args.trim().split(/\s+/)[0], 10);
+            const _len      = isNaN(_lenArg) || _lenArg < 8 ? 12 : _lenArg;
+            if (_lenArg < 8 && !isNaN(_lenArg)) {
+              await sock.sendMessage(from, {
+                text: "❌ Please provide a valid length (minimum 8 characters).",
+              }, { quoted: msg });
+              return;
+            }
+            const _charset  = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+[]{}|;:,.<>?";
+            let   _password = "";
+            for (let i = 0; i < _len; i++) {
+              _password += _charset[_crypto2.randomInt(0, _charset.length)];
+            }
+            await sock.sendMessage(from, {
+              text: `🔐 *Your generated password (${_len} chars):*`,
+            }, { quoted: msg });
+            await sock.sendMessage(from, { text: _password }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Error generating password: ${e.message}` }, { quoted: msg });
           }
           return;
         }
