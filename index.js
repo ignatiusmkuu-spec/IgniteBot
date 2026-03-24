@@ -4519,6 +4519,223 @@ async function startnexus() {
           return;
         }
 
+        // ── .calc — safe math evaluator ────────────────────────────────────
+        if (_cmd === "calc" || _cmd === "math" || _cmd === "calculate") {
+          const expr = _args.trim();
+          if (!expr) {
+            await sock.sendMessage(from, { text: `🧮 *Calculator*\n\nUsage: \`${_pfx}calc 2^10 + 5 * (3 - 1)\`` }, { quoted: msg });
+            return;
+          }
+          try {
+            const sanitized = expr.replace(/[^0-9+\-*/%.^() ]/g, "");
+            const result = Function(`"use strict"; return (${sanitized.replace(/\^/g, "**")})`)();
+            if (typeof result !== "number" || !isFinite(result)) throw new Error("invalid");
+            await sock.sendMessage(from, {
+              text: `🧮 *Calculator*\n\n📥 Input: \`${expr}\`\n📤 Result: *${result}*`,
+            }, { quoted: msg });
+          } catch {
+            await sock.sendMessage(from, { text: `❌ Invalid expression. Only numbers and + - * / % ^ ( ) are allowed.` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .joke — random joke ─────────────────────────────────────────────
+        if (_cmd === "joke" || _cmd === "dadjoke" || _cmd === "funfact2") {
+          try {
+            const _jRes = await axios.get("https://v2.jokeapi.dev/joke/Any?blacklistFlags=nsfw,racist,sexist&type=twopart", { timeout: 8000 });
+            const _j = _jRes.data;
+            await sock.sendMessage(from, {
+              text: `😂 *Random Joke*\n\n${_j.setup}\n\n_${_j.delivery}_`,
+            }, { quoted: msg });
+          } catch {
+            await sock.sendMessage(from, { text: `❌ Couldn't fetch a joke right now. Try again!` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .fact — random interesting fact ────────────────────────────────
+        if (_cmd === "fact" || _cmd === "funfact" || _cmd === "didyouknow") {
+          try {
+            const _fRes = await axios.get("https://uselessfacts.jsph.pl/api/v2/facts/random?language=en", { timeout: 8000 });
+            await sock.sendMessage(from, {
+              text: `🧠 *Did You Know?*\n\n${_fRes.data.text}\n\n_Source: uselessfacts.jsph.pl_`,
+            }, { quoted: msg });
+          } catch {
+            await sock.sendMessage(from, { text: `❌ Couldn't fetch a fact right now. Try again!` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .8ball / .eightball — magic 8-ball ─────────────────────────────
+        if (_cmd === "8ball" || _cmd === "eightball" || _cmd === "ask") {
+          const _question = _args.trim();
+          if (!_question) {
+            await sock.sendMessage(from, { text: `🎱 *Magic 8-Ball*\n\nAsk me a question!\nUsage: \`${_pfx}8ball Will I be rich?\`` }, { quoted: msg });
+            return;
+          }
+          const _8ballAnswers = [
+            "🟢 It is certain.", "🟢 It is decidedly so.", "🟢 Without a doubt.",
+            "🟢 Yes, definitely.", "🟢 You may rely on it.", "🟢 As I see it, yes.",
+            "🟢 Most likely.", "🟢 Outlook good.", "🟢 Yes.", "🟢 Signs point to yes.",
+            "🟡 Reply hazy, try again.", "🟡 Ask again later.", "🟡 Better not tell you now.",
+            "🟡 Cannot predict now.", "🟡 Concentrate and ask again.",
+            "🔴 Don't count on it.", "🔴 My reply is no.", "🔴 My sources say no.",
+            "🔴 Outlook not so good.", "🔴 Very doubtful.",
+          ];
+          const _ans = _8ballAnswers[Math.floor(Math.random() * _8ballAnswers.length)];
+          await sock.sendMessage(from, {
+            text: `🎱 *Magic 8-Ball*\n\n❓ _${_question}_\n\n${_ans}`,
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .flip / .coinflip — coin flip ──────────────────────────────────
+        if (_cmd === "flip" || _cmd === "coinflip" || _cmd === "coin") {
+          const _side = Math.random() < 0.5 ? "🪙 *HEADS*" : "🪙 *TAILS*";
+          await sock.sendMessage(from, {
+            text: `🪙 *Coin Flip*\n\nFlipping...\n\nResult: ${_side}`,
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .dice / .roll — dice roller ─────────────────────────────────────
+        if (_cmd === "dice" || _cmd === "roll" || _cmd === "rolldice") {
+          const _sides = parseInt(_args.trim()) || 6;
+          if (_sides < 2 || _sides > 1000) {
+            await sock.sendMessage(from, { text: `🎲 Please specify between 2 and 1000 sides.\nUsage: \`${_pfx}dice 20\`` }, { quoted: msg });
+            return;
+          }
+          const _rolled = Math.floor(Math.random() * _sides) + 1;
+          await sock.sendMessage(from, {
+            text: `🎲 *Dice Roll* (d${_sides})\n\nYou rolled: *${_rolled}*`,
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .qr — generate a QR code ────────────────────────────────────────
+        if (_cmd === "qr" || _cmd === "qrcode") {
+          const _qrText = _args.trim() || (msg.quoted?.body) || "";
+          if (!_qrText) {
+            await sock.sendMessage(from, { text: `📷 *QR Code Generator*\n\nUsage: \`${_pfx}qr https://example.com\`\nOr reply to any text message.` }, { quoted: msg });
+            return;
+          }
+          try {
+            const _qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&ecc=H&data=${encodeURIComponent(_qrText)}`;
+            const _qrBuf = Buffer.from((await axios.get(_qrUrl, { responseType: "arraybuffer", timeout: 10000 })).data);
+            await sock.sendMessage(from, {
+              image: _qrBuf,
+              caption: `📷 *QR Code*\n\nContent: ${_qrText.length > 80 ? _qrText.slice(0, 80) + "…" : _qrText}`,
+            }, { quoted: msg });
+          } catch {
+            await sock.sendMessage(from, { text: `❌ Failed to generate QR code. Try again.` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .define / .dict — dictionary definition ─────────────────────────
+        if (_cmd === "define" || _cmd === "dict" || _cmd === "dictionary") {
+          const _word = _args.trim().split(" ")[0].toLowerCase();
+          if (!_word) {
+            await sock.sendMessage(from, { text: `📖 *Dictionary*\n\nUsage: \`${_pfx}define serendipity\`` }, { quoted: msg });
+            return;
+          }
+          try {
+            const _dictRes = await axios.get(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(_word)}`, { timeout: 8000 });
+            const _entry   = _dictRes.data[0];
+            const _phonetic = _entry.phonetics?.find(p => p.text)?.text || "";
+            let _defText = `📖 *${_entry.word}*`;
+            if (_phonetic) _defText += `  /${_phonetic}/`;
+            _defText += "\n" + "─".repeat(30) + "\n";
+            const _shown = new Set();
+            let _count = 0;
+            for (const meaning of _entry.meanings) {
+              if (_count >= 4) break;
+              const partOfSpeech = meaning.partOfSpeech;
+              if (_shown.has(partOfSpeech)) continue;
+              _shown.add(partOfSpeech);
+              _defText += `\n*${partOfSpeech}*\n`;
+              meaning.definitions.slice(0, 2).forEach((d, i) => {
+                _defText += `${i + 1}. ${d.definition}\n`;
+                if (d.example) _defText += `   _"${d.example}"_\n`;
+              });
+              _count++;
+            }
+            const _synonyms = _entry.meanings.flatMap(m => m.synonyms || []).slice(0, 5).join(", ");
+            if (_synonyms) _defText += `\n🔗 Synonyms: ${_synonyms}`;
+            await sock.sendMessage(from, { text: _defText.trim() }, { quoted: msg });
+          } catch {
+            await sock.sendMessage(from, { text: `❌ No definition found for *${_word}*. Check the spelling.` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .country / .countryinfo — country information ───────────────────
+        if (_cmd === "country" || _cmd === "countryinfo" || _cmd === "nation") {
+          const _cName = _args.trim();
+          if (!_cName) {
+            await sock.sendMessage(from, { text: `🌍 *Country Info*\n\nUsage: \`${_pfx}country Kenya\`` }, { quoted: msg });
+            return;
+          }
+          try {
+            const _cRes = await axios.get(`https://restcountries.com/v3.1/name/${encodeURIComponent(_cName)}?fullText=false&fields=name,capital,population,area,currencies,languages,flags,region,subregion,timezones,cca2,diallingCode,idd`, { timeout: 8000 });
+            const _c = _cRes.data[0];
+            const _currencies = Object.values(_c.currencies || {}).map(cu => `${cu.name} (${cu.symbol || "?"}`).join(", ");
+            const _languages  = Object.values(_c.languages || {}).join(", ");
+            const _capital    = (_c.capital || ["N/A"])[0];
+            const _dialCode   = _c.idd?.root ? `${_c.idd.root}${(_c.idd.suffixes || [])[0] || ""}` : "N/A";
+            const _pop        = (_c.population || 0).toLocaleString();
+            const _area       = (_c.area || 0).toLocaleString();
+            const _tz         = (_c.timezones || [])[0] || "N/A";
+            const _text =
+              `🌍 *${_c.name.common}* (${_c.cca2})\n` +
+              `${"─".repeat(32)}\n` +
+              `🗺 Region: ${_c.region}${_c.subregion ? ` / ${_c.subregion}` : ""}\n` +
+              `🏛 Capital: ${_capital}\n` +
+              `👥 Population: ${_pop}\n` +
+              `📐 Area: ${_area} km²\n` +
+              `💰 Currency: ${_currencies || "N/A"}\n` +
+              `🗣 Language(s): ${_languages || "N/A"}\n` +
+              `📞 Dial Code: ${_dialCode}\n` +
+              `🕐 Timezone: ${_tz}`;
+            const _flagUrl = _c.flags?.png;
+            if (_flagUrl) {
+              const _flagBuf = Buffer.from((await axios.get(_flagUrl, { responseType: "arraybuffer", timeout: 10000 })).data);
+              await sock.sendMessage(from, { image: _flagBuf, caption: _text }, { quoted: msg });
+            } else {
+              await sock.sendMessage(from, { text: _text }, { quoted: msg });
+            }
+          } catch {
+            await sock.sendMessage(from, { text: `❌ Country not found: *${_cName}*. Try the full country name.` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .translate / .tr — translate text to another language ───────────
+        if (_cmd === "translate" || _cmd === "tr" || _cmd === "trans") {
+          const _trParts = _args.trim().split(/\s+/);
+          if (_trParts.length < 2) {
+            await sock.sendMessage(from, {
+              text: `🌐 *Translator*\n\nUsage: \`${_pfx}translate [lang] [text]\`\n\nExamples:\n• \`${_pfx}translate fr Hello world\`\n• \`${_pfx}translate sw Good morning\`\n• \`${_pfx}translate ar How are you\`\n\nCommon codes: en, fr, es, de, ar, sw, zu, yo, ig, ha, pt, zh`,
+            }, { quoted: msg });
+            return;
+          }
+          const _toLang = _trParts[0].toLowerCase();
+          const _trText = _trParts.slice(1).join(" ");
+          try {
+            const _trRes = await axios.get(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(_trText)}&langpair=en|${_toLang}`, { timeout: 10000 });
+            const _trData = _trRes.data;
+            if (_trData.responseStatus !== 200 && _trData.responseStatus !== "200") throw new Error("bad status");
+            const _translated = _trData.responseData?.translatedText;
+            if (!_translated || _translated === _trText) throw new Error("no translation");
+            await sock.sendMessage(from, {
+              text: `🌐 *Translation* (en → ${_toLang.toUpperCase()})\n\n📥 _${_trText}_\n\n📤 *${_translated}*`,
+            }, { quoted: msg });
+          } catch {
+            await sock.sendMessage(from, { text: `❌ Translation failed. Check the language code or try again.\n\nCommon codes: en, fr, es, de, ar, sw, zu, yo, ig, ha, pt, zh` }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .block ─────────────────────────────────────────────────────────
         if (_cmd === "block") {
           if (!_isOwner) {
@@ -4678,6 +4895,10 @@ async function startnexus() {
               `┃ ⧉ ${_pfx}dict\n` +
               `┃ ⧉ ${_pfx}tr\n` +
               `┃ ⧉ ${_pfx}translate\n` +
+              `┃ ⧉ ${_pfx}country\n` +
+              `┃ ⧉ ${_pfx}countryinfo\n` +
+              `┃ ⧉ ${_pfx}qr\n` +
+              `┃ ⧉ ${_pfx}qrcode\n` +
               `┃ ⧉ ${_pfx}langs\n` +
               `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
               `╭━━━〔 ⚽ *SPORTS CENTER* 〕━━━⬣\n` +
@@ -4690,10 +4911,13 @@ async function startnexus() {
               `┃ ✦ ${_pfx}8ball\n` +
               `┃ ✦ ${_pfx}fact\n` +
               `┃ ✦ ${_pfx}flip\n` +
+              `┃ ✦ ${_pfx}coinflip\n` +
               `┃ ✦ ${_pfx}joke\n` +
+              `┃ ✦ ${_pfx}dadjoke\n` +
+              `┃ ✦ ${_pfx}dice\n` +
+              `┃ ✦ ${_pfx}roll\n` +
               `┃ ✦ ${_pfx}quote\n` +
               `┃ ✦ ${_pfx}inspire\n` +
-              `┃ ✦ ${_pfx}roll\n` +
               `┃ ✦ ${_pfx}anime\n` +
               `┃ ✦ ${_pfx}random-anime\n` +
               `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
