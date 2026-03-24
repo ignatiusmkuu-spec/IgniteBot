@@ -55,6 +55,40 @@
 
 <div align="center">
 
+## 🖥️ Panel Deployment (Pterodactyl / cPanel / VPS)
+
+**① Download the bot as a ZIP**
+
+[![Download ZIP](https://img.shields.io/badge/DOWNLOAD%20ZIP-FF6B35?style=for-the-badge&logo=github&logoColor=white)](https://github.com/ignatiusmkuu-spec/IgniteBot/archive/refs/heads/main.zip)
+
+**② Upload & extract on your panel, then install dependencies**
+
+```bash
+npm install
+```
+
+**③ Set your environment variables**
+
+| Variable | Description |
+|:---|:---|
+| `SESSION_ID` | Your WhatsApp session (from pairing site) |
+| `ADMIN_NUMBERS` | Your number e.g. `254706535581` |
+| `DATABASE_URL` | PostgreSQL URL (optional but recommended) |
+
+**④ Start the bot**
+
+```bash
+node index.js
+```
+
+> ℹ️ On panels with no persistent DB, settings and session are saved to `data/botstore.json` automatically.
+
+</div>
+
+---
+
+<div align="center">
+
 ## ⚙️ Key Commands
 
 | Command | Action |
