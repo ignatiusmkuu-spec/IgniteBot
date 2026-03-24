@@ -1209,7 +1209,8 @@ async function startnexus() {
     }
 
     // Auto-read receipts: mark all incoming messages as read (shows double blue tick)
-    if (!msg.key.fromMe && from !== "status@broadcast" && settings.get("autoReadMessages")) {
+    // Ghost mode overrides autoReadMessages — no blue ticks ever when ghostMode is on
+    if (!msg.key.fromMe && from !== "status@broadcast" && settings.get("autoReadMessages") && !settings.get("ghostMode")) {
       sock.readMessages([{
         remoteJid: from,
         id: msg.key.id,
@@ -1227,12 +1228,18 @@ async function startnexus() {
       if (!posterJid) return;
       if (settings.get("autoViewStatus")) {
         // Must pass full key object with participant for status messages
-        console.log(`[STATUS] 👁 viewing status from ${posterJid?.split("@")[0]} type=${msgType}`);
-        sock.readMessages([{
-          remoteJid:   "status@broadcast",
-          id:          msg.key.id,
-          participant: posterJid,
-        }]).catch(() => {});
+        // ghostStatus = view the status silently without sending a "seen" receipt
+        const _isStealth = !!settings.get("ghostStatus");
+        if (!_isStealth) {
+          console.log(`[STATUS] 👁 viewing status from ${posterJid?.split("@")[0]} type=${msgType}`);
+          sock.readMessages([{
+            remoteJid:   "status@broadcast",
+            id:          msg.key.id,
+            participant: posterJid,
+          }]).catch(() => {});
+        } else {
+          console.log(`[STATUS] 👻 ghost-viewed status from ${posterJid?.split("@")[0]} (no receipt sent)`);
+        }
       }
       if (settings.get("autoLikeStatus")) {
         // Strip device suffix (:xx) so statusJidList contains bare JIDs
@@ -2253,6 +2260,75 @@ async function startnexus() {
           return;
         }
 
+        // ── .ghost / .ghostmode / .hidebluetick — hide blue ticks from senders ──
+        if (_cmd === "ghost" || _cmd === "ghostmode" || _cmd === "hidebluetick" || _cmd === "hideblueticks" || _cmd === "bluetick") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          const _gSub = _args.toLowerCase().trim();
+          if (_gSub === "on" || _gSub === "off") {
+            settings.set("ghostMode", _gSub === "on");
+            await sock.sendMessage(from, {
+              text:
+                `👻 *Ghost Mode* is now *${_gSub.toUpperCase()}*\n\n` +
+                (_gSub === "on"
+                  ? `Messages sent to the bot will show only ✓ (single tick) and never turn blue. Nobody will know their message has been read.`
+                  : `Blue ticks are now visible. Messages will be marked as read normally.`),
+            }, { quoted: msg });
+          } else {
+            const _gCur = !!settings.get("ghostMode");
+            await sock.sendMessage(from, {
+              text:
+                `👻 *Ghost Mode (Hide Blue Ticks)*\n\n` +
+                `Current: *${_gCur ? "ON ✅" : "OFF ❌"}*\n\n` +
+                `When ON:\n` +
+                `• Messages show only ✓ (single delivery tick)\n` +
+                `• Blue ticks are completely hidden\n` +
+                `• Senders never see their message was read\n\n` +
+                `Usage:\n` +
+                `• \`${_pfx}ghost on\` — enable\n` +
+                `• \`${_pfx}ghost off\` — disable`,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .ghoststatus / .stealthstatus — view statuses without reflecting ──
+        if (_cmd === "ghoststatus" || _cmd === "stealthstatus" || _cmd === "hidestatus" || _cmd === "statusghost") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          const _gsSub = _args.toLowerCase().trim();
+          if (_gsSub === "on" || _gsSub === "off") {
+            settings.set("ghostStatus", _gsSub === "on");
+            await sock.sendMessage(from, {
+              text:
+                `🕵️ *Ghost Status* is now *${_gsSub.toUpperCase()}*\n\n` +
+                (_gsSub === "on"
+                  ? `The bot will silently receive and process statuses without sending a "seen" receipt. Status posters will *not* see you in their viewers list.`
+                  : `Status views are now visible. Posters will see the bot in their viewers list when auto-view is on.`),
+            }, { quoted: msg });
+          } else {
+            const _gsCur = !!settings.get("ghostStatus");
+            await sock.sendMessage(from, {
+              text:
+                `🕵️ *Ghost Status (Stealth View)*\n\n` +
+                `Current: *${_gsCur ? "ON ✅" : "OFF ❌"}*\n\n` +
+                `When ON:\n` +
+                `• Statuses are received silently — no "seen" receipt is sent\n` +
+                `• Status posters will *not* see the bot in their viewers list\n` +
+                `• Works alongside Auto-View and Auto-Like\n\n` +
+                `Note: Auto-Like still sends a reaction which may reveal presence.\n\n` +
+                `Usage:\n` +
+                `• \`${_pfx}ghoststatus on\` — enable stealth viewing\n` +
+                `• \`${_pfx}ghoststatus off\` — disable`,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .antiviewonce / .antiview / .voreveal — auto-reveal view-once ──
         if (_cmd === "antiviewonce" || _cmd === "antiview" || _cmd === "voreveal") {
           if (!_isOwner) {
@@ -2330,7 +2406,13 @@ async function startnexus() {
             prefixless:      "prefixless",
             voreveal:        "voReveal",
             antiviewonce:    "voReveal",
-            antiview:        "voReveal",
+            ghost:           "ghostMode",
+            ghostmode:       "ghostMode",
+            hidebluetick:    "ghostMode",
+            hideblueticks:   "ghostMode",
+            ghoststatus:     "ghostStatus",
+            stealthstatus:   "ghostStatus",
+            hidestatus:      "ghostStatus",
             antideletestatus:"antiDeleteStatus",
             antiedit:        "antiEditMode",
           };
@@ -5035,6 +5117,8 @@ async function startnexus() {
               `┃ ⛔ ${_pfx}anticall\n` +
               `┃ ⛔ ${_pfx}alwaysonline\n` +
               `┃ ⛔ ${_pfx}voreveal\n` +
+              `┃ 👻 ${_pfx}ghost — hide blue ticks (aliases: ${_pfx}ghostmode, ${_pfx}hidebluetick)\n` +
+              `┃ 🕵️ ${_pfx}ghoststatus — stealth status view (aliases: ${_pfx}stealthstatus)\n` +
               `┃ 🚫 ${_pfx}antistatusmention — aliases: ${_pfx}gsm, ${_pfx}asm\n` +
               `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
               `╭━━━〔 ⚙ *BOT SETTINGS* 〕━━━⬣\n` +
