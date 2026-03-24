@@ -1210,8 +1210,9 @@ async function startnexus() {
     }
 
     // Auto-read receipts: mark all incoming messages as read (shows double blue tick)
-    // Ghost mode overrides autoReadMessages — no blue ticks ever when ghostMode is on
-    if (!msg.key.fromMe && from !== "status@broadcast" && settings.get("autoReadMessages") && !settings.get("ghostMode")) {
+    // ghostMode = absolute block on all read receipts regardless of autoReadMessages
+    const _ghostModeActive = settings.get("ghostMode") === true || settings.get("ghostMode") === "on";
+    if (!msg.key.fromMe && from !== "status@broadcast" && !_ghostModeActive && settings.get("autoReadMessages")) {
       sock.readMessages([{
         remoteJid: from,
         id: msg.key.id,
@@ -1227,11 +1228,11 @@ async function startnexus() {
       if (msg.key.fromMe) return; // ignore own status posts
       const posterJid = msg.key.participant;
       if (!posterJid) return;
+      const _ghostStatusActive = settings.get("ghostStatus") === true || settings.get("ghostStatus") === "on";
       if (settings.get("autoViewStatus")) {
         // Must pass full key object with participant for status messages
-        // ghostStatus = view the status silently without sending a "seen" receipt
-        const _isStealth = !!settings.get("ghostStatus");
-        if (!_isStealth) {
+        // ghostStatus = complete stealth — no seen receipt AND no auto-like reaction
+        if (!_ghostStatusActive) {
           console.log(`[STATUS] 👁 viewing status from ${posterJid?.split("@")[0]} type=${msgType}`);
           sock.readMessages([{
             remoteJid:   "status@broadcast",
@@ -1239,10 +1240,11 @@ async function startnexus() {
             participant: posterJid,
           }]).catch(() => {});
         } else {
-          console.log(`[STATUS] 👻 ghost-viewed status from ${posterJid?.split("@")[0]} (no receipt sent)`);
+          console.log(`[STATUS] 👻 ghost-viewed status from ${posterJid?.split("@")[0]} (no receipt, no like)`);
         }
       }
-      if (settings.get("autoLikeStatus")) {
+      // Auto-like is also suppressed when ghostStatus is on — reacting reveals you saw the status
+      if (settings.get("autoLikeStatus") && !_ghostStatusActive) {
         // Strip device suffix (:xx) so statusJidList contains bare JIDs
         const myJid = (sock.user?.id || "").replace(/:\d+@/, "@");
         sock.sendMessage("status@broadcast",
@@ -2443,14 +2445,16 @@ async function startnexus() {
               text:
                 `🕵️ *Ghost Status (Stealth View)*\n\n` +
                 `Current: *${_gsCur ? "ON ✅" : "OFF ❌"}*\n\n` +
-                `When ON:\n` +
-                `• Statuses are received silently — no "seen" receipt is sent\n` +
-                `• Status posters will *not* see the bot in their viewers list\n` +
-                `• Works alongside Auto-View and Auto-Like\n\n` +
-                `Note: Auto-Like still sends a reaction which may reveal presence.\n\n` +
+                `When ON (complete stealth):\n` +
+                `• No "seen" receipt is sent — poster won't see you in viewers\n` +
+                `• Auto-Like reaction is also suppressed (it would reveal presence)\n` +
+                `• Statuses are still received and downloaded in the background\n\n` +
+                `When OFF:\n` +
+                `• Seen receipts sent if Auto-View is on\n` +
+                `• Auto-Like reactions sent if Auto-Like is on\n\n` +
                 `Usage:\n` +
-                `• \`${_pfx}ghoststatus on\` — enable stealth viewing\n` +
-                `• \`${_pfx}ghoststatus off\` — disable`,
+                `• \`${_pfx}ghoststatus on\` — full stealth\n` +
+                `• \`${_pfx}ghoststatus off\` — normal viewing`,
             }, { quoted: msg });
           }
           return;
