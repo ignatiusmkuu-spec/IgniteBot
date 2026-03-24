@@ -2255,6 +2255,36 @@ async function startnexus() {
           return;
         }
 
+        // ── .antiviewonce / .antiview / .voreveal — auto-reveal view-once ──
+        if (_cmd === "antiviewonce" || _cmd === "antiview" || _cmd === "voreveal") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          const _avSub = _args.toLowerCase().trim();
+          if (_avSub === "on" || _avSub === "off") {
+            settings.set("voReveal", _avSub === "on");
+            await sock.sendMessage(from, {
+              text: `👁 *Anti-ViewOnce* is now *${_avSub.toUpperCase()}*\n\n` +
+                (_avSub === "on"
+                  ? `Every view-once image/video/audio will be automatically re-sent to the chat so it can be seen and saved.`
+                  : `View-once messages will no longer be auto-revealed.`),
+            }, { quoted: msg });
+          } else {
+            const _avCur = !!settings.get("voReveal");
+            await sock.sendMessage(from, {
+              text:
+                `👁 *Anti-ViewOnce (Auto-Reveal)*\n\n` +
+                `Current: *${_avCur ? "ON ✅" : "OFF ❌"}*\n\n` +
+                `When ON, any view-once image, video or audio sent in any chat is automatically re-sent as a normal message so everyone can see and save it.\n\n` +
+                `Usage:\n` +
+                `• \`${_pfx}antiviewonce on\` — enable\n` +
+                `• \`${_pfx}antiviewonce off\` — disable`,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .autoreact / .autolike ─────────────────────────────────────────
         if (_cmd === "autoreact" || _cmd === "autolike" || _cmd === "autolikestatus") {
           if (!_isOwner) {
@@ -2301,6 +2331,8 @@ async function startnexus() {
             typingdelay:     "typingDelay",
             prefixless:      "prefixless",
             voreveal:        "voReveal",
+            antiviewonce:    "voReveal",
+            antiview:        "voReveal",
             antideletestatus:"antiDeleteStatus",
             antiedit:        "antiEditMode",
           };
