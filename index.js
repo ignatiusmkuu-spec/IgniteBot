@@ -2723,7 +2723,7 @@ async function startnexus() {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to approve requests." }, { quoted: msg });
               return;
             }
-            if (!admin.isAdmin(senderJid, parts)) {
+            if (!admin.isAdmin(senderJid, parts) && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ Only admins can use this command." }, { quoted: msg });
               return;
             }
@@ -2760,7 +2760,7 @@ async function startnexus() {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to reject requests." }, { quoted: msg });
               return;
             }
-            if (!admin.isAdmin(senderJid, parts)) {
+            if (!admin.isAdmin(senderJid, parts) && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ Only admins can use this command." }, { quoted: msg });
               return;
             }
@@ -2970,7 +2970,7 @@ async function startnexus() {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin for this." }, { quoted: msg });
               return;
             }
-            if (!admin.isAdmin(senderJid, parts)) {
+            if (!admin.isAdmin(senderJid, parts) && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ Only admins can use this command." }, { quoted: msg });
               return;
             }
@@ -2998,7 +2998,7 @@ async function startnexus() {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin for this." }, { quoted: msg });
               return;
             }
-            if (!admin.isAdmin(senderJid, parts)) {
+            if (!admin.isAdmin(senderJid, parts) && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ Only admins can use this command." }, { quoted: msg });
               return;
             }
@@ -3026,7 +3026,7 @@ async function startnexus() {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to promote members." }, { quoted: msg });
               return;
             }
-            if (!admin.isAdmin(senderJid, parts)) {
+            if (!admin.isAdmin(senderJid, parts) && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ Only admins can use this command." }, { quoted: msg });
               return;
             }
@@ -3064,7 +3064,7 @@ async function startnexus() {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to demote members." }, { quoted: msg });
               return;
             }
-            if (!admin.isAdmin(senderJid, parts)) {
+            if (!admin.isAdmin(senderJid, parts) && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ Only admins can use this command." }, { quoted: msg });
               return;
             }
@@ -3205,7 +3205,7 @@ async function startnexus() {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to change the icon." }, { quoted: msg });
               return;
             }
-            if (!admin.isAdmin(senderJid, parts)) {
+            if (!admin.isAdmin(senderJid, parts) && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ Only admins can use this command." }, { quoted: msg });
               return;
             }
@@ -3319,7 +3319,7 @@ async function startnexus() {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to remove members." }, { quoted: msg });
               return;
             }
-            if (!admin.isAdmin(senderJid, parts)) {
+            if (!admin.isAdmin(senderJid, parts) && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ Only admins can use this command." }, { quoted: msg });
               return;
             }
@@ -3693,7 +3693,7 @@ async function startnexus() {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to lock the group." }, { quoted: msg });
               return;
             }
-            if (!admin.isAdmin(senderJid, parts)) {
+            if (!admin.isAdmin(senderJid, parts) && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ Only admins can use this command." }, { quoted: msg });
               return;
             }
@@ -3815,7 +3815,7 @@ async function startnexus() {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to add members." }, { quoted: msg });
               return;
             }
-            if (!admin.isAdmin(senderJid, parts)) {
+            if (!admin.isAdmin(senderJid, parts) && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ Only admins can use this command." }, { quoted: msg });
               return;
             }
@@ -4473,18 +4473,14 @@ async function startnexus() {
           try {
             const _tagMeta  = await sock.groupMetadata(from).catch(() => null);
             const _tagParts = _tagMeta?.participants || [];
-            const botJid    = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-            const isBotAdm  = _tagParts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
-            const isSndAdm  = _tagParts.some(p =>
-              (p.id === senderJid || p.id.split(":")[0] + "@s.whatsapp.net" === senderJid) &&
-              (p.admin === "admin" || p.admin === "superadmin")
-            );
+            const isBotAdm  = admin.getBotAdminStatus(sock.user?.id, _tagParts);
+            const isSndAdm  = admin.getSenderAdminStatus(senderJid, _tagParts);
             if (!isBotAdm) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to use tagall." }, { quoted: msg });
               return;
             }
             if (!isSndAdm && !_isOwner) {
-              await sock.sendMessage(from, { text: "❌ Only group admins can use this command." }, { quoted: msg });
+              await sock.sendMessage(from, { text: "❌ Only group admins or the bot owner can use this command." }, { quoted: msg });
               return;
             }
             const customMsg = _args.trim();
@@ -4504,20 +4500,16 @@ async function startnexus() {
           return;
         }
 
-        // ── .hidetag — mention all group members silently ──────────────────
-        if (_cmd === "hidetag") {
+        // ── .hidetag / .htag / .stag — mention all group members silently ──
+        if (_cmd === "hidetag" || _cmd === "htag" || _cmd === "stag") {
           if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
           try {
             const _htMeta  = await sock.groupMetadata(from).catch(() => null);
             const _htParts = _htMeta?.participants || [];
-            const botJid   = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-            const isBotAdm = _htParts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
-            const isSndAdm = _htParts.some(p =>
-              (p.id === senderJid || p.id.split(":")[0] + "@s.whatsapp.net" === senderJid) &&
-              (p.admin === "admin" || p.admin === "superadmin")
-            );
-            if (!isBotAdm) { await sock.sendMessage(from, { text: "❌ I need to be a group admin to use hidetag." }, { quoted: msg }); return; }
-            if (!isSndAdm && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only group admins can use this command." }, { quoted: msg }); return; }
+            const isBotAdm = admin.getBotAdminStatus(sock.user?.id, _htParts);
+            const isSndAdm = admin.getSenderAdminStatus(senderJid, _htParts);
+            if (!isBotAdm) { await sock.sendMessage(from, { text: "❌ I need to be a group admin to use this command." }, { quoted: msg }); return; }
+            if (!isSndAdm && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only group admins or the bot owner can use this command." }, { quoted: msg }); return; }
             const customMsg = _args.trim() || "👀";
             await sock.sendMessage(from, {
               text:     customMsg,
@@ -5015,12 +5007,8 @@ async function startnexus() {
           try {
             const _fMeta   = await sock.groupMetadata(from).catch(() => null);
             const _fParts  = _fMeta?.participants || [];
-            const _botJid  = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-            const _fBotAdm = _fParts.some(p => p.id === _botJid && (p.admin === "admin" || p.admin === "superadmin"));
-            const _fSndAdm = _fParts.some(p =>
-              (p.id === senderJid || p.id.split(":")[0] + "@s.whatsapp.net" === senderJid) &&
-              (p.admin === "admin" || p.admin === "superadmin")
-            );
+            const _fBotAdm = admin.getBotAdminStatus(sock.user?.id, _fParts);
+            const _fSndAdm = admin.getSenderAdminStatus(senderJid, _fParts);
             if (!_fBotAdm) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to use this command." }, { quoted: msg });
               return;
@@ -6130,7 +6118,7 @@ async function startnexus() {
         (async () => {
           try {
             const parts = await admin.getGroupParticipants(sock, from).catch(() => []);
-            if (!admin.isAdmin(senderJid, parts)) {
+            if (!admin.isAdmin(senderJid, parts) && !admin.isSuperAdmin(senderJid)) {
               await sock.sendMessage(from, { delete: msg.key });
               await sock.sendMessage(from, { text: `🚫 @${phone} stickers are not allowed here!`, mentions: [`${phone}@s.whatsapp.net`] }, { quoted: msg });
             }
