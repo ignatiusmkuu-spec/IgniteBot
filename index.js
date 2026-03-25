@@ -1381,6 +1381,78 @@ async function startnexus() {
       }
     }
 
+    // ── Per-group mute enforcement — auto-delete messages from muted users ───
+    if (msg.isGroup && !msg.key.fromMe && body) {
+      const _grpMutes = db.read(`grp_mutes_${from}`, []);
+      if (_grpMutes.includes(senderJid)) {
+        try {
+          await sock.sendMessage(from, { delete: msg.key }).catch(() => {});
+          await sock.sendMessage(senderJid, {
+            text: `🔇 You are currently muted in *${from}*.\nContact a group admin to be unmuted.`,
+          }).catch(() => {});
+        } catch (_mErr) { console.error("[mute-enforce]", _mErr.message); }
+        return;
+      }
+    }
+
+    // ── Per-group antispam enforcement — 5 msgs / 5 sec threshold ─────────
+    if (msg.isGroup && !msg.key.fromMe && body) {
+      const _asEnabled = (db.read(`grp_antispam`, {}))[from];
+      if (_asEnabled && !admin.isSuperAdmin(senderJid)) {
+        try {
+          const _asGroupMeta = await _getGroupMeta(sock, from);
+          const _asParts = _asGroupMeta?.participants || [];
+          const _asSenderPart = _asParts.find(p => p.id.split(":")[0] + "@s.whatsapp.net" === senderJid || p.id === senderJid);
+          const _asSenderAdmin = _asSenderPart?.admin === "admin" || _asSenderPart?.admin === "superadmin";
+          if (!_asSenderAdmin) {
+            const _asTracker = db.read(`grp_as_tracker`, {});
+            if (!_asTracker[from]) _asTracker[from] = {};
+            if (!_asTracker[from][senderJid]) _asTracker[from][senderJid] = { count: 0, first: Date.now() };
+            const _asNow  = Date.now();
+            const _asUser = _asTracker[from][senderJid];
+            if (_asNow - _asUser.first > 5000) { _asUser.count = 1; _asUser.first = _asNow; }
+            else { _asUser.count++; }
+            db.write(`grp_as_tracker`, _asTracker);
+            if (_asUser.count >= 5) {
+              _asUser.count = 0; db.write(`grp_as_tracker`, _asTracker);
+              await sock.sendMessage(from, { delete: msg.key }).catch(() => {});
+              await sock.sendMessage(from, {
+                text: `🛡️ @${phone} *Spam detected!* Slow down — you're sending too many messages too fast.`,
+                mentions: [senderJid],
+              }).catch(() => {});
+            }
+          }
+        } catch (_asErr) { console.error("[antispam-enforce]", _asErr.message); }
+      }
+    }
+
+    // ── Per-group antilink enforcement (per-group toggle via .antilink) ────
+    if (msg.isGroup && !msg.key.fromMe && body) {
+      const _galEnabled = (db.read(`grp_antilink`, {}))[from];
+      if (_galEnabled && !admin.isSuperAdmin(senderJid)) {
+        const _galLinkPat = /https?:\/\/[^\s]+|www\.[^\s]+|chat\.whatsapp\.com\/[A-Za-z0-9]+/i;
+        if (_galLinkPat.test(body)) {
+          try {
+            const _galMeta = await _getGroupMeta(sock, from);
+            const _galParts = _galMeta?.participants || [];
+            const _galSenderPart = _galParts.find(p => p.id.split(":")[0] + "@s.whatsapp.net" === senderJid || p.id === senderJid);
+            const _galSenderAdmin = _galSenderPart?.admin === "admin" || _galSenderPart?.admin === "superadmin";
+            const _galBotPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+            const _galBotPart = _galParts.find(p => p.id.split(":")[0].split("@")[0] === _galBotPhone);
+            const _galBotAdmin = _galBotPart?.admin === "admin" || _galBotPart?.admin === "superadmin";
+            if (!_galSenderAdmin && _galBotAdmin) {
+              await sock.sendMessage(from, { delete: msg.key }).catch(() => {});
+              await sock.sendMessage(from, {
+                text: `🔗 @${phone} *Links are not allowed in this group!*\nYou have been removed.`,
+                mentions: [senderJid],
+              }).catch(() => {});
+              await sock.groupParticipantsUpdate(from, [senderJid], "remove").catch(() => {});
+            }
+          } catch (_galErr) { console.error("[grp-antilink]", _galErr.message); }
+        }
+      }
+    }
+
     // ── Anti-Tag — prevent non-admins from tagging/mentioning others ──────────
     const _antitagVal = settings.get("antitag");
     if (msg.isGroup && !msg.key.fromMe && (_antitagVal === "on" || _antitagVal === true)) {
@@ -3046,6 +3118,109 @@ async function startnexus() {
           return;
         }
 
+        // ── .warn — warn a user, auto-kick at threshold ────────────────────
+        if (_cmd === "warn") {
+          if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
+          try {
+            const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
+            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
+            const botAdm = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            if (!admin.isAdmin(senderJid, parts) && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only admins can warn members." }, { quoted: msg }); return; }
+            const target = (msg.mentionedJids?.[0] || msg.quoted?.sender || "").replace(/:\d+@/, "@s.whatsapp.net");
+            if (!target) { await sock.sendMessage(from, { text: `❌ Mention or reply to the user to warn.\nUsage: \`${_pfx}warn @user [reason]\`` }, { quoted: msg }); return; }
+            if (admin.isSuperAdmin(target)) { await sock.sendMessage(from, { text: "❌ Cannot warn the bot owner!" }, { quoted: msg }); return; }
+            const reason = _args.replace(/@\d+/g, "").trim() || "No reason given";
+            const _warnsAll = db.read(`grp_warns`, {});
+            if (!_warnsAll[from]) _warnsAll[from] = {};
+            _warnsAll[from][target] = (_warnsAll[from][target] || 0) + 1;
+            const _wCount = _warnsAll[from][target];
+            const _wMax   = 3;
+            db.write(`grp_warns`, _warnsAll);
+            const _wPhone = target.split("@")[0];
+            if (_wCount >= _wMax && botAdm) {
+              await sock.groupParticipantsUpdate(from, [target], "remove").catch(() => {});
+              _warnsAll[from][target] = 0;
+              db.write(`grp_warns`, _warnsAll);
+              await sock.sendMessage(from, {
+                text: `╭─⌈ ⚠️ *WARNING — AUTO-KICK* ⌋\n│\n├─ 👤 @${_wPhone}\n├─ 📋 Reason: ${reason}\n├─ 🔢 Warns: ${_wCount}/${_wMax}\n├─ 💀 Reached limit — removed from group!\n╰─ By: ${msg.pushName || phone}`,
+                mentions: [target],
+              }, { quoted: msg });
+            } else {
+              await sock.sendMessage(from, {
+                text: `╭─⌈ ⚠️ *WARNING* ⌋\n│\n├─ 👤 @${_wPhone}\n├─ 📋 Reason: ${reason}\n├─ 🔢 Warns: ${_wCount}/${_wMax}\n├─ ⚡ ${_wMax - _wCount} more warn(s) = auto-kick\n╰─ By: ${msg.pushName || phone}`,
+                mentions: [target],
+              }, { quoted: msg });
+            }
+          } catch (e) { await sock.sendMessage(from, { text: `❌ Warn failed: ${e.message}` }, { quoted: msg }); }
+          return;
+        }
+
+        // ── .clearwarn / .resetwarn — clear all warnings for a user ────────
+        if (_cmd === "clearwarn" || _cmd === "resetwarn") {
+          if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
+          const parts = await admin.getGroupParticipants(sock, from).catch(() => []);
+          if (!admin.isAdmin(senderJid, parts) && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only admins can clear warnings." }, { quoted: msg }); return; }
+          const target = (msg.mentionedJids?.[0] || msg.quoted?.sender || "").replace(/:\d+@/, "@s.whatsapp.net");
+          if (!target) { await sock.sendMessage(from, { text: `❌ Mention or reply to the user.\nUsage: \`${_pfx}clearwarn @user\`` }, { quoted: msg }); return; }
+          const _warnsAll = db.read(`grp_warns`, {});
+          if (_warnsAll[from]) { _warnsAll[from][target] = 0; db.write(`grp_warns`, _warnsAll); }
+          await sock.sendMessage(from, {
+            text: `✅ All warnings cleared for @${target.split("@")[0]}!`,
+            mentions: [target],
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .warns — show warnings list for a user ──────────────────────────
+        if (_cmd === "warns") {
+          if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
+          const target = (msg.mentionedJids?.[0] || msg.quoted?.sender || "").replace(/:\d+@/, "@s.whatsapp.net");
+          if (!target) { await sock.sendMessage(from, { text: `❌ Mention a user.\nUsage: \`${_pfx}warns @user\`` }, { quoted: msg }); return; }
+          const _warnsAll = db.read(`grp_warns`, {});
+          const _wCount = (_warnsAll[from] || {})[target] || 0;
+          await sock.sendMessage(from, {
+            text: `╭─⌈ 📋 *WARN STATUS* ⌋\n│\n├─ 👤 @${target.split("@")[0]}\n├─ 🔢 Warnings: *${_wCount}/3*\n╰─ Use \`${_pfx}clearwarn @user\` to reset`,
+            mentions: [target],
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .mute @user — silence user (auto-delete their msgs) ────────────
+        if (_cmd === "muteuser") {
+          if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
+          const parts = await admin.getGroupParticipants(sock, from).catch(() => []);
+          if (!admin.isAdmin(senderJid, parts) && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only admins can mute users." }, { quoted: msg }); return; }
+          const target = (msg.mentionedJids?.[0] || msg.quoted?.sender || "").replace(/:\d+@/, "@s.whatsapp.net");
+          if (!target) { await sock.sendMessage(from, { text: `❌ Mention or reply to the user to mute.\nUsage: \`${_pfx}muteuser @user\`` }, { quoted: msg }); return; }
+          if (admin.isSuperAdmin(target)) { await sock.sendMessage(from, { text: "❌ Cannot mute the bot owner!" }, { quoted: msg }); return; }
+          const _mutes = db.read(`grp_mutes_${from}`, []);
+          if (!_mutes.includes(target)) { _mutes.push(target); db.write(`grp_mutes_${from}`, _mutes); }
+          await sock.sendMessage(from, {
+            text: `╭─⌈ 🔇 *MUTED* ⌋\n│\n├─ 👤 @${target.split("@")[0]}\n├─ ❌ Messages will be auto-deleted\n╰─ Use \`${_pfx}unmuteuser @user\` to unmute`,
+            mentions: [target],
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .unmuteuser — restore user's ability to chat ───────────────────
+        if (_cmd === "unmuteuser") {
+          if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
+          const parts = await admin.getGroupParticipants(sock, from).catch(() => []);
+          if (!admin.isAdmin(senderJid, parts) && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only admins can unmute users." }, { quoted: msg }); return; }
+          const target = (msg.mentionedJids?.[0] || msg.quoted?.sender || "").replace(/:\d+@/, "@s.whatsapp.net");
+          if (!target) { await sock.sendMessage(from, { text: `❌ Mention or reply to the user to unmute.\nUsage: \`${_pfx}unmuteuser @user\`` }, { quoted: msg }); return; }
+          const _mutes = db.read(`grp_mutes_${from}`, []);
+          const _idx = _mutes.indexOf(target);
+          if (_idx === -1) { await sock.sendMessage(from, { text: `ℹ️ @${target.split("@")[0]} is not muted.`, mentions: [target] }, { quoted: msg }); return; }
+          _mutes.splice(_idx, 1);
+          db.write(`grp_mutes_${from}`, _mutes);
+          await sock.sendMessage(from, {
+            text: `✅ @${target.split("@")[0]} has been unmuted!`,
+            mentions: [target],
+          }, { quoted: msg });
+          return;
+        }
+
         // ── .icon — set group profile picture from quoted image ───────────────
         if (_cmd === "icon") {
           if (!from.endsWith("@g.us")) {
@@ -3205,6 +3380,52 @@ async function startnexus() {
           } catch (e) {
             await sock.sendMessage(from, { text: `❌ Failed to remove member: ${e.message}` }, { quoted: msg });
           }
+          return;
+        }
+
+        // ── .ban — kick + persist to group ban list ────────────────────────
+        if (_cmd === "ban") {
+          if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
+          try {
+            const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
+            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
+            const botAdm = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            if (!botAdm) { await sock.sendMessage(from, { text: "❌ I need admin rights to ban members." }, { quoted: msg }); return; }
+            if (!admin.isAdmin(senderJid, parts) && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only group admins can use .ban." }, { quoted: msg }); return; }
+            const target = (msg.mentionedJids?.[0] || msg.quoted?.sender || "").replace(/:\d+@/, "@s.whatsapp.net");
+            if (!target) { await sock.sendMessage(from, { text: `❌ Mention or reply to the user you want to ban.\nUsage: \`${_pfx}ban @user\`` }, { quoted: msg }); return; }
+            if (admin.isSuperAdmin(target)) { await sock.sendMessage(from, { text: "❌ Cannot ban the bot owner!" }, { quoted: msg }); return; }
+            if (target === botJid) { await sock.sendMessage(from, { text: "❌ I cannot ban myself!" }, { quoted: msg }); return; }
+            // Persist ban
+            const _bans = db.read(`grp_bans_${from}`, []);
+            if (!_bans.includes(target)) { _bans.push(target); db.write(`grp_bans_${from}`, _bans); }
+            await sock.groupParticipantsUpdate(from, [target], "remove").catch(() => {});
+            const _banPhone = target.split("@")[0];
+            await sock.sendMessage(from, {
+              text: `╭─⌈ 🚫 *BANNED* ⌋\n│\n├─ 👤 @${_banPhone}\n├─ 🔨 Kicked and blacklisted\n├─ ♻️ Will be auto-kicked if they rejoin\n╰─ By: ${msg.pushName || phone}`,
+              mentions: [target],
+            }, { quoted: msg });
+          } catch (e) { await sock.sendMessage(from, { text: `❌ Ban failed: ${e.message}` }, { quoted: msg }); }
+          return;
+        }
+
+        // ── .unban — remove from group ban list ────────────────────────────
+        if (_cmd === "unban") {
+          if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
+          if (!admin.isAdmin(senderJid, await admin.getGroupParticipants(sock, from).catch(() => [])) && !_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Only group admins can unban." }, { quoted: msg }); return;
+          }
+          const target = (msg.mentionedJids?.[0] || msg.quoted?.sender || "").replace(/:\d+@/, "@s.whatsapp.net");
+          if (!target) { await sock.sendMessage(from, { text: `❌ Mention the user to unban.\nUsage: \`${_pfx}unban @user\`` }, { quoted: msg }); return; }
+          const _bans = db.read(`grp_bans_${from}`, []);
+          const _idx  = _bans.indexOf(target);
+          if (_idx === -1) { await sock.sendMessage(from, { text: `ℹ️ @${target.split("@")[0]} is not banned in this group.`, mentions: [target] }, { quoted: msg }); return; }
+          _bans.splice(_idx, 1);
+          db.write(`grp_bans_${from}`, _bans);
+          await sock.sendMessage(from, {
+            text: `╭─⌈ ✅ *UNBANNED* ⌋\n│\n├─ 👤 @${target.split("@")[0]}\n├─ 🔓 Removed from ban list\n╰─ They may rejoin the group`,
+            mentions: [target],
+          }, { quoted: msg });
           return;
         }
 
@@ -3509,6 +3730,68 @@ async function startnexus() {
             await sock.sendMessage(from, { text: "🔒 Group successfully locked! Only admins can send messages." }, { quoted: msg });
           } catch (e) {
             await sock.sendMessage(from, { text: `❌ Failed to lock group: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .lock — alias for .close/.mute (group lock) ────────────────────
+        if (_cmd === "lock") {
+          if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
+          try {
+            const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
+            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
+            if (!parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"))) {
+              await sock.sendMessage(from, { text: "❌ I need admin rights to lock the group." }, { quoted: msg }); return;
+            }
+            if (!admin.isAdmin(senderJid, parts) && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only admins can lock the group." }, { quoted: msg }); return; }
+            await sock.groupSettingUpdate(from, "announcement");
+            await sock.sendMessage(from, { text: "🔒 *Group Locked!*\n\n╭─⌈ 🚫 *LOCKDOWN ACTIVE* ⌋\n│\n├─ 📢 Only admins can send messages\n├─ 🛡️ Group is now protected\n╰─ Use `.unlock` to re-open" }, { quoted: msg });
+          } catch (e) { await sock.sendMessage(from, { text: `❌ Lock failed: ${e.message}` }, { quoted: msg }); }
+          return;
+        }
+
+        // ── .unlock / .open — unlock group so everyone can chat ────────────
+        if (_cmd === "unlock" || _cmd === "open") {
+          if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
+          try {
+            const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
+            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
+            if (!parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"))) {
+              await sock.sendMessage(from, { text: "❌ I need admin rights to unlock the group." }, { quoted: msg }); return;
+            }
+            if (!admin.isAdmin(senderJid, parts) && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only admins can unlock the group." }, { quoted: msg }); return; }
+            await sock.groupSettingUpdate(from, "not_announcement");
+            await sock.sendMessage(from, { text: "🔓 *Group Unlocked!*\n\n╭─⌈ ✅ *CHAT OPEN* ⌋\n│\n├─ 💬 Everyone can now send messages\n├─ 🌐 Group is open for discussion\n╰─ Use `.lock` to restrict again" }, { quoted: msg });
+          } catch (e) { await sock.sendMessage(from, { text: `❌ Unlock failed: ${e.message}` }, { quoted: msg }); }
+          return;
+        }
+
+        // ── .unmute — alias for .unlock (unlock group chat) ────────────────
+        if (_cmd === "unmute") {
+          if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
+          const _hasTarget = (msg.mentionedJids?.[0] || msg.quoted?.sender);
+          if (_hasTarget) {
+            // Unmute a specific user (remove from mutes list)
+            const target = _hasTarget.replace(/:\d+@/, "@s.whatsapp.net");
+            const parts = await admin.getGroupParticipants(sock, from).catch(() => []);
+            if (!admin.isAdmin(senderJid, parts) && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only admins can unmute users." }, { quoted: msg }); return; }
+            const _mutes = db.read(`grp_mutes_${from}`, []);
+            const _idx = _mutes.indexOf(target);
+            if (_idx === -1) { await sock.sendMessage(from, { text: `ℹ️ @${target.split("@")[0]} is not muted.`, mentions: [target] }, { quoted: msg }); return; }
+            _mutes.splice(_idx, 1); db.write(`grp_mutes_${from}`, _mutes);
+            await sock.sendMessage(from, { text: `✅ @${target.split("@")[0]} has been unmuted!`, mentions: [target] }, { quoted: msg });
+          } else {
+            // Unmute group (unlock)
+            try {
+              const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
+              const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
+              if (!parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"))) {
+                await sock.sendMessage(from, { text: "❌ I need admin rights to unlock the group." }, { quoted: msg }); return;
+              }
+              if (!admin.isAdmin(senderJid, parts) && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only admins can unlock the group." }, { quoted: msg }); return; }
+              await sock.groupSettingUpdate(from, "not_announcement");
+              await sock.sendMessage(from, { text: "🔓 *Group Unlocked!* Everyone can now send messages.\nTip: Use `.unmute @user` to unmute a specific person." }, { quoted: msg });
+            } catch (e) { await sock.sendMessage(from, { text: `❌ Unlock failed: ${e.message}` }, { quoted: msg }); }
           }
           return;
         }
@@ -4247,6 +4530,146 @@ async function startnexus() {
           } catch (e) {
             await sock.sendMessage(from, { text: `❌ Tagall failed: ${e.message}` }, { quoted: msg });
           }
+          return;
+        }
+
+        // ── .hidetag — mention all group members silently ──────────────────
+        if (_cmd === "hidetag") {
+          if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
+          try {
+            const _htMeta  = await sock.groupMetadata(from).catch(() => null);
+            const _htParts = _htMeta?.participants || [];
+            const botJid   = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
+            const isBotAdm = _htParts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            const isSndAdm = _htParts.some(p =>
+              (p.id === senderJid || p.id.split(":")[0] + "@s.whatsapp.net" === senderJid) &&
+              (p.admin === "admin" || p.admin === "superadmin")
+            );
+            if (!isBotAdm) { await sock.sendMessage(from, { text: "❌ I need to be a group admin to use hidetag." }, { quoted: msg }); return; }
+            if (!isSndAdm && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only group admins can use this command." }, { quoted: msg }); return; }
+            const customMsg = _args.trim() || "👀";
+            await sock.sendMessage(from, {
+              text:     customMsg,
+              mentions: _htParts.map(p => p.id),
+            }, { quoted: msg });
+          } catch (e) { await sock.sendMessage(from, { text: `❌ Hidetag failed: ${e.message}` }, { quoted: msg }); }
+          return;
+        }
+
+        // ── .antispam on/off — per-group spam protection toggle ─────────────
+        if (_cmd === "antispam") {
+          if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
+          const parts = await admin.getGroupParticipants(sock, from).catch(() => []);
+          if (!admin.isAdmin(senderJid, parts) && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only admins can change antispam settings." }, { quoted: msg }); return; }
+          const _asMode = _args.trim().toLowerCase();
+          if (_asMode !== "on" && _asMode !== "off") {
+            const _asCur = (db.read(`grp_antispam`, {}))[from] || false;
+            await sock.sendMessage(from, { text: `╭─⌈ 🛡️ *ANTISPAM* ⌋\n│\n├─ Status: *${_asCur ? "🟢 ON" : "🔴 OFF"}*\n├─ Threshold: 5 msgs / 5 sec\n╰─ Usage: \`${_pfx}antispam on/off\`` }, { quoted: msg }); return;
+          }
+          const _asAll = db.read(`grp_antispam`, {});
+          _asAll[from] = _asMode === "on";
+          db.write(`grp_antispam`, _asAll);
+          await sock.sendMessage(from, { text: `${_asMode === "on" ? "🛡️ *Antispam ENABLED*" : "🛡️ *Antispam DISABLED*"}\n\n╭─⌈ 🤖 *ANTISPAM* ⌋\n│\n├─ Status: *${_asMode === "on" ? "🟢 ON" : "🔴 OFF"}*\n├─ Threshold: 5 messages in 5 seconds\n╰─ Repeat violators will be warned` }, { quoted: msg });
+          return;
+        }
+
+        // ── .antilink on/off — per-group link blocking toggle ───────────────
+        if (_cmd === "antilink") {
+          if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
+          const parts = await admin.getGroupParticipants(sock, from).catch(() => []);
+          if (!admin.isAdmin(senderJid, parts) && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only admins can change antilink settings." }, { quoted: msg }); return; }
+          const _alMode = _args.trim().toLowerCase();
+          if (_alMode !== "on" && _alMode !== "off") {
+            const _alCur = (db.read(`grp_antilink`, {}))[from] || false;
+            await sock.sendMessage(from, { text: `╭─⌈ 🔗 *ANTILINK* ⌋\n│\n├─ Status: *${_alCur ? "🟢 ON" : "🔴 OFF"}*\n├─ Blocks all non-admin links\n╰─ Usage: \`${_pfx}antilink on/off\`` }, { quoted: msg }); return;
+          }
+          const _alAll = db.read(`grp_antilink`, {});
+          _alAll[from] = _alMode === "on";
+          db.write(`grp_antilink`, _alAll);
+          await sock.sendMessage(from, { text: `${_alMode === "on" ? "🔗 *Antilink ENABLED*\nLinks from non-admins will be deleted and sender removed." : "🔗 *Antilink DISABLED*\nMembers can share links freely."}` }, { quoted: msg });
+          return;
+        }
+
+        // ── .stats — bot analytics summary ──────────────────────────────────
+        if (_cmd === "stats") {
+          try {
+            const analytics = require("./lib/analytics");
+            const _statsMsg = await analytics.formatStatsMessage();
+            const _upSec = Math.floor(process.uptime());
+            const _upH   = Math.floor(_upSec / 3600);
+            const _upM   = Math.floor((_upSec % 3600) / 60);
+            const _upS   = _upSec % 60;
+            await sock.sendMessage(from, {
+              text: `╭─⌈ 📊 *NEXUS-MD STATS* ⌋\n│\n${_statsMsg.split("\n").filter(Boolean).map(l => `├─ ${l.replace(/^[📊📨⚙️👥⏱🏆]+\s*/,"")}`).join("\n")}\n│\n├─ ⏱ Uptime: *${_upH}h ${_upM}m ${_upS}s*\n├─ 🌐 Node.js: *${process.version}*\n╰─ 🤖 NEXUS-MD by IGNITE`,
+            }, { quoted: msg });
+          } catch (e) { await sock.sendMessage(from, { text: `❌ Stats error: ${e.message}` }, { quoted: msg }); }
+          return;
+        }
+
+        // ── .users — total unique users seen by the bot ──────────────────────
+        if (_cmd === "users") {
+          try {
+            const analytics = require("./lib/analytics");
+            const _s = await analytics.getStats();
+            await sock.sendMessage(from, {
+              text: `╭─⌈ 👥 *USER STATS* ⌋\n│\n├─ 👤 Unique Users: *${_s.uniqueUsers || 0}*\n├─ 📨 Total Messages: *${_s.totalMessages || 0}*\n╰─ 📅 Since bot start`,
+            }, { quoted: msg });
+          } catch (e) { await sock.sendMessage(from, { text: `❌ Error: ${e.message}` }, { quoted: msg }); }
+          return;
+        }
+
+        // ── .groups — total groups the bot is in ────────────────────────────
+        if (_cmd === "groups") {
+          try {
+            const _allGrps = await sock.groupFetchAllParticipating().catch(() => ({}));
+            const _grpCount = Object.keys(_allGrps).length;
+            await sock.sendMessage(from, {
+              text: `╭─⌈ 🏘️ *GROUP STATS* ⌋\n│\n├─ 🏘️ Active Groups: *${_grpCount}*\n├─ 🤖 Bot is present in all\n╰─ Use \`${_pfx}stats\` for full analytics`,
+            }, { quoted: msg });
+          } catch (e) { await sock.sendMessage(from, { text: `❌ Error: ${e.message}` }, { quoted: msg }); }
+          return;
+        }
+
+        // ── .memory — RAM usage stats ────────────────────────────────────────
+        if (_cmd === "memory" || _cmd === "ram") {
+          const _mem  = process.memoryUsage();
+          const _toMB = (b) => (b / 1024 / 1024).toFixed(2);
+          await sock.sendMessage(from, {
+            text: `╭─⌈ 💾 *MEMORY USAGE* ⌋\n│\n├─ 🔵 RSS:        *${_toMB(_mem.rss)} MB*\n├─ 🟢 Heap Used:  *${_toMB(_mem.heapUsed)} MB*\n├─ 🟡 Heap Total: *${_toMB(_mem.heapTotal)} MB*\n├─ 🔷 External:   *${_toMB(_mem.external)} MB*\n╰─ 📊 Node.js ${process.version}`,
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .cpu — CPU usage info ────────────────────────────────────────────
+        if (_cmd === "cpu") {
+          try {
+            const os = require("os");
+            const _cpus    = os.cpus();
+            const _model   = _cpus[0]?.model?.trim() || "Unknown";
+            const _cores   = _cpus.length;
+            const _loadAvg = os.loadavg().map(l => l.toFixed(2));
+            const _uptime  = Math.floor(os.uptime() / 60);
+            const _freq    = (_cpus[0]?.speed / 1000).toFixed(2);
+            await sock.sendMessage(from, {
+              text: `╭─⌈ 🖥️ *CPU INFO* ⌋\n│\n├─ 💻 Model:    *${_model.length > 30 ? _model.slice(0,30)+"…" : _model}*\n├─ ⚙️ Cores:    *${_cores}*\n├─ 📡 Speed:    *${_freq} GHz*\n├─ 📈 Load Avg: *${_loadAvg[0]} / ${_loadAvg[1]} / ${_loadAvg[2]}* (1/5/15m)\n├─ ⏱ OS Uptime: *${_uptime} min*\n╰─ 🐧 Platform: *${os.platform()} ${os.arch()}*`,
+            }, { quoted: msg });
+          } catch (e) { await sock.sendMessage(from, { text: `❌ CPU info failed: ${e.message}` }, { quoted: msg }); }
+          return;
+        }
+
+        // ── .network — ping latency + connectivity check ─────────────────────
+        if (_cmd === "network" || _cmd === "ping") {
+          try {
+            const _t0  = Date.now();
+            await sock.sendMessage(from, { text: "🌐 *Checking network…*" }, { quoted: msg });
+            const _lat = Date.now() - _t0;
+            const os   = require("os");
+            const _ifs = os.networkInterfaces();
+            const _ipList = Object.values(_ifs).flat().filter(i => !i.internal && i.family === "IPv4").map(i => i.address);
+            await sock.sendMessage(from, {
+              text: `╭─⌈ 🌐 *NETWORK STATUS* ⌋\n│\n├─ 📶 Status:   *🟢 ONLINE*\n├─ ⚡ Latency:  *${_lat} ms*\n├─ 🖥️ Local IP: *${_ipList[0] || "N/A"}*\n├─ 🔌 Platform: *${os.platform()}*\n╰─ 🤖 Bot is reachable!`,
+            }, { quoted: msg });
+          } catch (e) { await sock.sendMessage(from, { text: `❌ Network check failed: ${e.message}` }, { quoted: msg }); }
           return;
         }
 
@@ -6033,6 +6456,20 @@ async function startnexus() {
     if (action === "add") {
       for (const p of participants) {
         const memberJid = normalizeJid(p);
+        // ── Ban rejoin enforcement — auto-kick banned members ─────────────
+        const _banList = db.read(`grp_bans_${id}`, []);
+        const _cleanJid = memberJid.replace(/:\d+@/, "@s.whatsapp.net");
+        if (_banList.includes(_cleanJid)) {
+          try {
+            await sock.groupParticipantsUpdate(id, [_cleanJid], "remove").catch(() => {});
+            await sock.sendMessage(id, {
+              text: `🚫 @${_cleanJid.split("@")[0]} is banned from this group and has been auto-removed.`,
+              mentions: [_cleanJid],
+            }).catch(() => {});
+            console.log(`[ban-enforce] auto-kicked banned member ${_cleanJid} from ${id}`);
+          } catch (_banErr) { console.error("[ban-enforce]", _banErr.message); }
+          continue;
+        }
         // Standard welcome message — only send if welcome is enabled
         const _welcomeVal = settings.get("welcome");
         if (_welcomeVal === true || _welcomeVal === "on") {
