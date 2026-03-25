@@ -1659,17 +1659,18 @@ async function startnexus() {
             await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
             return;
           }
-          const VALID_MODES = ["off", "on", "private", "group", "chat", "both", "all", "status"];
+          const VALID_MODES = ["off", "on", "private", "group", "chat", "both", "all", "status", "cmd"];
           let val = _args.toLowerCase().trim();
           if (val === "on") val = "both";
           if (!VALID_MODES.includes(val)) {
             const cur = settings.get("antiDeleteMode") || "off";
             await sock.sendMessage(from, {
-              text: `⚙️ *Anti-Delete*\n\nUsage: \`${_pfx}antidelete [on|off|group|chat|both|all|status]\`\n\n` +
+              text: `⚙️ *Anti-Delete*\n\nUsage: \`${_pfx}antidelete [on|off|group|chat|both|all|cmd|status]\`\n\n` +
                     `• *on / both* — groups + private chats\n` +
                     `• *group* — groups only\n` +
                     `• *chat* — private chats only\n` +
                     `• *all* — groups + chats + statuses\n` +
+                    `• *cmd* — silent mode, use \`${_pfx}deleted\` to retrieve\n` +
                     `• *off* — disabled\n\n` +
                     `Current: \`${cur}\``,
             }, { quoted: msg });
@@ -1679,6 +1680,45 @@ async function startnexus() {
           await sock.sendMessage(from, {
             text: `✅ Anti-Delete set to *${val.toUpperCase()}*`,
           }, { quoted: msg });
+          return;
+        }
+
+        // ── .deleted — retrieve silently stored deleted messages (cmd mode) ──
+        if (_cmd === "deleted") {
+          const items = handleProtocolMessage.getCmdDeleted(from);
+          if (!items.length) {
+            await sock.sendMessage(from, {
+              text: `🗑️ *Deleted Messages*\n\nNo deleted messages stored for this chat.\n_Tip: use \`${_pfx}antidelete cmd\` to enable silent capture._`,
+            }, { quoted: msg });
+            return;
+          }
+          const _tz = settings.get("timezone") || "Africa/Nairobi";
+          const lines = items.map((item, i) => {
+            const { original, deleterJid, deletedAt, isGroup: _ig } = item;
+            const senderJid = _ig
+              ? (original.key?.participant || original.key?.remoteJid)
+              : original.key?.remoteJid;
+            const senderNum  = `+${(senderJid || "").split("@")[0].split(":")[0]}`;
+            const deleterNum = `+${(deleterJid || "").split("@")[0].split(":")[0]}`;
+            const timeStr = new Date(deletedAt).toLocaleTimeString("en-US", {
+              timeZone: _tz, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true,
+            });
+            const origMsg = original.message?.ephemeralMessage?.message
+              || original.message?.viewOnceMessage?.message
+              || original.message || {};
+            const text = origMsg.conversation || origMsg.extendedTextMessage?.text;
+            const origType = Object.keys(origMsg)[0] || "unknown";
+            const content = text
+              ? `_"${text.slice(0, 120)}${text.length > 120 ? "…" : ""}"_`
+              : `_[${origType.replace("Message", "")}]_`;
+            return (
+              `*#${i + 1}* — 📱 ${senderNum} · 🗑️ ${deleterNum} · ⏰ ${timeStr}\n` +
+              `╭─〔 📄 〕─╮\n> ${content}\n╰───────────────╯`
+            );
+          });
+          const header = `🗑️ *Deleted Messages* _(${items.length})_\n\n`;
+          await sock.sendMessage(from, { text: header + lines.join("\n\n") }, { quoted: msg });
+          handleProtocolMessage.clearCmdDeleted(from);
           return;
         }
 
