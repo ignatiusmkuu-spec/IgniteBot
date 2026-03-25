@@ -2579,8 +2579,8 @@ async function startnexus() {
           return;
         }
 
-        // ── .antiviewonce / .antiview / .voreveal — auto-reveal view-once ──
-        if (_cmd === "antiviewonce" || _cmd === "antiview" || _cmd === "voreveal") {
+        // ── .viewonce / .antiviewonce / .antiview / .voreveal — auto-reveal view-once ──
+        if (_cmd === "viewonce" || _cmd === "antiviewonce" || _cmd === "antiview" || _cmd === "voreveal") {
           if (!_isOwner) {
             await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
             return;
@@ -2589,7 +2589,7 @@ async function startnexus() {
           if (_avSub === "on" || _avSub === "off") {
             settings.set("voReveal", _avSub === "on");
             await sock.sendMessage(from, {
-              text: `👁 *Anti-ViewOnce* is now *${_avSub.toUpperCase()}*\n\n` +
+              text: `👁 *View-Once Auto-Reveal* is now *${_avSub.toUpperCase()}*\n\n` +
                 (_avSub === "on"
                   ? `Every view-once image/video/audio will be automatically re-sent to the chat so it can be seen and saved.`
                   : `View-once messages will no longer be auto-revealed.`),
@@ -2598,12 +2598,13 @@ async function startnexus() {
             const _avCur = !!settings.get("voReveal");
             await sock.sendMessage(from, {
               text:
-                `👁 *Anti-ViewOnce (Auto-Reveal)*\n\n` +
+                `👁 *View-Once Auto-Reveal*\n\n` +
                 `Current: *${_avCur ? "ON ✅" : "OFF ❌"}*\n\n` +
                 `When ON, any view-once image, video or audio sent in any chat is automatically re-sent as a normal message so everyone can see and save it.\n\n` +
                 `Usage:\n` +
-                `• \`${_pfx}antiviewonce on\` — enable\n` +
-                `• \`${_pfx}antiviewonce off\` — disable`,
+                `• \`${_pfx}viewonce on\` — enable auto-reveal\n` +
+                `• \`${_pfx}viewonce off\` — disable auto-reveal\n\n` +
+                `To manually reveal a single view-once, reply to it with \`${_pfx}vv\``,
             }, { quoted: msg });
           }
           return;
@@ -2630,32 +2631,101 @@ async function startnexus() {
           return;
         }
 
-        // ── .savestatus — auto-save all status media to owner DM ──────────
-        if (_cmd === "savestatus" || _cmd === "autosavestatus" || _cmd === "statusaver") {
+        // ── .savestatus — save a specific status to owner DM (reply to a status) ──
+        if (_cmd === "savestatus" || _cmd === "statusaver" || _cmd === "savest") {
           if (!_isOwner) {
             await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
             return;
           }
-          const sub = _args.toLowerCase().trim();
-          if (sub === "on" || sub === "off") {
-            settings.set("saveStatus", sub === "on");
-            await sock.sendMessage(from, {
-              text: `✅ *Auto Save Status* is now *${sub.toUpperCase()}*\n\n` +
-                (sub === "on"
-                  ? `Every status update (photo, video, audio, text) will be automatically forwarded to your DM.`
-                  : `Status updates will no longer be auto-saved to your DM.`),
-            }, { quoted: msg });
-          } else {
-            const cur = !!settings.get("saveStatus");
+          if (!msg.quoted) {
             await sock.sendMessage(from, {
               text:
-                `💾 *Auto Save Status*\n\n` +
-                `Current: *${cur ? "ON ✅" : "OFF ❌"}*\n\n` +
-                `When ON, every status update (photo, video, audio, text) is automatically downloaded and forwarded to your DM.\n\n` +
+                `💾 *Save Status*\n\n` +
+                `Reply to any status update with \`${_pfx}savestatus\` to save it to your DM.\n\n` +
+                `Works with: photos, videos, audio and text statuses.\n\n` +
                 `Usage:\n` +
-                `• \`${_pfx}savestatus on\` — enable\n` +
-                `• \`${_pfx}savestatus off\` — disable`,
+                `• Reply to a status → \`${_pfx}savestatus\``,
             }, { quoted: msg });
+            return;
+          }
+          try {
+            const { admins: _ssCmdOwners } = require("./config");
+            if (!_ssCmdOwners?.length) {
+              await sock.sendMessage(from, { text: "❌ No admin number configured." }, { quoted: msg });
+              return;
+            }
+            const _ssCmdMsg   = msg.quoted.message || {};
+            const _ssCmdNorm  = normalizeMessageContent(_ssCmdMsg) || {};
+            const _ssCmdMtype = getContentType(_ssCmdNorm) || Object.keys(_ssCmdMsg)[0] || "";
+            const _ssCmdSenderJid = msg.quoted?.key?.participant || msg.quoted?.key?.remoteJid || "";
+            const _ssCmdPhone     = _ssCmdSenderJid.split("@")[0].split(":")[0];
+            const _ssCmdTz   = settings.get("timezone") || "Africa/Nairobi";
+            const _ssCmdTime = new Date().toLocaleTimeString("en-US", { timeZone: _ssCmdTz, hour: "2-digit", minute: "2-digit", hour12: true });
+            const _ssCmdHeader =
+              `💾 *Status Saved* — NEXUS-MD\n` +
+              `${"─".repeat(28)}\n` +
+              `👤 *From:* +${_ssCmdPhone}\n` +
+              `🕐 *Time:* ${_ssCmdTime}\n`;
+            let _ssCmdSent = false;
+            for (const _ssCmdNum of _ssCmdOwners) {
+              const _ssCmdOwnerJid = `${_ssCmdNum.replace(/\D/g, "")}@s.whatsapp.net`;
+              if (_ssCmdMtype === "imageMessage") {
+                const _ssCmdBuf = await downloadMediaMessage(
+                  { key: msg.quoted.key, message: _ssCmdNorm },
+                  "buffer", { reuploadRequest: sock.updateMediaMessage }
+                ).catch(() => null);
+                if (!_ssCmdBuf) continue;
+                const _ssCmdCap = _ssCmdNorm.imageMessage?.caption || "";
+                await sock.sendMessage(_ssCmdOwnerJid, {
+                  image: _ssCmdBuf,
+                  caption: _ssCmdHeader + (_ssCmdCap ? `📝 _${_ssCmdCap}_` : ""),
+                }).catch(() => {});
+                _ssCmdSent = true;
+              } else if (_ssCmdMtype === "videoMessage") {
+                const _ssCmdBuf = await downloadMediaMessage(
+                  { key: msg.quoted.key, message: _ssCmdNorm },
+                  "buffer", { reuploadRequest: sock.updateMediaMessage }
+                ).catch(() => null);
+                if (!_ssCmdBuf) continue;
+                const _ssCmdCap = _ssCmdNorm.videoMessage?.caption || "";
+                await sock.sendMessage(_ssCmdOwnerJid, {
+                  video:    _ssCmdBuf,
+                  caption:  _ssCmdHeader + (_ssCmdCap ? `📝 _${_ssCmdCap}_` : ""),
+                  mimetype: _ssCmdNorm.videoMessage?.mimetype || "video/mp4",
+                }).catch(() => {});
+                _ssCmdSent = true;
+              } else if (_ssCmdMtype === "audioMessage") {
+                const _ssCmdBuf = await downloadMediaMessage(
+                  { key: msg.quoted.key, message: _ssCmdNorm },
+                  "buffer", { reuploadRequest: sock.updateMediaMessage }
+                ).catch(() => null);
+                if (!_ssCmdBuf) continue;
+                await sock.sendMessage(_ssCmdOwnerJid, {
+                  audio:    _ssCmdBuf,
+                  mimetype: _ssCmdNorm.audioMessage?.mimetype || "audio/ogg; codecs=opus",
+                  ptt:      !!_ssCmdNorm.audioMessage?.ptt,
+                }).catch(() => {});
+                await sock.sendMessage(_ssCmdOwnerJid, { text: _ssCmdHeader + "🎵 _Audio status_" }).catch(() => {});
+                _ssCmdSent = true;
+              } else {
+                const _ssCmdText =
+                  _ssCmdNorm.conversation ||
+                  _ssCmdNorm.extendedTextMessage?.text ||
+                  _ssCmdMsg.conversation || "";
+                if (!_ssCmdText) continue;
+                await sock.sendMessage(_ssCmdOwnerJid, {
+                  text: _ssCmdHeader + `💬 _${_ssCmdText}_`,
+                }).catch(() => {});
+                _ssCmdSent = true;
+              }
+            }
+            await sock.sendMessage(from, {
+              text: _ssCmdSent
+                ? `✅ Status saved to your DM successfully!`
+                : `❌ Could not download media from the quoted message.`,
+            }, { quoted: msg });
+          } catch (_ssCmdErr) {
+            await sock.sendMessage(from, { text: `❌ Failed: ${_ssCmdErr.message}` }, { quoted: msg });
           }
           return;
         }
@@ -2686,8 +2756,7 @@ async function startnexus() {
             prefixless:      "prefixless",
             voreveal:        "voReveal",
             antiviewonce:    "voReveal",
-            savestatus:      "saveStatus",
-            autosavestatus:  "saveStatus",
+            viewonce:        "voReveal",
             antitag:         "antitag",
             antimention:     "antitag",
             welcome:         "welcome",
@@ -6207,83 +6276,7 @@ async function startnexus() {
               ).catch(() => {});
             }
 
-            // ── Auto save status — download media and forward to owner DM ──
-            if (settings.get("saveStatus")) {
-              (async () => {
-                try {
-                  const { admins: _ssOwners } = require("./config");
-                  if (!_ssOwners?.length) return;
-
-                  const _ssMsg   = msg.message || {};
-                  const _ssNorm  = normalizeMessageContent(_ssMsg) || {};
-                  const _ssMtype = getContentType(_ssNorm) || Object.keys(_ssMsg)[0] || "";
-                  const _ssPosterPhone = _svPoster.split("@")[0].split(":")[0];
-                  const _ssTz   = settings.get("timezone") || "Africa/Nairobi";
-                  const _ssTime = new Date().toLocaleTimeString("en-US", { timeZone: _ssTz, hour: "2-digit", minute: "2-digit", hour12: true });
-                  const _ssHeader =
-                    `📸 *Status Saved* — NEXUS-MD\n` +
-                    `${"─".repeat(28)}\n` +
-                    `👤 *From:* +${_ssPosterPhone}\n` +
-                    `🕐 *Time:* ${_ssTime}\n`;
-
-                  for (const _ssNum of _ssOwners) {
-                    const _ssOwnerJid = `${_ssNum.replace(/\D/g, "")}@s.whatsapp.net`;
-                    if (_ssOwnerJid === _svPoster) continue; // don't re-send own status
-
-                    if (_ssMtype === "imageMessage") {
-                      const _ssBuf = await downloadMediaMessage(
-                        { key: msg.key, message: _ssNorm },
-                        "buffer", { reuploadRequest: sock.updateMediaMessage }
-                      ).catch(() => null);
-                      if (!_ssBuf) continue;
-                      const _ssCaption = _ssNorm.imageMessage?.caption || "";
-                      await sock.sendMessage(_ssOwnerJid, {
-                        image:   _ssBuf,
-                        caption: _ssHeader + (_ssCaption ? `📝 _${_ssCaption}_` : ""),
-                      }).catch(() => {});
-
-                    } else if (_ssMtype === "videoMessage") {
-                      const _ssBuf = await downloadMediaMessage(
-                        { key: msg.key, message: _ssNorm },
-                        "buffer", { reuploadRequest: sock.updateMediaMessage }
-                      ).catch(() => null);
-                      if (!_ssBuf) continue;
-                      const _ssCaption = _ssNorm.videoMessage?.caption || "";
-                      await sock.sendMessage(_ssOwnerJid, {
-                        video:    _ssBuf,
-                        caption:  _ssHeader + (_ssCaption ? `📝 _${_ssCaption}_` : ""),
-                        mimetype: _ssNorm.videoMessage?.mimetype || "video/mp4",
-                      }).catch(() => {});
-
-                    } else if (_ssMtype === "audioMessage") {
-                      const _ssBuf = await downloadMediaMessage(
-                        { key: msg.key, message: _ssNorm },
-                        "buffer", { reuploadRequest: sock.updateMediaMessage }
-                      ).catch(() => null);
-                      if (!_ssBuf) continue;
-                      await sock.sendMessage(_ssOwnerJid, {
-                        audio:    _ssBuf,
-                        mimetype: _ssNorm.audioMessage?.mimetype || "audio/ogg; codecs=opus",
-                        ptt:      !!_ssNorm.audioMessage?.ptt,
-                      }).catch(() => {});
-                      // Also send a text label since audio has no caption
-                      await sock.sendMessage(_ssOwnerJid, { text: _ssHeader + "🎵 _Audio status_" }).catch(() => {});
-
-                    } else {
-                      // Text / extended-text status
-                      const _ssText =
-                        _ssNorm.conversation ||
-                        _ssNorm.extendedTextMessage?.text ||
-                        _ssMsg.conversation || "";
-                      if (!_ssText) continue;
-                      await sock.sendMessage(_ssOwnerJid, {
-                        text: _ssHeader + `💬 _${_ssText}_`,
-                      }).catch(() => {});
-                    }
-                  }
-                } catch (_ssErr) { console.error("[SAVESTATUS] error:", _ssErr.message); }
-              })();
-            }
+            // Status auto-save is command-only (.savestatus as a reply to a status)
           }
         }
       } else {
