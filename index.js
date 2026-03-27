@@ -31,6 +31,7 @@ const platform = require("./lib/platform");
 const premium = require("./lib/premium");
 const axios = require("axios");
 const downloader = require("./lib/downloader");
+const dataPkgs  = require("./lib/data_packages");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -831,6 +832,7 @@ function reconnectDelay() {
 
 // Simple in-memory message cache so Baileys can retry failed decryptions
 const _msgCache = new Map();
+const _pendingOrders = new Map(); // jid → { pkg, step: "phone"|"confirm" }
 function _cacheMsg(msg) {
   if (!msg?.key?.id || !msg.message) return;
   _msgCache.set(msg.key.id, msg.message);
@@ -6611,6 +6613,124 @@ async function startnexus() {
           return;
         }
 
+        // ── .data — Bingwa data package browser & order flow ─────────────────
+        if (_cmd === "data" || _cmd === "bundles" || _cmd === "packages") {
+          const _BINGWA_URL = process.env.BINGWA_URL || "https://bingwa-sigma.vercel.app";
+          const _subArg = _args.trim().toLowerCase();
+          const _subParts = _subArg.split(/\s+/);
+          const _sub = _subParts[0];
+          const _subCode = _subParts.slice(1).join(" ").trim();
+
+          // .data buy <code>
+          if (_sub === "buy" || _sub === "order") {
+            const _buyCode = _subCode || _subParts[1] || "";
+            if (!_buyCode) {
+              await sock.sendMessage(from, {
+                text: `🛒 *Usage:* \`.data buy <package-code>\`\n\n> Example: \`.data buy SAF-D3\`\n\nType \`.data\` to see all packages with their codes.`,
+              }, { quoted: msg });
+              return;
+            }
+            const _pkg = dataPkgs.getPackageByCode(_buyCode);
+            if (!_pkg) {
+              await sock.sendMessage(from, {
+                text: `❌ Package code *${_buyCode.toUpperCase()}* not found.\n\nType \`.data\` to see available packages and their codes.`,
+              }, { quoted: msg });
+              return;
+            }
+            _pendingOrders.set(from, { pkg: _pkg, step: "phone" });
+            const _info = dataPkgs.PROVIDERS[_pkg.provider] || { emoji: "📦", full: _pkg.provider.toUpperCase() };
+            await sock.sendMessage(from, {
+              text: `🛒 *${_info.emoji} ${_pkg.name} Package — Ksh ${_pkg.price.toLocaleString()}*\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `📱 *Provider:*  ${_info.full}\n` +
+                    `⏱ *Validity:*  ${_pkg.validity}\n` +
+                    `💰 *Price:*     Ksh ${_pkg.price.toLocaleString()}\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `Enter the *phone number* to receive this bundle:\n_(format: 07XXXXXXXX or 254XXXXXXXXX)_`,
+            }, { quoted: msg });
+            return;
+          }
+
+          // .data reset (admin only — restore default packages)
+          if (_sub === "reset") {
+            if (!_isOwner) {
+              await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+              return;
+            }
+            dataPkgs.resetToDefault();
+            await sock.sendMessage(from, { text: "✅ Data packages reset to defaults." }, { quoted: msg });
+            return;
+          }
+
+          // .data addpkg <provider> <category> <code> <data> <price> <validity>
+          if (_sub === "addpkg" || _sub === "add") {
+            if (!_isOwner) {
+              await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+              return;
+            }
+            const _ap = _subParts.slice(1);
+            if (_ap.length < 6) {
+              await sock.sendMessage(from, {
+                text: `📦 *Add Package Usage:*\n\`.data addpkg <provider> <category> <code> <data> <price> <validity>\`\n\n` +
+                      `Example:\n\`.data addpkg safaricom daily SAF-D6 5GB 150 24hrs\`\n\n` +
+                      `Providers: safaricom | airtel | telkom\n` +
+                      `Categories: daily | weekly | monthly`,
+              }, { quoted: msg });
+              return;
+            }
+            const [_apProv, _apCat, _apCode, _apData, _apPrice, ..._apVal] = _ap;
+            const _newPkg = {
+              code: _apCode.toUpperCase(),
+              name: _apData,
+              price: parseInt(_apPrice, 10) || 0,
+              validity: _apVal.join(" "),
+              label: `${_apData} ${_apCat}`,
+            };
+            dataPkgs.addPackage(_apProv.toLowerCase(), _apCat.toLowerCase(), _newPkg);
+            await sock.sendMessage(from, {
+              text: `✅ Package *${_newPkg.code}* added:\n` +
+                    `📦 ${_newPkg.name} — Ksh ${_newPkg.price.toLocaleString()} — ${_newPkg.validity}`,
+            }, { quoted: msg });
+            return;
+          }
+
+          // .data delpkg <code>
+          if (_sub === "delpkg" || _sub === "del" || _sub === "remove") {
+            if (!_isOwner) {
+              await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+              return;
+            }
+            const _delCode = _subParts[1] || "";
+            if (!_delCode) {
+              await sock.sendMessage(from, { text: `Usage: \`.data delpkg <code>\`` }, { quoted: msg });
+              return;
+            }
+            const _removed = dataPkgs.removePackage(_delCode);
+            await sock.sendMessage(from, {
+              text: _removed ? `✅ Package *${_delCode.toUpperCase()}* removed.` : `❌ Package *${_delCode.toUpperCase()}* not found.`,
+            }, { quoted: msg });
+            return;
+          }
+
+          // .data safaricom / airtel / telkom — per-provider view
+          const _providers = Object.keys(dataPkgs.PROVIDERS);
+          const _matchedProv = _providers.find(p =>
+            p.startsWith(_sub) ||
+            dataPkgs.PROVIDERS[p].short === _sub ||
+            dataPkgs.PROVIDERS[p].full.toLowerCase() === _sub
+          );
+          if (_matchedProv && _sub) {
+            const _menu = dataPkgs.buildProviderMenu(_matchedProv, _BINGWA_URL);
+            await sock.sendMessage(from, { text: _menu }, { quoted: msg });
+            return;
+          }
+
+          // .data — show all packages (default view)
+          const _allMenu = dataPkgs.buildAllMenu(_BINGWA_URL);
+          await sock.sendMessage(from, { text: _allMenu }, { quoted: msg });
+          return;
+        }
+
         // ── .chatbot — AI chatbot on/off per-chat or global ──────────────────
         if (_cmd === "chatbot" || _cmd === "ai" || _cmd === "bot") {
           if (!_isOwner) {
@@ -7221,6 +7341,65 @@ async function startnexus() {
             `║\n` +
             `╚════════════════════════════════╝`,
         }, { quoted: msg });
+      }
+    }
+
+    // ── Pending order conversation (Bingwa data buy flow) ────────────────────
+    if (!msg.key.fromMe && _pendingOrders.has(from)) {
+      const _order = _pendingOrders.get(from);
+      const _orderText = body.trim();
+
+      if (_order.step === "phone") {
+        // Expect a phone number
+        const _phone = _orderText.replace(/\D/g, "").trim();
+        // Normalize Kenyan numbers: 07xx → 2547xx
+        const _normPhone = _phone.startsWith("254") ? _phone
+          : _phone.startsWith("0") ? "254" + _phone.slice(1)
+          : _phone;
+        if (_normPhone.length < 9 || _normPhone.length > 13) {
+          await sock.sendMessage(from, {
+            text: `⚠️ That doesn't look like a valid phone number.\nSend your number in format *07XXXXXXXX* or *254XXXXXXXXX*.\n\nReply *CANCEL* to cancel the order.`,
+          }, { quoted: msg });
+          return;
+        }
+        _order.phone = _normPhone;
+        _order.step = "confirm";
+        _pendingOrders.set(from, _order);
+        const _BINGWA_URL = process.env.BINGWA_URL || "https://bingwa-sigma.vercel.app";
+        const _summary = dataPkgs.buildOrderSummary(_order.pkg, _normPhone, _BINGWA_URL);
+        await sock.sendMessage(from, { text: _summary }, { quoted: msg });
+        return;
+      }
+
+      if (_order.step === "confirm") {
+        const _ans = _orderText.toUpperCase().trim();
+        if (_ans === "CANCEL" || _ans === "NO" || _ans === "C") {
+          _pendingOrders.delete(from);
+          await sock.sendMessage(from, {
+            text: `❌ Order cancelled. Type \`.data\` to browse packages again.`,
+          }, { quoted: msg });
+          return;
+        }
+        if (_ans === "CONFIRM" || _ans === "YES" || _ans === "Y" || _ans === "OK") {
+          _pendingOrders.delete(from);
+          const _BINGWA_URL = process.env.BINGWA_URL || "https://bingwa-sigma.vercel.app";
+          const _info = dataPkgs.PROVIDERS[_order.pkg.provider] || { emoji: "📦", full: _order.pkg.provider };
+          await sock.sendMessage(from, {
+            text: `✅ *Order Received!*\n\n` +
+                  `${_info.emoji} *${_info.full}* — ${_order.pkg.name} — *Ksh ${_order.pkg.price.toLocaleString()}*\n` +
+                  `📱 For: *${_order.phone}*\n\n` +
+                  `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                  `🌐 *Complete payment at:*\n${_BINGWA_URL}\n\n` +
+                  `💬 Your order has been noted. Our team will process your bundle shortly.\n` +
+                  `For support, contact the admin.`,
+          }, { quoted: msg });
+          return;
+        }
+        // If unrecognised, remind them
+        await sock.sendMessage(from, {
+          text: `Reply *CONFIRM* to place the order or *CANCEL* to abort.`,
+        }, { quoted: msg });
+        return;
       }
     }
 
