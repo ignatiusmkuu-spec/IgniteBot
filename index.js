@@ -6424,6 +6424,154 @@ async function startnexus() {
           return;
         }
 
+        // ── .hehe / .vision / .see / .describe — AI full-context image analysis ─
+        if (_cmd === "hehe" || _cmd === "vision" || _cmd === "see" || _cmd === "describe" || _cmd === "analyze") {
+          const _qMsg  = msg.quoted?.message || null;
+          const _qType = _qMsg ? (getContentType(_qMsg) || Object.keys(_qMsg)[0]) : null;
+          const _hasImg = _qType === "imageMessage" ||
+                          !!_qMsg?.imageMessage ||
+                          !!_qMsg?.viewOnceMessage?.message?.imageMessage ||
+                          !!_qMsg?.viewOnceMessageV2?.message?.imageMessage;
+
+          if (!_qMsg || !_hasImg) {
+            await sock.sendMessage(from, {
+              text: `🔍 *AI Image Analysis*\n\nReply to any image with \`${_pfx}${_cmd}\` to get a full AI analysis.\n\nOptionally add a question:\n\`${_pfx}${_cmd} what brand is this?\``,
+            }, { quoted: msg });
+            return;
+          }
+
+          await sock.sendMessage(from, { text: "🔍 Analysing image... please wait ⏳" }, { quoted: msg });
+          try {
+            // ── Step 1: Download the image ─────────────────────────────────────
+            const _visionInner =
+              _qMsg?.viewOnceMessage?.message ||
+              _qMsg?.viewOnceMessageV2?.message ||
+              _qMsg;
+            const _imgBuf = await downloadMediaMessage(
+              { key: msg.quoted.key, message: _visionInner },
+              "buffer",
+              { reuploadRequest: sock.updateMediaMessage }
+            );
+            const _imgBase64 = _imgBuf.toString("base64");
+            const _imgMime   = _visionInner?.imageMessage?.mimetype || "image/jpeg";
+            const _dataUri   = `data:${_imgMime};base64,${_imgBase64}`;
+
+            // User's additional question (what to focus on)
+            const _question = _args.trim() ||
+              "Analyze this image in full detail. Describe everything you see: people, objects, text, colors, context, mood, setting, and any notable details. Be thorough and structured.";
+
+            // ── Step 2: Call vision AI ─────────────────────────────────────────
+            let _visionAnswer = null;
+            const _groqKey  = process.env.GROQ_API_KEY;
+            const _openaiKey = process.env.OPENAI_API_KEY;
+            const _geminiKey = process.env.GEMINI_API_KEY;
+
+            if (_groqKey) {
+              // Groq Llama 3.2 Vision — fastest vision model with persona
+              const _gRes = await axios.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                {
+                  model: "meta-llama/llama-4-scout-17b-16e-instruct",
+                  messages: [
+                    { role: "system", content: _AI_PERSONA },
+                    {
+                      role: "user",
+                      content: [
+                        { type: "image_url", image_url: { url: _dataUri } },
+                        { type: "text", text: _question },
+                      ],
+                    },
+                  ],
+                  max_tokens: 1024,
+                  temperature: 0.4,
+                },
+                {
+                  headers: { Authorization: `Bearer ${_groqKey}`, "Content-Type": "application/json" },
+                  timeout: 45000,
+                }
+              );
+              _visionAnswer = _gRes.data?.choices?.[0]?.message?.content?.trim();
+            }
+
+            if (!_visionAnswer && _openaiKey) {
+              // OpenAI GPT-4o vision
+              const _oRes = await axios.post(
+                "https://api.openai.com/v1/chat/completions",
+                {
+                  model: "gpt-4o",
+                  messages: [
+                    { role: "system", content: _AI_PERSONA },
+                    {
+                      role: "user",
+                      content: [
+                        { type: "image_url", image_url: { url: _dataUri, detail: "high" } },
+                        { type: "text", text: _question },
+                      ],
+                    },
+                  ],
+                  max_tokens: 1024,
+                },
+                {
+                  headers: { Authorization: `Bearer ${_openaiKey}`, "Content-Type": "application/json" },
+                  timeout: 45000,
+                }
+              );
+              _visionAnswer = _oRes.data?.choices?.[0]?.message?.content?.trim();
+            }
+
+            if (!_visionAnswer && _geminiKey) {
+              // Gemini 1.5 Flash vision (free tier API key)
+              const _gemRes = await axios.post(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${_geminiKey}`,
+                {
+                  contents: [{
+                    parts: [
+                      { inline_data: { mime_type: _imgMime, data: _imgBase64 } },
+                      { text: _AI_PERSONA + "\n\n" + _question },
+                    ],
+                  }],
+                  generationConfig: { maxOutputTokens: 1024, temperature: 0.4 },
+                },
+                { headers: { "Content-Type": "application/json" }, timeout: 45000 }
+              );
+              _visionAnswer = _gemRes.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+            }
+
+            if (!_visionAnswer) {
+              // Public free fallback: upload image to catbox, pass URL to free AI
+              const FormData = require("form-data");
+              const _form = new FormData();
+              _form.append("reqtype", "fileupload");
+              _form.append("fileToUpload", _imgBuf, { filename: "img.jpg", contentType: _imgMime });
+              const _cbRes = await axios.post("https://catbox.moe/user/api.php", _form, {
+                headers: _form.getHeaders(),
+                timeout: 20000,
+              });
+              const _cbUrl = _cbRes.data?.trim();
+              if (_cbUrl && _cbUrl.startsWith("https://")) {
+                const _fallRes = await axios.get(
+                  `https://apiskeith.top/ai/gpt4?q=${encodeURIComponent("Analyze this image in detail (objects, text, context, colors, setting): " + _cbUrl)}`,
+                  { timeout: 30000 }
+                );
+                _visionAnswer = _fallRes.data?.result || _fallRes.data?.message || _fallRes.data?.reply;
+              }
+            }
+
+            if (!_visionAnswer) throw new Error("All vision AI providers returned empty response");
+
+            await sock.sendMessage(from, {
+              text: `🔍 *AI Image Analysis*\n${"─".repeat(26)}\n\n${_visionAnswer}`,
+            }, { quoted: msg });
+
+          } catch (_vErr) {
+            console.error("[vision] error:", _vErr.message);
+            await sock.sendMessage(from, {
+              text: `❌ Vision AI failed: ${_vErr.message}\n\nTip: Set \`GROQ_API_KEY\`, \`OPENAI_API_KEY\`, or \`GEMINI_API_KEY\` for the best results.`,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .chatbot — AI chatbot on/off per-chat or global ──────────────────
         if (_cmd === "chatbot" || _cmd === "ai" || _cmd === "bot") {
           if (!_isOwner) {
