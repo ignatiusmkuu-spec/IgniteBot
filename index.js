@@ -5660,6 +5660,306 @@ async function startnexus() {
           return;
         }
 
+        // ── .toimg — convert a sticker back to an image ────────────────────
+        if (_cmd === "toimg" || _cmd === "sticker2img" || _cmd === "stickertoimg") {
+          const quotedMsg = msg.quoted?.message || null;
+          const quotedNorm = quotedMsg ? (normalizeMessageContent(quotedMsg) || quotedMsg) : null;
+          const isStic = quotedNorm && (quotedNorm.stickerMessage || quotedMsg?.stickerMessage);
+          if (!isStic) {
+            await sock.sendMessage(from, { text: `❌ Reply to a sticker with \`${_pfx}toimg\` to convert it to an image.` }, { quoted: msg });
+            return;
+          }
+          try {
+            const { downloadMediaMessage: _dlMedia } = require("@whiskeysockets/baileys");
+            const sticBuf = Buffer.from(await _dlMedia({ key: msg.quoted.key, message: quotedMsg }, "buffer", {}));
+            const sharp   = require("sharp");
+            const pngBuf  = await sharp(sticBuf).toFormat("png").toBuffer();
+            await sock.sendMessage(from, { image: pngBuf, caption: "🖼️ Here is your sticker as an image!" }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Conversion failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .crypto — live cryptocurrency prices ────────────────────────────
+        if (_cmd === "crypto" || _cmd === "coin" || _cmd === "price") {
+          const _coin = (_args || "bitcoin").toLowerCase().trim().replace(/\s+/g, "-") || "bitcoin";
+          try {
+            await sock.sendMessage(from, { text: `🔍 Fetching price for *${_coin}*...` }, { quoted: msg });
+            const _cgRes = await axios.get(`https://api.coingecko.com/api/v3/simple/price?ids=${_coin}&vs_currencies=usd,eur,gbp&include_24hr_change=true&include_market_cap=true`, { timeout: 10000 });
+            const _data = _cgRes.data[_coin];
+            if (!_data) {
+              await sock.sendMessage(from, {
+                text: `❌ Coin *${_coin}* not found.\n\nTry: \`${_pfx}crypto bitcoin\`, \`${_pfx}crypto ethereum\`, \`${_pfx}crypto solana\`, etc.`
+              }, { quoted: msg });
+              return;
+            }
+            const _chg = _data.usd_24h_change ? _data.usd_24h_change.toFixed(2) : "N/A";
+            const _chgIcon = parseFloat(_chg) >= 0 ? "📈" : "📉";
+            await sock.sendMessage(from, {
+              text: `╔══════════════════════╗\n` +
+                    `║ 💰 *CRYPTO PRICES*\n` +
+                    `╚══════════════════════╝\n\n` +
+                    `🪙 *Coin:* ${_coin.toUpperCase()}\n` +
+                    `💵 *USD:* $${_data.usd?.toLocaleString()}\n` +
+                    `💶 *EUR:* €${_data.eur?.toLocaleString()}\n` +
+                    `💷 *GBP:* £${_data.gbp?.toLocaleString()}\n` +
+                    `${_chgIcon} *24h Change:* ${_chg}%\n` +
+                    `📊 *Market Cap:* $${(_data.usd_market_cap || 0).toLocaleString()}\n\n` +
+                    `_Powered by CoinGecko_`
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Could not fetch crypto price: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .trivia — random trivia questions ───────────────────────────────
+        if (_cmd === "trivia" || _cmd === "quiz") {
+          try {
+            await sock.sendMessage(from, { text: "🧠 Loading trivia question..." }, { quoted: msg });
+            const _tRes = await axios.get("https://opentdb.com/api.php?amount=1&type=multiple", { timeout: 10000 });
+            const _q = _tRes.data.results?.[0];
+            if (!_q) throw new Error("No question returned");
+            const he = (s) => s.replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&#039;/g,"'").replace(/&ldquo;/g,'"').replace(/&rdquo;/g,'"');
+            const _answers = [..._q.incorrect_answers, _q.correct_answer].sort(() => Math.random() - 0.5).map(he);
+            const _letters = ["A","B","C","D"];
+            const _answerLines = _answers.map((a, i) => `   ${_letters[i]}) ${a}`).join("\n");
+            const _correctLetter = _letters[_answers.indexOf(he(_q.correct_answer))];
+            await sock.sendMessage(from, {
+              text: `╔══════════════════════╗\n` +
+                    `║ 🧠 *TRIVIA QUESTION*\n` +
+                    `╚══════════════════════╝\n\n` +
+                    `📂 *Category:* ${he(_q.category)}\n` +
+                    `⚡ *Difficulty:* ${_q.difficulty.charAt(0).toUpperCase() + _q.difficulty.slice(1)}\n\n` +
+                    `❓ *${he(_q.question)}*\n\n` +
+                    `${_answerLines}\n\n` +
+                    `> _Spoiler — Answer: *${_correctLetter}) ${he(_q.correct_answer)}*_`
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Could not load trivia: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .rps — Rock Paper Scissors ──────────────────────────────────────
+        if (_cmd === "rps" || _cmd === "rockpaperscissors") {
+          const _choices = ["🪨 Rock", "📄 Paper", "✂️ Scissors"];
+          const _userRaw = (_args || "").trim().toLowerCase();
+          const _map = { rock: 0, r: 0, "🪨": 0, paper: 1, p: 1, "📄": 1, scissors: 2, s: 2, "✂️": 2 };
+          if (!(_userRaw in _map)) {
+            await sock.sendMessage(from, {
+              text: `🎮 *Rock Paper Scissors*\n\nUsage: \`${_pfx}rps rock\` / \`${_pfx}rps paper\` / \`${_pfx}rps scissors\``
+            }, { quoted: msg });
+            return;
+          }
+          const _uIdx  = _map[_userRaw];
+          const _bIdx  = Math.floor(Math.random() * 3);
+          let _result;
+          if (_uIdx === _bIdx) _result = "🤝 *It's a Tie!*";
+          else if ((_uIdx - _bIdx + 3) % 3 === 1) _result = "🎉 *You Win!*";
+          else _result = "🤖 *Bot Wins!*";
+          await sock.sendMessage(from, {
+            text: `🎮 *Rock Paper Scissors*\n\n` +
+                  `👤 *You:* ${_choices[_uIdx]}\n` +
+                  `🤖 *Bot:* ${_choices[_bIdx]}\n\n` +
+                  `${_result}`
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .morse — Morse code encoder/decoder ──────────────────────────────
+        if (_cmd === "morse" || _cmd === "morsecode") {
+          const _MORSE_MAP = { A:".-",B:"-...",C:"-.-.",D:"-..",E:".",F:"..-.",G:"--.",H:"....",I:"..",J:".---",K:"-.-",L:".-..",M:"--",N:"-.",O:"---",P:".--.",Q:"--.-",R:".-.",S:"...",T:"-",U:"..-",V:"...-",W:".--",X:"-..-",Y:"-.--",Z:"--..", "0":"-----","1":".----","2":"..---","3":"...--","4":"....-","5":".....","6":"-....","7":"--...","8":"---..","9":"----." };
+          const _REV_MORSE = Object.fromEntries(Object.entries(_MORSE_MAP).map(([k,v]) => [v,k]));
+          if (!_args.trim()) {
+            await sock.sendMessage(from, { text: `📡 *Morse Code*\n\nUsage:\n• \`${_pfx}morse Hello World\` — encode text\n• \`${_pfx}morse .... . .-.. .-.. ---\` — decode morse (use space between letters, / between words)` }, { quoted: msg });
+            return;
+          }
+          const _isMorse = /^[.\- /]+$/.test(_args.trim());
+          if (_isMorse) {
+            const _decoded = _args.trim().split(" / ").map(word => word.split(" ").map(c => _REV_MORSE[c] || "?").join("")).join(" ");
+            await sock.sendMessage(from, { text: `📡 *Morse → Text*\n\n*Input:* \`${_args.trim()}\`\n*Output:* ${_decoded}` }, { quoted: msg });
+          } else {
+            const _encoded = _args.toUpperCase().split(" ").map(word => word.split("").map(c => _MORSE_MAP[c] || "?").join(" ")).join(" / ");
+            await sock.sendMessage(from, { text: `📡 *Text → Morse*\n\n*Input:* ${_args.trim()}\n*Output:* \`${_encoded}\`` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .binary — Binary encoder/decoder ────────────────────────────────
+        if (_cmd === "binary" || _cmd === "bin") {
+          if (!_args.trim()) {
+            await sock.sendMessage(from, { text: `💻 *Binary Encoder/Decoder*\n\nUsage:\n• \`${_pfx}binary Hello\` — encode text to binary\n• \`${_pfx}binary 01001000 01100101\` — decode binary to text` }, { quoted: msg });
+            return;
+          }
+          const _isBin = /^[01 ]+$/.test(_args.trim());
+          if (_isBin) {
+            const _decoded = _args.trim().split(" ").map(b => String.fromCharCode(parseInt(b, 2))).join("");
+            await sock.sendMessage(from, { text: `💻 *Binary → Text*\n\n*Input:* \`${_args.trim()}\`\n*Output:* ${_decoded}` }, { quoted: msg });
+          } else {
+            const _encoded = _args.split("").map(c => c.charCodeAt(0).toString(2).padStart(8, "0")).join(" ");
+            await sock.sendMessage(from, { text: `💻 *Text → Binary*\n\n*Input:* ${_args.trim()}\n*Output:* \`${_encoded}\`` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .bmi — Body Mass Index calculator ──────────────────────────────
+        if (_cmd === "bmi") {
+          const _parts = _args.trim().split(/\s+/);
+          if (_parts.length < 2 || isNaN(_parts[0]) || isNaN(_parts[1])) {
+            await sock.sendMessage(from, { text: `⚖️ *BMI Calculator*\n\nUsage: \`${_pfx}bmi <weight_kg> <height_cm>\`\n\nExample: \`${_pfx}bmi 70 175\`` }, { quoted: msg });
+            return;
+          }
+          const _w = parseFloat(_parts[0]);
+          const _h = parseFloat(_parts[1]) / 100;
+          const _bmi = (_w / (_h * _h)).toFixed(1);
+          let _cat;
+          if (_bmi < 18.5) _cat = "⚠️ Underweight";
+          else if (_bmi < 25) _cat = "✅ Normal weight";
+          else if (_bmi < 30) _cat = "⚠️ Overweight";
+          else _cat = "❌ Obese";
+          await sock.sendMessage(from, {
+            text: `╔══════════════════════╗\n` +
+                  `║ ⚖️ *BMI CALCULATOR*\n` +
+                  `╚══════════════════════╝\n\n` +
+                  `⚖️ *Weight:* ${_w} kg\n` +
+                  `📏 *Height:* ${(_h * 100)} cm\n` +
+                  `🔢 *BMI:* ${_bmi}\n` +
+                  `📊 *Category:* ${_cat}\n\n` +
+                  `_Scale: <18.5 Underweight | 18.5-24.9 Normal | 25-29.9 Overweight | ≥30 Obese_`
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .age — Age calculator ───────────────────────────────────────────
+        if (_cmd === "age" || _cmd === "birthday") {
+          if (!_args.trim()) {
+            await sock.sendMessage(from, { text: `🎂 *Age Calculator*\n\nUsage: \`${_pfx}age DD/MM/YYYY\`\n\nExample: \`${_pfx}age 15/03/1999\`` }, { quoted: msg });
+            return;
+          }
+          try {
+            const [_dd, _mm, _yyyy] = _args.trim().split(/[\/\-\.]/).map(Number);
+            const _bday = new Date(_yyyy, _mm - 1, _dd);
+            if (isNaN(_bday.getTime()) || _bday > new Date()) throw new Error("Invalid date");
+            const _now  = new Date();
+            let _ageY = _now.getFullYear() - _bday.getFullYear();
+            let _ageM = _now.getMonth() - _bday.getMonth();
+            let _ageD = _now.getDate() - _bday.getDate();
+            if (_ageD < 0) { _ageM--; _ageD += new Date(_now.getFullYear(), _now.getMonth(), 0).getDate(); }
+            if (_ageM < 0) { _ageY--; _ageM += 12; }
+            const _nextBday = new Date(_now.getFullYear(), _mm - 1, _dd);
+            if (_nextBday < _now) _nextBday.setFullYear(_now.getFullYear() + 1);
+            const _daysLeft = Math.ceil((_nextBday - _now) / 86400000);
+            await sock.sendMessage(from, {
+              text: `╔══════════════════════╗\n` +
+                    `║ 🎂 *AGE CALCULATOR*\n` +
+                    `╚══════════════════════╝\n\n` +
+                    `📅 *Birthday:* ${_dd}/${_mm}/${_yyyy}\n` +
+                    `🎉 *Age:* ${_ageY} years, ${_ageM} months, ${_ageD} days\n` +
+                    `🎈 *Next Birthday:* in ${_daysLeft} day${_daysLeft !== 1 ? "s" : ""}`
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Invalid date. Use: \`${_pfx}age DD/MM/YYYY\`\nExample: \`${_pfx}age 15/03/1999\`` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .remini / .enhance — AI image enhancer ──────────────────────────
+        if (_cmd === "remini" || _cmd === "enhance" || _cmd === "hd") {
+          const quotedMsg = msg.quoted?.message || null;
+          const quotedNorm = quotedMsg ? (normalizeMessageContent(quotedMsg) || quotedMsg) : null;
+          const _hasImg = quotedNorm?.imageMessage || quotedMsg?.imageMessage;
+          if (!_hasImg) {
+            await sock.sendMessage(from, { text: `✨ *AI Image Enhancer*\n\nReply to an image with \`${_pfx}remini\` to enhance it using AI.\n\nOptional: \`${_pfx}remini recolor\` or \`${_pfx}remini dehaze\`` }, { quoted: msg });
+            return;
+          }
+          await sock.sendMessage(from, { text: "✨ Enhancing your image with AI... please wait ⏳" }, { quoted: msg });
+          try {
+            const { downloadMediaMessage: _dlMedia } = require("@whiskeysockets/baileys");
+            const imgBuf = Buffer.from(await _dlMedia({ key: msg.quoted.key, message: quotedMsg }, "buffer", {}));
+            const reminiLib = require("./lib/remini");
+            const _mode = (_args || "enhance").toLowerCase().trim();
+            const enhanced = await reminiLib(imgBuf, ["enhance","recolor","dehaze"].includes(_mode) ? _mode : "enhance");
+            await sock.sendMessage(from, { image: enhanced, caption: "✨ *AI Enhanced Image*" }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Enhancement failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .color — inspect a hex color code ───────────────────────────────
+        if (_cmd === "color" || _cmd === "colour" || _cmd === "hex") {
+          const _raw = (_args || "").trim().replace(/^#/, "");
+          if (!_raw || !/^[0-9a-fA-F]{3}$|^[0-9a-fA-F]{6}$/.test(_raw)) {
+            await sock.sendMessage(from, { text: `🎨 *Color Inspector*\n\nUsage: \`${_pfx}color #FF5733\`\n\nExample: \`${_pfx}color 1A73E8\`` }, { quoted: msg });
+            return;
+          }
+          const _full = _raw.length === 3 ? _raw.split("").map(c => c + c).join("") : _raw;
+          const _r = parseInt(_full.slice(0,2),16), _g = parseInt(_full.slice(2,4),16), _b = parseInt(_full.slice(4,6),16);
+          const _max = Math.max(_r,_g,_b), _min = Math.min(_r,_g,_b), _d = _max - _min;
+          let _h = 0;
+          if (_d) {
+            if (_max === _r) _h = ((_g - _b) / _d) % 6;
+            else if (_max === _g) _h = (_b - _r) / _d + 2;
+            else _h = (_r - _g) / _d + 4;
+            _h = Math.round(_h * 60); if (_h < 0) _h += 360;
+          }
+          const _s = _max ? Math.round(_d / _max * 100) : 0;
+          const _v = Math.round(_max / 255 * 100);
+          await sock.sendMessage(from, {
+            text: `╔══════════════════════╗\n` +
+                  `║ 🎨 *COLOR INSPECTOR*\n` +
+                  `╚══════════════════════╝\n\n` +
+                  `🔷 *HEX:* #${_full.toUpperCase()}\n` +
+                  `🟥 *RGB:* rgb(${_r}, ${_g}, ${_b})\n` +
+                  `🎛️ *HSV:* hsv(${_h}°, ${_s}%, ${_v}%)\n\n` +
+                  `_Preview: https://www.colorhexa.com/${_full}_`
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .short / .shorten — URL shortener ───────────────────────────────
+        if (_cmd === "short" || _cmd === "shorten" || _cmd === "shrink") {
+          const _url = (_args || "").trim();
+          if (!_url || !/^https?:\/\//i.test(_url)) {
+            await sock.sendMessage(from, { text: `🔗 *URL Shortener*\n\nUsage: \`${_pfx}short https://your-long-url.com\`` }, { quoted: msg });
+            return;
+          }
+          try {
+            const _shrinkRes = await axios.get(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(_url)}`, { timeout: 10000 });
+            const _short = _shrinkRes.data?.trim();
+            if (!_short || !_short.startsWith("http")) throw new Error("Shortening failed");
+            await sock.sendMessage(from, {
+              text: `🔗 *URL Shortener*\n\n📎 *Original:* ${_url}\n✂️ *Short URL:* ${_short}`
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Could not shorten URL: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .vcard — create a WhatsApp contact card ─────────────────────────
+        if (_cmd === "vcard" || _cmd === "contact") {
+          const _vcParts = (_args || "").trim().split("|").map(s => s.trim());
+          const _vcName  = _vcParts[0] || "";
+          const _vcPhone = (_vcParts[1] || "").replace(/\D/g, "");
+          if (!_vcName || !_vcPhone) {
+            await sock.sendMessage(from, {
+              text: `📇 *vCard Generator*\n\nUsage: \`${_pfx}vcard Name | PhoneNumber\`\n\nExample: \`${_pfx}vcard John Doe | 254700123456\``
+            }, { quoted: msg });
+            return;
+          }
+          const _vcData = `BEGIN:VCARD\nVERSION:3.0\nFN:${_vcName}\nTEL;TYPE=CELL:+${_vcPhone}\nEND:VCARD`;
+          await sock.sendMessage(from, {
+            contacts: {
+              displayName: _vcName,
+              contacts: [{ vcard: _vcData }],
+            }
+          }, { quoted: msg });
+          return;
+        }
+
         // ── .menu / .menuv / .help — redesigned NEXUS V2 CORE menu ──────────
         if (_cmd === "menu" || _cmd === "menuv" || _cmd === "help") {
           try {
@@ -5772,6 +6072,8 @@ async function startnexus() {
               `┃ ⌘ ${_pfx}repeat\n` +
               `┃ ⌘ ${_pfx}calc\n` +
               `┃ ⌘ ${_pfx}calculate\n` +
+              `┃ ⌘ ${_pfx}morse — encode/decode morse code\n` +
+              `┃ ⌘ ${_pfx}binary — encode/decode binary\n` +
               `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
               `╭━━━〔 🎧 *MEDIA STATION* 〕━━━⬣\n` +
               `┃ ▶ ${_pfx}play\n` +
@@ -5795,10 +6097,33 @@ async function startnexus() {
               `┃ ▶ ${_pfx}pindl\n` +
               `┃ ▶ ${_pfx}pinterest\n` +
               `┃ ▶ ${_pfx}sticker\n` +
+              `┃ ▶ ${_pfx}toimg — sticker → image\n` +
+              `┃ ▶ ${_pfx}remini — AI image enhancer\n` +
+              `┃ ▶ ${_pfx}enhance — alias of ${_pfx}remini\n` +
               `┃ ▶ ${_pfx}convert\n` +
               `┃ ▶ ${_pfx}v\n` +
               `┃ ▶ ${_pfx}vo\n` +
               `┃ ▶ ${_pfx}vv — reveal a quoted view-once\n` +
+              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `╭━━━〔 💰 *CRYPTO & FINANCE* 〕━━━⬣\n` +
+              `┃ 🪙 ${_pfx}crypto <coin> — live price (BTC, ETH...)\n` +
+              `┃ 🪙 ${_pfx}coin — alias of ${_pfx}crypto\n` +
+              `┃ 🪙 ${_pfx}price — alias of ${_pfx}crypto\n` +
+              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `╭━━━〔 🎮 *GAMES & QUIZZES* 〕━━━⬣\n` +
+              `┃ 🎮 ${_pfx}rps rock/paper/scissors\n` +
+              `┃ 🧠 ${_pfx}trivia — random trivia question\n` +
+              `┃ 🎯 ${_pfx}quiz — alias of ${_pfx}trivia\n` +
+              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `╭━━━〔 🧮 *CALCULATORS* 〕━━━⬣\n` +
+              `┃ ⚖️ ${_pfx}bmi <weight_kg> <height_cm>\n` +
+              `┃ 🎂 ${_pfx}age DD/MM/YYYY — birthday & age\n` +
+              `┃ 🔐 ${_pfx}gpass — secure password generator\n` +
+              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `╭━━━〔 🛠️ *EXTRA TOOLS* 〕━━━⬣\n` +
+              `┃ 🎨 ${_pfx}color #HEXCODE — color inspector\n` +
+              `┃ 🔗 ${_pfx}short <url> — URL shortener\n` +
+              `┃ 📇 ${_pfx}vcard Name | Number — contact card\n` +
               `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
               `╭━━━〔 📸 *STATUS TOOLS* 〕━━━⬣\n` +
               `┃ 💾 ${_pfx}s — save quoted status/media to DM\n` +
