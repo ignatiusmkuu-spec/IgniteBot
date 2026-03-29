@@ -1626,27 +1626,86 @@ async function startnexus() {
 
     // ── Per-group antilink enforcement (per-group toggle via .antilink) ────
     if (msg.isGroup && !msg.key.fromMe && body) {
-      const _galEnabled = (db.read(`grp_antilink`, {}))[from];
+      const _galMap = db.read(`grp_antilink`, {});
+      const _galEnabled = _galMap[from];
       if (_galEnabled && !admin.isSuperAdmin(senderJid)) {
         const _galLinkPat = /https?:\/\/[^\s]+|www\.[^\s]+|chat\.whatsapp\.com\/[A-Za-z0-9]+/i;
         if (_galLinkPat.test(body)) {
           try {
-            const _galMeta = await _getGroupMeta(sock, from);
-            const _galParts = _galMeta?.participants || [];
+            const _galMeta   = await _getGroupMeta(sock, from);
+            const _galParts  = _galMeta?.participants || [];
             const _galSenderPart = _galParts.find(p => p.id.split(":")[0] + "@s.whatsapp.net" === senderJid || p.id === senderJid);
             const _galSenderAdmin = _galSenderPart?.admin === "admin" || _galSenderPart?.admin === "superadmin";
             const _galBotPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
             const _galBotPart = _galParts.find(p => p.id.split(":")[0].split("@")[0] === _galBotPhone);
             const _galBotAdmin = _galBotPart?.admin === "admin" || _galBotPart?.admin === "superadmin";
-            if (!_galSenderAdmin && _galBotAdmin) {
-              await sock.sendMessage(from, { delete: msg.key }).catch(() => {});
-              await sock.sendMessage(from, {
-                text: `🔗 @${phone} *Links are not allowed in this group!*\nYou have been removed.`,
-                mentions: [senderJid],
-              }).catch(() => {});
-              await sock.groupParticipantsUpdate(from, [senderJid], "remove").catch(() => {});
+            if (!_galSenderAdmin) {
+              // Read action config for this group
+              const _galCfgAll = db.read(`grp_antilink_cfg`, {});
+              const _galCfg    = _galCfgAll[from] || { action: "delete", warnLimit: 3 };
+              const _galAction = _galCfg.action || "delete";
+
+              if (_galBotAdmin) {
+                await sock.sendMessage(from, { delete: msg.key }).catch(() => {});
+              }
+
+              if (_galAction === "kick") {
+                await sock.sendMessage(from, {
+                  text: `🔗 @${phone} *Links are not allowed in this group!*\nYou have been removed.`,
+                  mentions: [senderJid],
+                }).catch(() => {});
+                if (_galBotAdmin) await sock.groupParticipantsUpdate(from, [senderJid], "remove").catch(() => {});
+              } else if (_galAction === "warn") {
+                const _galWarnsAll = db.read(`grp_antilink_warns`, {});
+                if (!_galWarnsAll[from]) _galWarnsAll[from] = {};
+                _galWarnsAll[from][senderJid] = (_galWarnsAll[from][senderJid] || 0) + 1;
+                const _galWarnCount = _galWarnsAll[from][senderJid];
+                const _galLimit     = _galCfg.warnLimit || 3;
+                db.write(`grp_antilink_warns`, _galWarnsAll);
+                if (_galWarnCount >= _galLimit) {
+                  _galWarnsAll[from][senderJid] = 0;
+                  db.write(`grp_antilink_warns`, _galWarnsAll);
+                  await sock.sendMessage(from, {
+                    text: `🔗 @${phone} *Final warning reached (${_galWarnCount}/${_galLimit})!*\nYou have been removed for repeatedly sharing links.`,
+                    mentions: [senderJid],
+                  }).catch(() => {});
+                  if (_galBotAdmin) await sock.groupParticipantsUpdate(from, [senderJid], "remove").catch(() => {});
+                } else {
+                  await sock.sendMessage(from, {
+                    text: `⚠️ @${phone} *Warning ${_galWarnCount}/${_galLimit}:* Links are not allowed in this group!\n_(${_galLimit - _galWarnCount} more warnings before removal)_`,
+                    mentions: [senderJid],
+                  }).catch(() => {});
+                }
+              } else {
+                // default: delete only
+                await sock.sendMessage(from, {
+                  text: `🔗 @${phone} *Links are not allowed in this group!*\n_(${_galBotAdmin ? "Message deleted." : "Make me admin to also delete."})_`,
+                  mentions: [senderJid],
+                }).catch(() => {});
+              }
             }
           } catch (_galErr) { console.error("[grp-antilink]", _galErr.message); }
+        }
+      }
+    }
+
+    // ── Auto-React to chat messages ──────────────────────────────────────────
+    // Reacts to incoming messages with a random emoji from the configured list.
+    // Scope: "pm" | "group" | "both" | "chat" (specific chats only)
+    {
+      const _arCfg = db.read("areact_cfg", { enabled: false, scope: "pm", emojis: ["💞","💘","🥰","💙","💓","💕"], chats: [], excluded: [] });
+      if (_arCfg.enabled && !msg.key.fromMe && body &&
+          msgType !== "reactionMessage" && msgType !== "protocolMessage" && msgType !== "statusMentionMessage") {
+        const _arIsGroup = from.endsWith("@g.us");
+        let _arShouldReact = false;
+        if (_arCfg.scope === "all" || _arCfg.scope === "both")    _arShouldReact = true;
+        else if (_arCfg.scope === "pm"    && !_arIsGroup)          _arShouldReact = true;
+        else if (_arCfg.scope === "group" && _arIsGroup)           _arShouldReact = true;
+        else if (_arCfg.scope === "chat"  && (_arCfg.chats || []).includes(from)) _arShouldReact = true;
+        if (_arShouldReact && (_arCfg.excluded || []).includes(from)) _arShouldReact = false;
+        if (_arShouldReact && (_arCfg.emojis || []).length > 0) {
+          const _arEmoji = _arCfg.emojis[Math.floor(Math.random() * _arCfg.emojis.length)];
+          await sock.sendMessage(from, { react: { text: _arEmoji, key: msg.key } }).catch(() => {});
         }
       }
     }
@@ -2834,6 +2893,113 @@ async function startnexus() {
             const cur = !!settings.get("autoLikeStatus");
             await sock.sendMessage(from, {
               text: `❤️ *Auto React/Like Status*\n\nCurrent: *${cur ? "ON" : "OFF"}*\n\nUsage: \`${_pfx}autoreact on\` or \`${_pfx}autoreact off\``,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .areact — auto-react to chat messages ──────────────────────────
+        if (_cmd === "areact") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg }); return;
+          }
+          const _arSub  = _args.trim().toLowerCase();
+          const _arArgRaw = _args.trim();
+          const _arCfgDef = { enabled: false, scope: "pm", emojis: ["💞","💘","🥰","💙","💓","💕"], chats: [], excluded: [] };
+          const _arCfg  = { ..._arCfgDef, ...db.read("areact_cfg", {}) };
+
+          // ── scope / enable / disable ──
+          if (_arSub === "on" || _arSub === "all" || _arSub === "both") {
+            _arCfg.enabled = true; _arCfg.scope = _arSub === "on" ? _arCfg.scope : "both";
+            db.write("areact_cfg", _arCfg);
+            await sock.sendMessage(from, { text: `✅ *Auto-React* enabled — scope: *${_arCfg.scope.toUpperCase()}*` }, { quoted: msg });
+          } else if (_arSub === "off") {
+            _arCfg.enabled = false; db.write("areact_cfg", _arCfg);
+            await sock.sendMessage(from, { text: `❌ *Auto-React* disabled.` }, { quoted: msg });
+          } else if (_arSub === "pm") {
+            _arCfg.enabled = true; _arCfg.scope = "pm"; db.write("areact_cfg", _arCfg);
+            await sock.sendMessage(from, { text: `✅ *Auto-React* enabled — PMs only.` }, { quoted: msg });
+          } else if (_arSub === "group") {
+            _arCfg.enabled = true; _arCfg.scope = "group"; db.write("areact_cfg", _arCfg);
+            await sock.sendMessage(from, { text: `✅ *Auto-React* enabled — groups only.` }, { quoted: msg });
+          } else if (_arSub === "chat") {
+            _arCfg.enabled = true; _arCfg.scope = "chat";
+            if (!(_arCfg.chats || []).includes(from)) (_arCfg.chats = _arCfg.chats || []).push(from);
+            db.write("areact_cfg", _arCfg);
+            await sock.sendMessage(from, { text: `✅ *Auto-React* enabled — this chat added to react list.` }, { quoted: msg });
+          } else if (_arSub === "removechat") {
+            _arCfg.chats = (_arCfg.chats || []).filter(c => c !== from); db.write("areact_cfg", _arCfg);
+            await sock.sendMessage(from, { text: `🗑️ This chat removed from auto-react list.` }, { quoted: msg });
+          } else if (_arSub === "pm off") {
+            _arCfg.scope = _arCfg.scope === "pm" ? "off" : _arCfg.scope; _arCfg.enabled = _arCfg.scope !== "off";
+            db.write("areact_cfg", _arCfg);
+            await sock.sendMessage(from, { text: `❌ Auto-React disabled for PMs.` }, { quoted: msg });
+          } else if (_arSub === "group off") {
+            _arCfg.scope = _arCfg.scope === "group" ? "off" : _arCfg.scope; _arCfg.enabled = _arCfg.scope !== "off";
+            db.write("areact_cfg", _arCfg);
+            await sock.sendMessage(from, { text: `❌ Auto-React disabled for groups.` }, { quoted: msg });
+
+          // ── emoji management ──
+          } else if (_arSub.startsWith("set ") || _arSub.startsWith("set\n")) {
+            const _arNewEmojis = _arArgRaw.slice(4).trim().split(/\s+/).filter(Boolean);
+            if (!_arNewEmojis.length) {
+              await sock.sendMessage(from, { text: `❌ Provide emojis after \`set\`.\nExample: \`${_pfx}areact set 🎉 🚀 ⭐\`` }, { quoted: msg }); return;
+            }
+            _arCfg.emojis = _arNewEmojis; db.write("areact_cfg", _arCfg);
+            await sock.sendMessage(from, { text: `✅ *Auto-React emojis updated:* ${_arNewEmojis.join(" ")}` }, { quoted: msg });
+          } else if (_arSub === "reset") {
+            _arCfg.emojis = _arCfgDef.emojis; db.write("areact_cfg", _arCfg);
+            await sock.sendMessage(from, { text: `🔄 *Auto-React emojis reset to default:* ${_arCfgDef.emojis.join(" ")}` }, { quoted: msg });
+          } else if (_arSub === "list") {
+            await sock.sendMessage(from, { text: `😊 *Auto-React emojis:*\n${(_arCfg.emojis || []).join("  ")}` }, { quoted: msg });
+
+          // ── exclusions ──
+          } else if (_arSub.startsWith("exclude")) {
+            const _arExcJid = (msg.mentionedJids?.[0]) || null;
+            if (!_arExcJid) { await sock.sendMessage(from, { text: `❌ Tag a contact to exclude.\nExample: \`${_pfx}areact exclude @contact\`` }, { quoted: msg }); return; }
+            if (!(_arCfg.excluded || []).includes(_arExcJid)) (_arCfg.excluded = _arCfg.excluded || []).push(_arExcJid);
+            db.write("areact_cfg", _arCfg);
+            await sock.sendMessage(from, { text: `🚫 @${_arExcJid.split("@")[0]} excluded from auto-react.`, mentions: [_arExcJid] }, { quoted: msg });
+          } else if (_arSub.startsWith("include")) {
+            const _arIncJid = (msg.mentionedJids?.[0]) || null;
+            if (!_arIncJid) { await sock.sendMessage(from, { text: `❌ Tag a contact to re-include.\nExample: \`${_pfx}areact include @contact\`` }, { quoted: msg }); return; }
+            _arCfg.excluded = (_arCfg.excluded || []).filter(e => e !== _arIncJid);
+            db.write("areact_cfg", _arCfg);
+            await sock.sendMessage(from, { text: `✅ @${_arIncJid.split("@")[0]} removed from exclusion list.`, mentions: [_arIncJid] }, { quoted: msg });
+          } else if (_arSub === "excluded") {
+            const _arExList = _arCfg.excluded || [];
+            await sock.sendMessage(from, { text: _arExList.length ? `🚫 *Excluded from auto-react:*\n${_arExList.map(j => `• @${j.split("@")[0]}`).join("\n")}` : `✅ No exclusions set.` }, { quoted: msg });
+
+          // ── status/help ──
+          } else {
+            const _arOn  = _arCfg.enabled;
+            const _arSc  = _arCfg.scope || "pm";
+            const _arEm  = (_arCfg.emojis || []).join(" ");
+            await sock.sendMessage(from, {
+              text:
+                `⚙️ *Auto-React (chat messages)*\n\n` +
+                `*Auto-React*: ${_arOn ? "✅ ON" : "❌ OFF"}\n` +
+                `*Scope*: ${_arSc.toUpperCase()}\n` +
+                `*Emojis*: ${_arEm || "(none)"}\n\n` +
+                `*Scope:*\n` +
+                `• \`${_pfx}areact on\` — enable (keep current scope)\n` +
+                `• \`${_pfx}areact all\` — all chats (PM + groups)\n` +
+                `• \`${_pfx}areact pm\` — PMs only\n` +
+                `• \`${_pfx}areact group\` — groups only\n` +
+                `• \`${_pfx}areact both\` — PM + groups\n` +
+                `• \`${_pfx}areact chat\` — this chat only\n` +
+                `• \`${_pfx}areact removechat\` — remove this chat\n` +
+                `• \`${_pfx}areact pm off\` — disable for PMs\n` +
+                `• \`${_pfx}areact group off\` — disable for groups\n` +
+                `• \`${_pfx}areact off\` — disable everywhere\n\n` +
+                `*Emojis:*\n` +
+                `• \`${_pfx}areact set 🎉 🚀 ⭐\`\n` +
+                `• \`${_pfx}areact reset\`\n` +
+                `• \`${_pfx}areact list\`\n\n` +
+                `*Exclusion:*\n` +
+                `• \`${_pfx}areact exclude @contact\`\n` +
+                `• \`${_pfx}areact include @contact\`\n` +
+                `• \`${_pfx}areact excluded\``,
             }, { quoted: msg });
           }
           return;
@@ -4744,20 +4910,67 @@ async function startnexus() {
           return;
         }
 
-        // ── .antilink on/off — per-group link blocking toggle ───────────────
+        // ── .antilink — per-group link blocking with action modes ──────────
         if (_cmd === "antilink") {
           if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
-          const parts = await admin.getGroupParticipants(sock, from).catch(() => []);
-          if (!admin.isAdmin(senderJid, parts) && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only admins can change antilink settings." }, { quoted: msg }); return; }
-          const _alMode = _args.trim().toLowerCase();
-          if (_alMode !== "on" && _alMode !== "off") {
-            const _alCur = (db.read(`grp_antilink`, {}))[from] || false;
-            await sock.sendMessage(from, { text: `╭─⌈ 🔗 *ANTILINK* ⌋\n│\n├─ Status: *${_alCur ? "🟢 ON" : "🔴 OFF"}*\n├─ Blocks all non-admin links\n╰─ Usage: \`${_pfx}antilink on/off\`` }, { quoted: msg }); return;
+          const _alParts = await admin.getGroupParticipants(sock, from).catch(() => []);
+          if (!admin.isAdmin(senderJid, _alParts) && !_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Only admins can change antilink settings." }, { quoted: msg }); return;
           }
-          const _alAll = db.read(`grp_antilink`, {});
-          _alAll[from] = _alMode === "on";
-          db.write(`grp_antilink`, _alAll);
-          await sock.sendMessage(from, { text: `${_alMode === "on" ? "🔗 *Antilink ENABLED*\nLinks from non-admins will be deleted and sender removed." : "🔗 *Antilink DISABLED*\nMembers can share links freely."}` }, { quoted: msg });
+          const _alMode  = _args.trim().toLowerCase();
+          const _alMap   = db.read(`grp_antilink`, {});
+          const _alCfgAll = db.read(`grp_antilink_cfg`, {});
+          const _alCfg   = _alCfgAll[from] || { action: "delete", warnLimit: 3 };
+
+          if (_alMode === "on") {
+            if (_alMap[from]) {
+              await sock.sendMessage(from, { text: `⚠️ *Anti-Link* is already *ON ✅* — no changes made.` }, { quoted: msg }); return;
+            }
+            _alMap[from] = true;
+            db.write(`grp_antilink`, _alMap);
+            await sock.sendMessage(from, { text: `🔗 *Anti-Link ENABLED*\nAction: *${(_alCfg.action || "delete").toUpperCase()}*\nLinks from non-admins will be acted on.` }, { quoted: msg });
+          } else if (_alMode === "off") {
+            if (!_alMap[from]) {
+              await sock.sendMessage(from, { text: `⚠️ *Anti-Link* is already *OFF ❌* — no changes made.` }, { quoted: msg }); return;
+            }
+            _alMap[from] = false;
+            db.write(`grp_antilink`, _alMap);
+            await sock.sendMessage(from, { text: `🔗 *Anti-Link DISABLED*\nMembers can share links freely.` }, { quoted: msg });
+          } else if (_alMode === "delete" || _alMode === "warn" || _alMode === "kick") {
+            _alCfgAll[from] = { ..._alCfg, action: _alMode };
+            db.write(`grp_antilink_cfg`, _alCfgAll);
+            const _alActionDesc = {
+              delete: `Message will be deleted. Sender stays in group.`,
+              warn:   `Sender warned each time. After ${_alCfg.warnLimit || 3} warnings they are kicked.`,
+              kick:   `Sender is immediately removed from the group.`,
+            }[_alMode];
+            await sock.sendMessage(from, { text: `🔗 *Anti-Link action set to: ${_alMode.toUpperCase()}*\n${_alActionDesc}` }, { quoted: msg });
+          } else if (_alMode.startsWith("setwarn")) {
+            const _alWarnNum = parseInt(_args.trim().split(/\s+/)[1]) || 0;
+            if (_alWarnNum < 1 || _alWarnNum > 10) {
+              await sock.sendMessage(from, { text: `❌ Warn limit must be between 1 and 10.\nUsage: \`${_pfx}antilink setwarn 3\`` }, { quoted: msg }); return;
+            }
+            _alCfgAll[from] = { ..._alCfg, warnLimit: _alWarnNum };
+            db.write(`grp_antilink_cfg`, _alCfgAll);
+            await sock.sendMessage(from, { text: `🔗 *Anti-Link warn limit set to ${_alWarnNum}*\nSenders will be kicked after ${_alWarnNum} link warning(s).` }, { quoted: msg });
+          } else {
+            const _alOn  = !!_alMap[from];
+            const _alAct = _alCfg.action || "delete";
+            const _alWL  = _alCfg.warnLimit || 3;
+            await sock.sendMessage(from, {
+              text:
+                `╭─⌈ 🔗 *ANTI-LINK* ⌋\n│\n` +
+                `├─ Status: *${_alOn ? "🟢 ON" : "🔴 OFF"}*\n` +
+                `├─ Action: *${_alAct.toUpperCase()}*${_alAct === "warn" ? ` (kick after ${_alWL} warnings)` : ""}\n` +
+                `│\n` +
+                `├─ \`${_pfx}antilink on\` — enable\n` +
+                `├─ \`${_pfx}antilink off\` — disable\n` +
+                `├─ \`${_pfx}antilink delete\` — delete link messages\n` +
+                `├─ \`${_pfx}antilink warn\` — warn ${_alWL}x then kick\n` +
+                `├─ \`${_pfx}antilink kick\` — remove sender instantly\n` +
+                `╰─ \`${_pfx}antilink setwarn <1-10>\` — set warn limit`,
+            }, { quoted: msg });
+          }
           return;
         }
 
