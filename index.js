@@ -906,7 +906,6 @@ async function fetchSettings() {
     antilink:    data.antilink    ?? "on",
     antilinkall: data.antilinkall ?? "off",
     antidelete:  data.antidelete  ?? "on",
-    antitag:     data.antitag     ?? "on",
     antibot:     data.antibot     ?? "off",
     welcome:     data.welcome     ?? "off",
     goodbye:     data.goodbye     ?? "off",
@@ -1652,35 +1651,6 @@ async function startnexus() {
       }
     }
 
-    // ── Anti-Tag — prevent non-admins from tagging/mentioning others ──────────
-    const _antitagVal = settings.get("antitag");
-    if (msg.isGroup && !msg.key.fromMe && (_antitagVal === "on" || _antitagVal === true)) {
-      const _hasMentions = msg.mentionedJids?.length > 0;
-      if (_hasMentions && !admin.isSuperAdmin(senderJid)) {
-        try {
-          const _atMeta     = await _getGroupMeta(sock, from);
-          const _atParts    = _atMeta?.participants || [];
-          const _botRawJid  = sock.user?.id || "";
-          const _botPhone   = _botRawJid.split(":")[0].split("@")[0];
-          const _botPart    = _atParts.find(p => p.id.split(":")[0].split("@")[0] === _botPhone);
-          const _isBotAdmin = _botPart?.admin === "admin" || _botPart?.admin === "superadmin";
-          const _senderPart = _atParts.find(p => p.id.split(":")[0] + "@s.whatsapp.net" === senderJid || p.id === senderJid);
-          const _senderIsGrpAdmin = _senderPart?.admin === "admin" || _senderPart?.admin === "superadmin";
-          if (!_senderIsGrpAdmin) {
-            if (_isBotAdmin) {
-              await sock.sendMessage(from, { delete: msg.key }).catch(() => {});
-            }
-            await sock.sendMessage(from, {
-              text: `🚫 @${phone} *Tagging/mentioning members is not allowed here!*\n_(Only admins can mention others)_`,
-              mentions: [senderJid],
-            }).catch(() => {});
-          }
-        } catch (_atErr) {
-          console.error("[antitag] error:", _atErr.message);
-        }
-      }
-    }
-
     // ── Anti-Status Mention — detect & act when a member tags the group ──────
     // Triggered by "statusMentionMessage" type (WA sends this when someone
     // mentions this group in their status) or extended forwarded-from-status.
@@ -1864,6 +1834,23 @@ async function startnexus() {
 
         // Owner check: fromMe (bot's own WhatsApp account) OR listed in ADMIN_NUMBERS
         const _isOwner = msg.key.fromMe === true || admin.isSuperAdmin(senderJid);
+
+        // ── Already-on/off guard — call before every settings.set() ──────────
+        // Returns true (and sends a message) when the setting is already at the
+        // requested value, so callers can do:
+        //   if (await _guardAlready("welcome", wantOn, "Welcome Messages")) return;
+        // Works with both boolean (true/false) and legacy string ("on"/"off") values.
+        const _guardAlready = async (settingKey, wantOn, label) => {
+          const cur  = settings.get(settingKey);
+          const isOn = cur === true || cur === "on" || cur === 1;
+          if (wantOn === isOn) {
+            await sock.sendMessage(from, {
+              text: `⚠️ *${label}* is already *${wantOn ? "ON ✅" : "OFF ❌"}* — no changes made.`,
+            }, { quoted: msg });
+            return true;
+          }
+          return false;
+        };
 
         // ── .antidelete / .antidel ─────────────────────────────────────────
         if (_cmd === "antidelete" || _cmd === "antidel") {
@@ -2642,41 +2629,6 @@ async function startnexus() {
           return;
         }
 
-        // ── .antitag — toggle anti-tag/mention enforcement ─────────────────
-        if (_cmd === "antitag" || _cmd === "antimention") {
-          if (!_isOwner) {
-            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
-            return;
-          }
-          const _atgSub = _args.toLowerCase().trim();
-          if (_atgSub === "on" || _atgSub === "off") {
-            settings.set("antitag", _atgSub);
-            await sock.sendMessage(from, {
-              text:
-                `🚫 *Anti-Tag* is now *${_atgSub.toUpperCase()}*\n\n` +
-                (_atgSub === "on"
-                  ? `Non-admin members who tag/mention others in groups will have their message deleted and receive a warning.`
-                  : `Members can now freely tag/mention others in groups.`),
-            }, { quoted: msg });
-          } else {
-            const _atgCur = settings.get("antitag") || "off";
-            await sock.sendMessage(from, {
-              text:
-                `🚫 *Anti-Tag (Anti-Mention)*\n\n` +
-                `Current: *${_atgCur.toUpperCase() === "ON" ? "ON ✅" : "OFF ❌"}*\n\n` +
-                `When ON:\n` +
-                `• Non-admin members cannot tag/mention others\n` +
-                `• The message is deleted (if bot is admin)\n` +
-                `• A warning is sent to the tagger\n` +
-                `• Group admins and the bot owner are exempt\n\n` +
-                `Usage:\n` +
-                `• \`${_pfx}antitag on\` — enable\n` +
-                `• \`${_pfx}antitag off\` — disable`,
-            }, { quoted: msg });
-          }
-          return;
-        }
-
         // ── .welcome — toggle welcome messages for new members ──────────────
         if (_cmd === "welcome" || _cmd === "setwelcome") {
           if (!_isOwner) {
@@ -2685,6 +2637,7 @@ async function startnexus() {
           }
           const _wSub = _args.toLowerCase().trim();
           if (_wSub === "on" || _wSub === "off") {
+            if (await _guardAlready("welcome", _wSub === "on", "Welcome Messages")) return;
             settings.set("welcome", _wSub === "on");
             await sock.sendMessage(from, {
               text:
@@ -2716,6 +2669,7 @@ async function startnexus() {
           }
           const _gbSub = _args.toLowerCase().trim();
           if (_gbSub === "on" || _gbSub === "off") {
+            if (await _guardAlready("goodbye", _gbSub === "on", "Goodbye Messages")) return;
             settings.set("goodbye", _gbSub === "on");
             await sock.sendMessage(from, {
               text:
@@ -2747,6 +2701,7 @@ async function startnexus() {
           }
           const sub = _args.toLowerCase().trim();
           if (sub === "on" || sub === "off") {
+            if (await _guardAlready("autoViewStatus", sub === "on", "Auto View Status")) return;
             settings.set("autoViewStatus", sub === "on");
             await sock.sendMessage(from, {
               text: `✅ *Auto View Status* is now *${sub.toUpperCase()}*`,
@@ -2768,6 +2723,7 @@ async function startnexus() {
           }
           const _gSub = _args.toLowerCase().trim();
           if (_gSub === "on" || _gSub === "off") {
+            if (await _guardAlready("ghostMode", _gSub === "on", "Ghost Mode")) return;
             settings.set("ghostMode", _gSub === "on");
             await sock.sendMessage(from, {
               text:
