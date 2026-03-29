@@ -1710,6 +1710,61 @@ async function startnexus() {
       }
     }
 
+    // ── Per-group antichat enforcement — block non-admin messages ───────────
+    if (msg.isGroup && !msg.key.fromMe && body) {
+      const _acMap = db.read(`grp_antichat`, {});
+      if (_acMap[from] && !admin.isSuperAdmin(senderJid)) {
+        try {
+          const _acMeta   = await _getGroupMeta(sock, from);
+          const _acParts  = _acMeta?.participants || [];
+          const _acSenderPart = _acParts.find(p => p.id.split(":")[0] + "@s.whatsapp.net" === senderJid || p.id === senderJid);
+          const _acSenderAdmin = _acSenderPart?.admin === "admin" || _acSenderPart?.admin === "superadmin";
+          const _acBotPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+          const _acBotPart  = _acParts.find(p => p.id.split(":")[0].split("@")[0] === _acBotPhone);
+          const _acBotAdmin = _acBotPart?.admin === "admin" || _acBotPart?.admin === "superadmin";
+          if (!_acSenderAdmin) {
+            const _acCfgAll = db.read(`grp_antichat_cfg`, {});
+            const _acCfg    = _acCfgAll[from] || { action: "delete", warnLimit: 3 };
+            const _acAction = _acCfg.action || "delete";
+            if (_acBotAdmin) await sock.sendMessage(from, { delete: msg.key }).catch(() => {});
+            if (_acAction === "kick") {
+              await sock.sendMessage(from, {
+                text: `🚫 @${phone} *Only admins can send messages here!*\nYou have been removed.`,
+                mentions: [senderJid],
+              }).catch(() => {});
+              if (_acBotAdmin) await sock.groupParticipantsUpdate(from, [senderJid], "remove").catch(() => {});
+            } else if (_acAction === "warn") {
+              const _acWarnsAll = db.read(`grp_antichat_warns`, {});
+              if (!_acWarnsAll[from]) _acWarnsAll[from] = {};
+              _acWarnsAll[from][senderJid] = (_acWarnsAll[from][senderJid] || 0) + 1;
+              const _acWarnCount = _acWarnsAll[from][senderJid];
+              const _acLimit     = _acCfg.warnLimit || 3;
+              db.write(`grp_antichat_warns`, _acWarnsAll);
+              if (_acWarnCount >= _acLimit) {
+                _acWarnsAll[from][senderJid] = 0;
+                db.write(`grp_antichat_warns`, _acWarnsAll);
+                await sock.sendMessage(from, {
+                  text: `🚫 @${phone} *Final warning (${_acWarnCount}/${_acLimit})!* Removed for sending messages while chat is locked.`,
+                  mentions: [senderJid],
+                }).catch(() => {});
+                if (_acBotAdmin) await sock.groupParticipantsUpdate(from, [senderJid], "remove").catch(() => {});
+              } else {
+                await sock.sendMessage(from, {
+                  text: `⚠️ @${phone} *Warning ${_acWarnCount}/${_acLimit}:* Only admins can send messages here!\n_(${_acLimit - _acWarnCount} more before removal)_`,
+                  mentions: [senderJid],
+                }).catch(() => {});
+              }
+            } else {
+              await sock.sendMessage(from, {
+                text: `🚫 @${phone} *Only admins can send messages in this group!*\n_(${_acBotAdmin ? "Your message was deleted." : "Make me admin to also delete messages."})_`,
+                mentions: [senderJid],
+              }).catch(() => {});
+            }
+          }
+        } catch (_acErr) { console.error("[antichat]", _acErr.message); }
+      }
+    }
+
     // ── Anti-Status Mention — detect & act when a member tags the group ──────
     // Triggered by "statusMentionMessage" type (WA sends this when someone
     // mentions this group in their status) or extended forwarded-from-status.
@@ -4969,6 +5024,72 @@ async function startnexus() {
                 `├─ \`${_pfx}antilink warn\` — warn ${_alWL}x then kick\n` +
                 `├─ \`${_pfx}antilink kick\` — remove sender instantly\n` +
                 `╰─ \`${_pfx}antilink setwarn <1-10>\` — set warn limit`,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .antichat — lock group so only admins can send messages ─────────
+        if (_cmd === "antichat") {
+          if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
+          const _achParts = await admin.getGroupParticipants(sock, from).catch(() => []);
+          if (!admin.isAdmin(senderJid, _achParts) && !_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Only admins can change antichat settings." }, { quoted: msg }); return;
+          }
+          const _achMode   = _args.trim().toLowerCase();
+          const _achMap    = db.read(`grp_antichat`, {});
+          const _achCfgAll = db.read(`grp_antichat_cfg`, {});
+          const _achCfg    = _achCfgAll[from] || { action: "delete", warnLimit: 3 };
+
+          if (_achMode === "on") {
+            if (_achMap[from]) {
+              await sock.sendMessage(from, { text: `⚠️ *Anti-Chat* is already *ON ✅* — no changes made.` }, { quoted: msg }); return;
+            }
+            _achMap[from] = true; db.write(`grp_antichat`, _achMap);
+            await sock.sendMessage(from, {
+              text: `╔══〔 💬 ANTI-CHAT 〕══════╗\n║ 📊 *Status*  : ✅ ON\n║ 🔒 Blocks non-admin messages\n║ ⚙️  Action   : *${(_achCfg.action || "delete").toUpperCase()}*\n╚═══════════════════════╝`,
+            }, { quoted: msg });
+          } else if (_achMode === "off") {
+            if (!_achMap[from]) {
+              await sock.sendMessage(from, { text: `⚠️ *Anti-Chat* is already *OFF ❌* — no changes made.` }, { quoted: msg }); return;
+            }
+            _achMap[from] = false; db.write(`grp_antichat`, _achMap);
+            await sock.sendMessage(from, {
+              text: `╔══〔 💬 ANTI-CHAT 〕══════╗\n║ 📊 *Status*  : ❌ OFF\n║ 💬 Members can send messages freely.\n╚═══════════════════════╝`,
+            }, { quoted: msg });
+          } else if (_achMode === "action delete" || _achMode === "action warn" || _achMode === "action kick") {
+            const _achNewAction = _achMode.split(" ")[1];
+            _achCfgAll[from] = { ..._achCfg, action: _achNewAction };
+            db.write(`grp_antichat_cfg`, _achCfgAll);
+            const _achDesc = {
+              delete: `Non-admin messages will be deleted. Sender stays.`,
+              warn:   `Sender warned ${_achCfg.warnLimit || 3}x then kicked.`,
+              kick:   `Sender is immediately removed.`,
+            }[_achNewAction];
+            await sock.sendMessage(from, { text: `⚙️ *Anti-Chat action set to: ${_achNewAction.toUpperCase()}*\n${_achDesc}` }, { quoted: msg });
+          } else if (_achMode === "resetwarns") {
+            const _achWarnsAll = db.read(`grp_antichat_warns`, {});
+            _achWarnsAll[from] = {};
+            db.write(`grp_antichat_warns`, _achWarnsAll);
+            await sock.sendMessage(from, { text: `🔄 *Anti-Chat warn counters reset* for this group.` }, { quoted: msg });
+          } else {
+            const _achOn  = !!_achMap[from];
+            const _achAct = _achCfg.action || "delete";
+            const _achWL  = _achCfg.warnLimit || 3;
+            await sock.sendMessage(from, {
+              text:
+                `╔══〔 💬 ANTI-CHAT 〕══════╗\n` +
+                `║ 📊 *Status*  : ${_achOn ? "✅ ON" : "❌ OFF"}\n` +
+                `║ 🔒 Blocks non-admin messages\n` +
+                `║ ⚙️  Action   : *${_achAct.toUpperCase()}*${_achAct === "warn" ? ` (kick after ${_achWL})` : ""}\n` +
+                `╠══〔 📋 USAGE 〕══════════╣\n` +
+                `║ \`${_pfx}antichat on\`\n` +
+                `║ \`${_pfx}antichat off\`\n` +
+                `║ \`${_pfx}antichat action delete\`\n` +
+                `║ \`${_pfx}antichat action warn\`\n` +
+                `║ \`${_pfx}antichat action kick\`\n` +
+                `║ \`${_pfx}antichat resetwarns\`\n` +
+                `╚═══════════════════════╝`,
             }, { quoted: msg });
           }
           return;
