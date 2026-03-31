@@ -1438,18 +1438,16 @@ async function startnexus() {
     if (from === "status@broadcast") return;
 
     // ── Auto typing / recording — show indicator once, clear after response ─────
-    // Detect audio/voice: check all possible message wrappers (ephemeral, normalized, raw)
-    // so PTT inside ephemeralMessage / viewOnce / etc. is never missed.
-    const _audioContent = _normalized?.audioMessage || _inner?.audioMessage || msg.message?.audioMessage;
-    const isVoiceOrAudio = msgType === "audioMessage" || !!_audioContent;
-
     // Explicit true/string-"on" check — guards against legacy "on"/"off" string values
     // being stored in DB and being treated as falsy when the user tries to turn off.
     const _autoTypingOn  = settings.get("autoTyping")    === true  || settings.get("autoTyping")    === "on";
     const _autoRecordOn  = settings.get("autoRecording") === true  || settings.get("autoRecording") === "on";
-    const shouldRecord = isVoiceOrAudio && _autoRecordOn;
-    const shouldType   = !isVoiceOrAudio && _autoTypingOn;
-    const presenceType = shouldRecord ? "recording" : "composing";
+
+    // autoRecording takes priority — shows "recording" for ANY incoming message.
+    // autoTyping only fires when autoRecording is off.
+    const shouldRecord  = _autoRecordOn;
+    const shouldType    = !_autoRecordOn && _autoTypingOn;
+    const presenceType  = shouldRecord ? "recording" : "composing";
 
     // Helper: send presence with error visibility instead of silent swallow
     const _sendPresence = (type, toJid) =>
@@ -1466,10 +1464,10 @@ async function startnexus() {
     if (shouldRecord || shouldType) {
       _sendPresence(presenceType, from);
       presenceInterval = setInterval(() => {
-        const _stillTyping  = !isVoiceOrAudio && (settings.get("autoTyping")    === true || settings.get("autoTyping")    === "on");
-        const _stillRecord  = isVoiceOrAudio  && (settings.get("autoRecording") === true || settings.get("autoRecording") === "on");
-        if (_stillTyping || _stillRecord) {
-          _sendPresence(presenceType, from);
+        const _stillRecord = settings.get("autoRecording") === true || settings.get("autoRecording") === "on";
+        const _stillTyping = !_stillRecord && (settings.get("autoTyping") === true || settings.get("autoTyping") === "on");
+        if (_stillRecord || _stillTyping) {
+          _sendPresence(_stillRecord ? "recording" : "composing", from);
         } else {
           // Setting was turned off mid-command — stop immediately
           clearInterval(presenceInterval);
@@ -7095,6 +7093,7 @@ async function startnexus() {
           }
           const _sub = (_args.trim().split(/\s+/)[0] || "").toLowerCase();
           if (_sub === "on" || _sub === "off") {
+            if (await _guardAlready("autoRecording", _sub === "on", "Auto Recording")) return;
             settings.set("autoRecording", _sub === "on");
             await sock.sendMessage(from, {
               text: `🎤 *Auto Recording* is now *${_sub.toUpperCase()}*`,
