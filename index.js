@@ -3090,8 +3090,8 @@ async function startnexus() {
           }
           try {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
-            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-            const botAdm = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+            const botAdm = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
             if (!botAdm) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to approve requests." }, { quoted: msg });
               return;
@@ -3127,8 +3127,8 @@ async function startnexus() {
           }
           try {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
-            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-            const botAdm = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+            const botAdm = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
             if (!botAdm) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to reject requests." }, { quoted: msg });
               return;
@@ -3168,8 +3168,8 @@ async function startnexus() {
           }
           try {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
-            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-            const botAdm = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+            const botAdm = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
             if (!botAdm) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to promote anyone." }, { quoted: msg });
               return;
@@ -3337,8 +3337,8 @@ async function startnexus() {
           }
           try {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
-            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-            const botAdm = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+            const botAdm = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
             if (!botAdm) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin for this." }, { quoted: msg });
               return;
@@ -3365,8 +3365,8 @@ async function startnexus() {
           }
           try {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
-            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-            const botAdm = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+            const botAdm = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
             if (!botAdm) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin for this." }, { quoted: msg });
               return;
@@ -3393,8 +3393,8 @@ async function startnexus() {
           }
           try {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
-            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-            const botAdm = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+            const botAdm = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
             if (!botAdm) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to promote members." }, { quoted: msg });
               return;
@@ -3431,8 +3431,8 @@ async function startnexus() {
           }
           try {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
-            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-            const botAdm = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+            const botAdm = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
             if (!botAdm) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to demote members." }, { quoted: msg });
               return;
@@ -3466,8 +3466,8 @@ async function startnexus() {
           if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
           try {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
-            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-            const botAdm = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+            const botAdm = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
             if (!admin.isAdmin(senderJid, parts) && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only admins can warn members." }, { quoted: msg }); return; }
             const target = (msg.mentionedJids?.[0] || msg.quoted?.sender || "").replace(/:\d+@/, "@s.whatsapp.net");
             if (!target) { await sock.sendMessage(from, { text: `❌ Mention or reply to the user to warn.\nUsage: \`${_pfx}warn @user [reason]\`` }, { quoted: msg }); return; }
@@ -3572,8 +3572,8 @@ async function startnexus() {
           }
           try {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
-            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-            const botAdm = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+            const botAdm = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
             if (!botAdm) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to change the icon." }, { quoted: msg });
               return;
@@ -3648,7 +3648,7 @@ async function startnexus() {
             tmpPath = path.join(process.cwd(), "data", `fullpp_${Date.now()}.jpg`);
             fs.writeFileSync(tmpPath, mediaBuf);
             const { img } = await generateProfilePicture(tmpPath);
-            const botJid  = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
+            const botJid  = (sock.user?.id || "").split(":")[0] + "@s.whatsapp.net";
             await sock.updateProfilePicture(botJid, img);
             await sock.sendMessage(from, { text: "✅ Bot profile picture updated!" }, { quoted: msg });
           } catch (e) {
@@ -3686,8 +3686,8 @@ async function startnexus() {
           }
           try {
             const parts   = await admin.getGroupParticipants(sock, from).catch(() => []);
-            const botJid  = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-            const botAdm  = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+            const botAdm  = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
             if (!botAdm) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to remove members." }, { quoted: msg });
               return;
@@ -3710,7 +3710,7 @@ async function startnexus() {
               await sock.sendMessage(from, { text: "❌ That is an owner number — cannot remove! 😡" }, { quoted: msg });
               return;
             }
-            if (targetClean === botJid) {
+            if (targetClean.split(":")[0].split("@")[0] === botPhone) {
               await sock.sendMessage(from, { text: "❌ I cannot remove myself! 😡" }, { quoted: msg });
               return;
             }
@@ -3731,14 +3731,14 @@ async function startnexus() {
           if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
           try {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
-            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-            const botAdm = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+            const botAdm = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
             if (!botAdm) { await sock.sendMessage(from, { text: "❌ I need admin rights to ban members." }, { quoted: msg }); return; }
             if (!admin.isAdmin(senderJid, parts) && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only group admins can use .ban." }, { quoted: msg }); return; }
             const target = (msg.mentionedJids?.[0] || msg.quoted?.sender || "").replace(/:\d+@/, "@s.whatsapp.net");
             if (!target) { await sock.sendMessage(from, { text: `❌ Mention or reply to the user you want to ban.\nUsage: \`${_pfx}ban @user\`` }, { quoted: msg }); return; }
             if (admin.isSuperAdmin(target)) { await sock.sendMessage(from, { text: "❌ Cannot ban the bot owner!" }, { quoted: msg }); return; }
-            if (target === botJid) { await sock.sendMessage(from, { text: "❌ I cannot ban myself!" }, { quoted: msg }); return; }
+            if (target.split(":")[0].split("@")[0] === botPhone) { await sock.sendMessage(from, { text: "❌ I cannot ban myself!" }, { quoted: msg }); return; }
             // Persist ban
             const _bans = db.read(`grp_bans_${from}`, []);
             if (!_bans.includes(target)) { _bans.push(target); db.write(`grp_bans_${from}`, _bans); }
@@ -4060,8 +4060,8 @@ async function startnexus() {
           }
           try {
             const parts   = await admin.getGroupParticipants(sock, from).catch(() => []);
-            const botJid  = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-            const botAdm  = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+            const botAdm  = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
             if (!botAdm) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to lock the group." }, { quoted: msg });
               return;
@@ -4083,8 +4083,8 @@ async function startnexus() {
           if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
           try {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
-            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-            if (!parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"))) {
+            const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+            if (!parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"))) {
               await sock.sendMessage(from, { text: "❌ I need admin rights to lock the group." }, { quoted: msg }); return;
             }
             if (!admin.isAdmin(senderJid, parts) && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only admins can lock the group." }, { quoted: msg }); return; }
@@ -4099,8 +4099,8 @@ async function startnexus() {
           if (!from.endsWith("@g.us")) { await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return; }
           try {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
-            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-            if (!parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"))) {
+            const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+            if (!parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"))) {
               await sock.sendMessage(from, { text: "❌ I need admin rights to unlock the group." }, { quoted: msg }); return;
             }
             if (!admin.isAdmin(senderJid, parts) && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only admins can unlock the group." }, { quoted: msg }); return; }
@@ -4128,8 +4128,8 @@ async function startnexus() {
             // Unmute group (unlock)
             try {
               const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
-              const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-              if (!parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"))) {
+              const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+              if (!parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"))) {
                 await sock.sendMessage(from, { text: "❌ I need admin rights to unlock the group." }, { quoted: msg }); return;
               }
               if (!admin.isAdmin(senderJid, parts) && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only admins can unlock the group." }, { quoted: msg }); return; }
@@ -4182,8 +4182,8 @@ async function startnexus() {
           }
           try {
             const parts   = await admin.getGroupParticipants(sock, from).catch(() => []);
-            const botJid  = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-            const botAdm  = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+            const botAdm  = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
             if (!botAdm) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to add members." }, { quoted: msg });
               return;
@@ -4345,8 +4345,8 @@ async function startnexus() {
           }
           try {
             const parts   = await admin.getGroupParticipants(sock, from).catch(() => []);
-            const botJid  = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-            const botAdm  = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+            const botAdm  = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
             const sndAdm  = admin.isAdmin(senderJid, parts);
             if (!botAdm) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to delete messages." }, { quoted: msg });
@@ -5506,13 +5506,14 @@ async function startnexus() {
             // Determine local country code from owner's number
             const _ownerNums  = require("./config").admins || [];
             const _localCode  = _ownerNums.length ? (_ownerNums[0].replace(/[^0-9]/g, "").slice(0, 3)) : "";
-            const _botPhone   = (_botJid.split("@")[0]);
+            const _botJid     = (sock.user?.id || "").split(":")[0] + "@s.whatsapp.net";
+            const _botPhone   = (sock.user?.id || "").split(":")[0].split("@")[0];
             const _foreigners = _fParts
               .filter(p => !p.admin)
               .map(p => p.id)
               .filter(jid => {
                 const num = jid.split("@")[0];
-                return jid !== _botJid && (_localCode ? !num.startsWith(_localCode) : false);
+                return jid.split(":")[0].split("@")[0] !== _botPhone && (_localCode ? !num.startsWith(_localCode) : false);
               });
             const _fSub = _args.trim().toLowerCase();
             if (!_fSub || _fSub !== "-x") {
@@ -6020,8 +6021,8 @@ async function startnexus() {
             return;
           }
           // Prevent blocking the bot itself
-          const _botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
-          if (target === _botJid) {
+          const _botPhone2 = (sock.user?.id || "").split(":")[0].split("@")[0];
+          if (target.split(":")[0].split("@")[0] === _botPhone2) {
             await sock.sendMessage(from, { text: "❌ I cannot block myself!" }, { quoted: msg });
             return;
           }
