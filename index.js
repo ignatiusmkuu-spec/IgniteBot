@@ -4796,18 +4796,44 @@ async function startnexus() {
           }
           await sock.sendMessage(from, { text: "⬇️ Downloading Instagram media..." }, { quoted: msg });
           try {
-            const { igdl } = require("ruhend-scraper");
-            const result = await igdl(url);
-            if (!result?.data?.length) {
+            const _igRes = await axios.get(
+              `https://apis.xcasper.space/api/dl-ig?url=${encodeURIComponent(url)}`,
+              { timeout: 60000 }
+            );
+            const _igData = _igRes.data;
+            if (!_igData?.success && !_igData?.url && !_igData?.media?.length && !_igData?.data?.length) {
               await sock.sendMessage(from, { text: "❌ No media found at that link." }, { quoted: msg });
               return;
             }
-            for (let i = 0; i < Math.min(20, result.data.length); i++) {
-              await sock.sendMessage(from, {
-                video: { url: result.data[i].url },
-                mimetype: "video/mp4",
-                caption: "𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗",
-              }, { quoted: msg });
+            // Normalise response into a flat list of {url, type} objects
+            let _igItems = [];
+            if (Array.isArray(_igData?.media) && _igData.media.length) {
+              _igItems = _igData.media.map(m => ({ url: m.url || m.link, type: m.type || "video" }));
+            } else if (Array.isArray(_igData?.data) && _igData.data.length) {
+              _igItems = _igData.data.map(m => ({ url: m.url || m.link, type: m.type || "video" }));
+            } else if (_igData?.url) {
+              _igItems = [{ url: _igData.url, type: _igData.type || "video" }];
+            }
+            if (!_igItems.length) {
+              await sock.sendMessage(from, { text: "❌ No media found at that link." }, { quoted: msg });
+              return;
+            }
+            for (const _igItem of _igItems.slice(0, 20)) {
+              const _igUrl  = _igItem.url;
+              const _isImg  = (_igItem.type || "").toLowerCase().includes("image") ||
+                              (_igUrl || "").match(/\.(jpg|jpeg|png|webp)/i);
+              if (_isImg) {
+                await sock.sendMessage(from, {
+                  image:   { url: _igUrl },
+                  caption: "𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗",
+                }, { quoted: msg });
+              } else {
+                await sock.sendMessage(from, {
+                  video:    { url: _igUrl },
+                  mimetype: "video/mp4",
+                  caption:  "𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗",
+                }, { quoted: msg });
+              }
             }
           } catch (e) {
             await sock.sendMessage(from, { text: `❌ Instagram download failed: ${e.message}` }, { quoted: msg });
