@@ -1455,24 +1455,21 @@ async function startnexus() {
         console.warn(`[PRESENCE] ${type} → ${toJid?.split("@")[0]} failed: ${err.message}`)
       );
 
-    // Send the indicator immediately and keep it alive with a repeating interval.
-    // WhatsApp auto-clears composing/recording after ~25s if not refreshed — the
-    // interval re-sends every 8 s so the indicator stays visible for long commands.
-    // The interval re-checks the setting on every tick so that if the user toggles
-    // autotyping/autorecording OFF mid-command, the indicator stops immediately.
-    let presenceInterval = null;
+    // Presence indicator — send once then refresh up to 3 more times (24 s max).
+    // Using a tick counter prevents interval accumulation: each message creates
+    // at most one interval that is guaranteed to self-destruct within 32 s.
     if (shouldRecord || shouldType) {
       _sendPresence(presenceType, from);
-      presenceInterval = setInterval(() => {
-        const _stillRecord = settings.get("autoRecording") === true || settings.get("autoRecording") === "on";
-        const _stillTyping = !_stillRecord && (settings.get("autoTyping") === true || settings.get("autoTyping") === "on");
-        if (_stillRecord || _stillTyping) {
-          _sendPresence(_stillRecord ? "recording" : "composing", from);
+      let _pTicks = 0;
+      const _pInterval = setInterval(() => {
+        _pTicks++;
+        const _sR = settings.get("autoRecording") === true || settings.get("autoRecording") === "on";
+        const _sT = !_sR && (settings.get("autoTyping") === true || settings.get("autoTyping") === "on");
+        if ((_sR || _sT) && _pTicks < 3) {
+          _sendPresence(_sR ? "recording" : "composing", from);
         } else {
-          // Setting was turned off mid-command — stop immediately
-          clearInterval(presenceInterval);
-          presenceInterval = null;
-          _sendPresence("paused", from);
+          clearInterval(_pInterval);
+          _sendPresence("paused", from).catch(() => {});
         }
       }, 8000);
     }
@@ -1517,6 +1514,14 @@ async function startnexus() {
       } catch {}
     }
 
+    // Per-message group-meta cache — all enforcement blocks share one fetch
+    // so we hit the WhatsApp server at most once per incoming group message.
+    let _cachedMsgGroupMeta = null;
+    const _getMsgMeta = async () => {
+      if (!_cachedMsgGroupMeta) _cachedMsgGroupMeta = await _getGroupMeta(sock, from).catch(() => null);
+      return _cachedMsgGroupMeta;
+    };
+
     // ── Antilink — detect and remove any link in groups, kick the sender ─────
     // Runs for every group message (not just commands) when antilink is "on".
     // Admins/owners/bot itself are exempt. The bot must be a group admin to
@@ -1538,7 +1543,7 @@ async function startnexus() {
 
           if (_shouldAct) {
             try {
-              const _groupMeta   = await _getGroupMeta(sock, from);
+              const _groupMeta   = await _getMsgMeta();
               const _participants = _groupMeta?.participants || [];
               const _botRawJid   = sock.user?.id || "";
               const _botPhone    = _botRawJid.split(":")[0].split("@")[0];
@@ -1599,7 +1604,7 @@ async function startnexus() {
         const _galLinkPat = /https?:\/\/[^\s]+|www\.[^\s]+|chat\.whatsapp\.com\/[A-Za-z0-9]+/i;
         if (_galLinkPat.test(body)) {
           try {
-            const _galMeta   = await _getGroupMeta(sock, from);
+            const _galMeta   = await _getMsgMeta();
             const _galParts  = _galMeta?.participants || [];
             const _galSenderPart = _galParts.find(p => p.id.split(":")[0] + "@s.whatsapp.net" === senderJid || p.id === senderJid);
             const _galSenderAdmin = _galSenderPart?.admin === "admin" || _galSenderPart?.admin === "superadmin";
@@ -1682,7 +1687,7 @@ async function startnexus() {
       const _acMap = db.read(`grp_antichat`, {});
       if (_acMap[from] && !admin.isSuperAdmin(senderJid)) {
         try {
-          const _acMeta   = await _getGroupMeta(sock, from);
+          const _acMeta   = await _getMsgMeta();
           const _acParts  = _acMeta?.participants || [];
           const _acSenderPart = _acParts.find(p => p.id.split(":")[0] + "@s.whatsapp.net" === senderJid || p.id === senderJid);
           const _acSenderAdmin = _acSenderPart?.admin === "admin" || _acSenderPart?.admin === "superadmin";
@@ -1750,8 +1755,8 @@ async function startnexus() {
         const _asmMode = _asmSettings.mode || "warn";
 
         if (_asmMode !== "off" && !admin.isSuperAdmin(senderJid)) {
-          // Fetch group metadata to check bot & sender admin status (cached)
-          const _asmMeta  = await _getGroupMeta(sock, from);
+          // Group metadata (shared per-message cache — no extra network call)
+          const _asmMeta  = await _getMsgMeta();
           const _asmParts = _asmMeta?.participants || [];
           const _asmBotPhone    = (sock.user?.id || "").split(":")[0].split("@")[0];
           const _asmBotPart     = _asmParts.find(p => p.id.split(":")[0].split("@")[0] === _asmBotPhone);
