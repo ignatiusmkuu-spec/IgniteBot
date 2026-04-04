@@ -2519,23 +2519,17 @@ async function startnexus() {
               text: `⬇️ Downloading: *${songTitle}*\n_Please wait a moment..._`,
             }, { quoted: msg });
             const apiRes = await axios.get(
-              `https://api.dreaded.site/api/ytmp3?url=${encodeURIComponent(targetUrl)}`,
+              `https://apis.xcasper.space/api/downloader/ytmp3?url=${encodeURIComponent(targetUrl)}`,
               { timeout: 60000 }
             );
             const data = apiRes.data;
-            const audioUrl =
-              data?.result?.download?.url ||
-              data?.result?.url           ||
-              data?.download?.url         ||
-              data?.url                   ||
-              data?.link                  ||
-              data?.mp3;
-            if (!audioUrl) {
+            const audioUrl = data?.url;
+            if (!data?.success || !audioUrl) {
               await sock.sendMessage(from, { text: `❌ Download failed — API returned no audio link.` }, { quoted: msg });
               return;
             }
-            const title    = data?.result?.metadata?.title || data?.result?.title || data?.title || songTitle;
-            const fileName = `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
+            const title    = data?.title || songTitle;
+            const fileName = data?.filename || `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
             await sock.sendMessage(from, {
               audio:    { url: audioUrl },
               mimetype: "audio/mpeg",
@@ -2547,7 +2541,7 @@ async function startnexus() {
           return;
         }
 
-        // ── .song / .music — download via api.dreaded.site ytmp3 ───────────
+        // ── .song / .music — download audio ────────────────────────────────
         if (_cmd === "song" || _cmd === "music") {
           const query = _args.trim();
           if (!query) {
@@ -2576,25 +2570,19 @@ async function startnexus() {
               text: `⬇️ Downloading: *${songTitle}*\n_Please wait a moment..._`,
             }, { quoted: msg });
             const apiRes = await axios.get(
-              `https://api.dreaded.site/api/ytmp3?url=${encodeURIComponent(targetUrl)}`,
+              `https://apis.xcasper.space/api/downloader/ytmp3?url=${encodeURIComponent(targetUrl)}`,
               { timeout: 60000 }
             );
             const data = apiRes.data;
-            const audioUrl =
-              data?.result?.download?.url ||
-              data?.result?.url           ||
-              data?.download?.url         ||
-              data?.url                   ||
-              data?.link                  ||
-              data?.mp3;
-            if (!audioUrl) {
+            const audioUrl = data?.url;
+            if (!data?.success || !audioUrl) {
               await sock.sendMessage(from, {
                 text: "❌ Failed to retrieve the MP3 download link.",
               }, { quoted: msg });
               return;
             }
-            const title    = data?.result?.metadata?.title || data?.result?.title || data?.title || songTitle;
-            const fileName = `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
+            const title    = data?.title || songTitle;
+            const fileName = data?.filename || `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
             // Send as playable audio and as downloadable document
             await sock.sendMessage(from, {
               audio:    { url: audioUrl },
@@ -4625,7 +4613,7 @@ async function startnexus() {
           return;
         }
 
-        // ── .play2 — download audio via dreaded.site API ───────────────────
+        // ── .play2 — download audio via xcasper API ─────────────────────────
         if (_cmd === "play2") {
           const query = _args.trim();
           if (!query) {
@@ -4636,36 +4624,37 @@ async function startnexus() {
           }
           await sock.sendMessage(from, { text: `🔍 Searching for *${query}*...` }, { quoted: msg });
           try {
-            const yts = require("yt-search");
-            const { videos } = await yts(query);
-            if (!videos || !videos.length) {
-              await sock.sendMessage(from, { text: "❌ No songs found!" }, { quoted: msg });
-              return;
+            let targetUrl = query;
+            let songTitle = query;
+            if (!/^https?:\/\//i.test(query)) {
+              const yts = require("yt-search");
+              const { videos } = await yts(query);
+              if (!videos || !videos.length) {
+                await sock.sendMessage(from, { text: "❌ No songs found!" }, { quoted: msg });
+                return;
+              }
+              targetUrl = videos[0].url;
+              songTitle = videos[0].title || query;
             }
-            const urlYt = videos[0].url;
-            await sock.sendMessage(from, { text: `⬇️ Downloading *${videos[0].title}*...` }, { quoted: msg });
+            await sock.sendMessage(from, { text: `⬇️ Downloading *${songTitle}*...` }, { quoted: msg });
             const apiRes = await axios.get(
-              `https://api.dreaded.site/api/ytdl/audio?url=${encodeURIComponent(urlYt)}`,
+              `https://apis.xcasper.space/api/downloader/ytmp3?url=${encodeURIComponent(targetUrl)}`,
               { timeout: 60000 }
             );
             const data = apiRes.data;
-            if (!data?.result?.download?.url) {
+            const audioUrl = data?.url;
+            if (!data?.success || !audioUrl) {
               await sock.sendMessage(from, { text: "❌ Failed to fetch audio from the API." }, { quoted: msg });
               return;
             }
-            const { title, filename } = {
-              title:    data.result.metadata?.title    || videos[0].title,
-              filename: data.result.download?.filename || "audio.mp3",
-            };
-            const audioUrl = data.result.download.url;
-            // Send as document (downloadable file)
+            const title    = data?.title    || songTitle;
+            const filename = data?.filename || `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
             await sock.sendMessage(from, {
               document: { url: audioUrl },
               mimetype: "audio/mpeg",
               caption:  `🎵 *${title}*\n\n_𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗_`,
               fileName: filename,
             }, { quoted: msg });
-            // Send as playable audio
             await sock.sendMessage(from, {
               audio:    { url: audioUrl },
               mimetype: "audio/mpeg",
@@ -5213,12 +5202,12 @@ async function startnexus() {
                 const _ysUrl  = _ysVids[0].url;
                 await sock.sendMessage(from, { text: `⬇️ Fetching audio for *${_title}*...` }, { quoted: msg });
                 const _dlRes = await axios.get(
-                  `https://api.dreaded.site/api/ytdl/audio?url=${encodeURIComponent(_ysUrl)}`,
+                  `https://apis.xcasper.space/api/downloader/ytmp3?url=${encodeURIComponent(_ysUrl)}`,
                   { timeout: 60000 }
                 );
-                const _dlUrl = _dlRes.data?.result?.download?.url;
-                if (_dlUrl) {
-                  const _dlName = _dlRes.data?.result?.download?.filename || `${_title}.mp3`;
+                const _dlUrl = _dlRes.data?.url;
+                if (_dlRes.data?.success && _dlUrl) {
+                  const _dlName = _dlRes.data?.filename || `${_title}.mp3`;
                   await sock.sendMessage(from, {
                     document: { url: _dlUrl },
                     mimetype: "audio/mpeg",
