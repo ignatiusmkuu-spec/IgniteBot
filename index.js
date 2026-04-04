@@ -258,6 +258,28 @@ function isValidSessionString(s) {
   if (!s || typeof s !== "string") return false;
   const t = s.trim();
   if (!t.length) return false;
+
+  // ── Minimum length check ──────────────────────────────────────────────────
+  // Real NEXUS-MD sessions are large (the creds.json alone is several KB, and
+  // we base64-encode the entire auth folder). Any string shorter than 200 chars
+  // is either a placeholder, an incomplete paste, or a non-session value.
+  if (t.length < 200) return false;
+
+  // ── Placeholder / example-value detection ─────────────────────────────────
+  // Catches common copy-paste mistakes where the user left the template value
+  // from .env.example or the README in place instead of a real session.
+  const _PLACEHOLDERS = [
+    "paste_your_session_here",
+    "your_session_here",
+    "session_here",
+    "nexus-md:~paste",
+    "<session",
+    "xxxxxxx",
+  ];
+  const tLower = t.toLowerCase();
+  if (_PLACEHOLDERS.some(p => tLower.includes(p))) return false;
+
+  // ── Binary / non-printable character check ────────────────────────────────
   // A valid session string is entirely ASCII printable text (base64, JSON, URLs).
   // Reject if more than 2 % of the first 500 chars are outside the printable ASCII
   // range (9=tab, 10=LF, 13=CR, 32-126 printable) — this catches binary blobs,
@@ -423,11 +445,47 @@ app.get("/api/disconnects", (req, res) => {
 
 // ── Health check — Heroku / UptimeRobot / health monitors hit this ───────────
 app.get("/health", (req, res) => {
+  const _plat = platform.get();
+  const _hasSessionEnv = !!(process.env.SESSION_ID || process.env.SESSION);
+  const _sessionEnvValid = (() => {
+    const s = process.env.SESSION_ID || process.env.SESSION;
+    return s ? isValidSessionString(s) : false;
+  })();
+  const _hasDB = !!process.env.DATABASE_URL;
+  const _dbSession = (() => { try { const d = db.read("_latestSession", null); return !!(d && d.id); } catch { return false; } })();
+  const _credsOnDisk = require("fs").existsSync(require("path").join(AUTH_FOLDER, "creds.json"));
+
+  const issues = [];
+  if (waitingForSession) {
+    if (!_hasSessionEnv && !_dbSession && !_credsOnDisk)
+      issues.push("NO_SESSION: No session env var, no DB session, no creds on disk — bot is waiting for setup");
+    else if (_hasSessionEnv && !_sessionEnvValid)
+      issues.push("BAD_SESSION_ENV: SESSION_ID/SESSION env var is set but contains corrupted/binary data");
+    else if (_hasSessionEnv && _sessionEnvValid)
+      issues.push("SESSION_RESTORE_FAILED: Env var looks valid but restore failed — session may be expired/revoked");
+  }
+  if (!_hasDB) issues.push("NO_DATABASE_URL: Sessions will not survive dyno restarts without DATABASE_URL");
+
   res.status(200).json({
     ok: true,
     uptime: Math.floor(process.uptime()),
     status: botStatus,
-    session: waitingForSession ? "waiting" : "active"
+    session: waitingForSession ? "waiting" : "active",
+    phone: botPhoneNumber || null,
+    platform: _plat.name,
+    env: {
+      SESSION_ID_set: !!(process.env.SESSION_ID),
+      SESSION_set: !!(process.env.SESSION),
+      SESSION_env_valid: _sessionEnvValid,
+      DATABASE_URL_set: _hasDB,
+      db_has_session: _dbSession,
+      creds_on_disk: _credsOnDisk,
+      HEROKU_APP_NAME: process.env.HEROKU_APP_NAME || null,
+      APP_URL: process.env.APP_URL || null,
+      ADMIN_NUMBERS: !!(process.env.ADMIN_NUMBERS),
+    },
+    issues,
+    fix: issues.length ? "Visit /dashboard?tab=setup to paste a fresh session from nexs-session-1.replit.app" : null,
   });
 });
 
@@ -8211,6 +8269,32 @@ db.init()
     // ── Perez settings table (bot_settings) ────────────────────────────────
     try { await initializeDatabase(); } catch (e) { console.log('⚠️  Perez DB init:', e.message); }
 
+    // ── Heroku startup diagnostic ───────────────────────────────────────────
+    // Prints a clear checklist to Heroku logs so problems are immediately obvious.
+    if (process.env.DYNO) {
+      const _diag = {
+        SESSION_ID: !!(process.env.SESSION_ID),
+        SESSION:    !!(process.env.SESSION),
+        DATABASE_URL: !!(process.env.DATABASE_URL),
+        ADMIN_NUMBERS: !!(process.env.ADMIN_NUMBERS),
+        HEROKU_APP_NAME: process.env.HEROKU_APP_NAME || "(not set — enable dyno-metadata lab)",
+        APP_URL: process.env.APP_URL || "(not set — keep-alive disabled)",
+      };
+      console.log("━".repeat(60));
+      console.log("🟣 HEROKU STARTUP CHECKLIST");
+      for (const [k, v] of Object.entries(_diag)) {
+        const tick = (v === true || (typeof v === "string" && !v.startsWith("("))) ? "✅" : "❌";
+        console.log(`   ${tick} ${k}: ${v === true ? "set" : v === false ? "NOT SET" : v}`);
+      }
+      if (!process.env.SESSION_ID && !process.env.SESSION)
+        console.log("   ⚠️  No session env var — bot will wait. Set SESSION_ID config var with a NEXUS-MD:~ string.");
+      if (!process.env.DATABASE_URL)
+        console.log("   ⚠️  No DATABASE_URL — add Heroku Postgres add-on or sessions won't persist restarts.");
+      if (!process.env.ADMIN_NUMBERS)
+        console.log("   ⚠️  No ADMIN_NUMBERS — owner/admin commands will not work.");
+      console.log("━".repeat(60));
+    }
+
     // ── Session restore priority ────────────────────────────────────────────
     // 1. DB-persisted session (most recent — updated every 10 s while running)
     // 2. SESSION_ID env var (original setup value — fallback if DB is empty)
@@ -8225,8 +8309,15 @@ db.init()
     // accidentally uploaded file) will cause a confusing parse error otherwise.
     const envSession = rawEnvSession && isValidSessionString(rawEnvSession) ? rawEnvSession : null;
     if (rawEnvSession && !envSession) {
-      console.warn("⚠️  SESSION_ID / SESSION env var contains binary or corrupted data and will be ignored.");
-      console.warn("   Please set a valid NEXUS-MD:~ session string in your Heroku config vars.");
+      const _raw = rawEnvSession.trim();
+      const _isPlaceholder = _raw.length < 200 || ["paste_your_session_here","session_here","your_session"].some(p => _raw.toLowerCase().includes(p));
+      if (_isPlaceholder) {
+        console.warn("⚠️  SESSION_ID / SESSION env var looks like a placeholder or example value — ignoring.");
+        console.warn("   Get a real session at https://nexs-session-1.replit.app and paste it in the dashboard Setup tab.");
+      } else {
+        console.warn("⚠️  SESSION_ID / SESSION env var contains binary or corrupted data — ignoring.");
+        console.warn("   Get a fresh session at https://nexs-session-1.replit.app and set it as SESSION_ID config var.");
+      }
     }
     const sessionToRestore = dbSession?.id || envSession || null;
     if (sessionToRestore) {
