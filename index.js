@@ -2259,9 +2259,13 @@ async function startnexus() {
             await sock.sendMessage(from, { text: "❌ This command only works inside a group." }, { quoted: msg });
             return;
           }
-          if (!_isOwner && !_isSenderAdmin) {
-            await sock.sendMessage(from, { text: "❌ Only group admins or the bot owner can use this command." }, { quoted: msg });
-            return;
+          {
+            const _amgParts = await admin.getGroupParticipants(sock, from).catch(() => []);
+            const _isSenderAdmin = admin.getSenderAdminStatus(senderJid, _amgParts);
+            if (!_isOwner && !_isSenderAdmin) {
+              await sock.sendMessage(from, { text: "❌ Only group admins or the bot owner can use this command." }, { quoted: msg });
+              return;
+            }
           }
 
           const _amgAll  = db.read(`asm_settings`, {});
@@ -2324,9 +2328,13 @@ async function startnexus() {
             await sock.sendMessage(from, { text: "❌ This command only works inside a group." }, { quoted: msg });
             return;
           }
-          if (!_isOwner && !_isSenderAdmin) {
-            await sock.sendMessage(from, { text: "❌ Only group admins or the bot owner can use this command." }, { quoted: msg });
-            return;
+          {
+            const _asmParts = await admin.getGroupParticipants(sock, from).catch(() => []);
+            const _isSenderAdmin = admin.getSenderAdminStatus(senderJid, _asmParts);
+            if (!_isOwner && !_isSenderAdmin) {
+              await sock.sendMessage(from, { text: "❌ Only group admins or the bot owner can use this command." }, { quoted: msg });
+              return;
+            }
           }
 
           // Helper for loading & saving asm_settings
@@ -4365,7 +4373,7 @@ async function startnexus() {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to delete messages." }, { quoted: msg });
               return;
             }
-            if (!sndAdm) {
+            if (!sndAdm && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ Only admins can use this command." }, { quoted: msg });
               return;
             }
@@ -5592,10 +5600,7 @@ async function startnexus() {
             const _fakeParts = _fakeMeta?.participants || [];
             const _fkBotJid  = _nj(sock.user?.id);
             const _fkBotAdm  = _fakeParts.some(p => p.id === _fkBotJid && (p.admin === "admin" || p.admin === "superadmin"));
-            const _fkSndAdm  = _fakeParts.some(p =>
-              (p.id === senderJid || p.id.split(":")[0] + "@s.whatsapp.net" === senderJid) &&
-              (p.admin === "admin" || p.admin === "superadmin")
-            );
+            const _fkSndAdm  = admin.getSenderAdminStatus(senderJid, _fakeParts);
             if (!_fkBotAdm) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to use this command." }, { quoted: msg });
               return;
