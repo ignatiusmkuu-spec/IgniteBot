@@ -431,26 +431,39 @@ _server.on("error", (err) => {
   }
 });
 
-// ── Keep-alive self-ping (Heroku / Render Eco dynos sleep after 30 min) ──────
-// APP_URL is auto-detected from HEROKU_APP_NAME (set by dyno-metadata feature)
-// so no manual input is needed. Override with APP_URL env var if needed.
+// ── Keep-alive (Heroku / Render / Replit — dynos that sleep after inactivity) ─
+// Two-layer approach so the bot never goes silent:
+//  Layer 1 — Internal self-ping via localhost (zero config, always works)
+//  Layer 2 — External URL ping as a backup (uses APP_URL or HEROKU_APP_NAME)
 (function startKeepAlive() {
-  // Auto-detect: APP_URL override → HEROKU_APP_NAME (dyno metadata) → disabled
+  const plat = platform.get();
+  if (!plat.isSleepy) return; // VPS/Pterodactyl — never sleep, skip
+
+  // ── Layer 1: internal self-ping ───────────────────────────────────────────
+  // Hits our own Express server on localhost — creates real HTTP traffic on the
+  // Heroku dyno port, which resets the 30-min sleep timer without needing any
+  // URL configuration.  Runs every 10 min (well under the 30-min threshold).
+  const localUrl = `http://localhost:${PORT}/`;
+  const INTERNAL = 10 * 60 * 1000; // 10 minutes
+  setInterval(async () => {
+    try { await axios.get(localUrl, { timeout: 8000 }); } catch {}
+  }, INTERNAL);
+  console.log(`💓 Keep-alive: internal self-ping every 10 min (port ${PORT})`);
+
+  // ── Layer 2: external URL ping ────────────────────────────────────────────
+  // Belt-and-suspenders: also ping the public URL when we know it.
   const appUrl =
     process.env.APP_URL ||
     (process.env.HEROKU_APP_NAME
       ? `https://${process.env.HEROKU_APP_NAME}.herokuapp.com`
       : null);
-  const plat = platform.get();
-  if (!appUrl || !plat.isSleepy) return;
-  const INTERVAL = 14 * 60 * 1000; // 14 minutes
-  setInterval(async () => {
-    try {
-      await axios.get(appUrl, { timeout: 10000 });
-      console.log(`💓 Keep-alive ping → ${appUrl}`);
-    } catch { /* silent — dyno still alive */ }
-  }, INTERVAL);
-  console.log(`💓 Keep-alive enabled (pinging ${appUrl} every 14 min)`);
+  if (appUrl) {
+    const EXTERNAL = 12 * 60 * 1000; // 12 minutes
+    setInterval(async () => {
+      try { await axios.get(appUrl, { timeout: 10000 }); } catch {}
+    }, EXTERNAL);
+    console.log(`💓 Keep-alive: external ping to ${appUrl} every 12 min`);
+  }
 })();
 
 // ── Graceful shutdown (SIGTERM from panel stop / Heroku restart) ─────────────
@@ -659,10 +672,14 @@ async function startBot() {
 
       if (alwaysOnlineInterval) clearInterval(alwaysOnlineInterval);
       alwaysOnlineInterval = setInterval(async () => {
-        if (settings.get("alwaysOnline") && sock) {
-          await sock.sendPresenceUpdate("available").catch(() => {});
-        }
-      }, 30000);
+        if (!sock) return;
+        // Always send a lightweight presence heartbeat to keep the WhatsApp
+        // WebSocket alive — prevents silent disconnects on idle dynos/VPS.
+        // If alwaysOnline is ON, advertise "available"; otherwise use
+        // "unavailable" so the user appears offline but the connection stays open.
+        const presence = settings.get("alwaysOnline") ? "available" : "unavailable";
+        await sock.sendPresenceUpdate(presence).catch(() => {});
+      }, 25000);
 
       // ── Periodic full auth-folder persist every 30 s ────────────────────
       // Baileys writes signal-key files to disk independently of creds.update.
