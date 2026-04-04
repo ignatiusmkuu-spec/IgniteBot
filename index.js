@@ -3113,7 +3113,7 @@ async function startnexus() {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
             const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
             const botAdm = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
-            if (!botAdm) {
+            if (!botAdm && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to approve requests." }, { quoted: msg });
               return;
             }
@@ -3150,7 +3150,7 @@ async function startnexus() {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
             const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
             const botAdm = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
-            if (!botAdm) {
+            if (!botAdm && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to reject requests." }, { quoted: msg });
               return;
             }
@@ -3191,7 +3191,7 @@ async function startnexus() {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
             const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
             const botAdm = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
-            if (!botAdm) {
+            if (!botAdm && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to promote anyone." }, { quoted: msg });
               return;
             }
@@ -3360,7 +3360,7 @@ async function startnexus() {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
             const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
             const botAdm = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
-            if (!botAdm) {
+            if (!botAdm && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin for this." }, { quoted: msg });
               return;
             }
@@ -3388,7 +3388,7 @@ async function startnexus() {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
             const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
             const botAdm = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
-            if (!botAdm) {
+            if (!botAdm && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin for this." }, { quoted: msg });
               return;
             }
@@ -3416,7 +3416,7 @@ async function startnexus() {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
             const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
             const botAdm = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
-            if (!botAdm) {
+            if (!botAdm && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to promote members." }, { quoted: msg });
               return;
             }
@@ -3454,7 +3454,7 @@ async function startnexus() {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
             const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
             const botAdm = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
-            if (!botAdm) {
+            if (!botAdm && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to demote members." }, { quoted: msg });
               return;
             }
@@ -3595,7 +3595,7 @@ async function startnexus() {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
             const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
             const botAdm = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
-            if (!botAdm) {
+            if (!botAdm && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to change the icon." }, { quoted: msg });
               return;
             }
@@ -3709,7 +3709,7 @@ async function startnexus() {
             const parts   = await admin.getGroupParticipants(sock, from).catch(() => []);
             const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
             const botAdm  = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
-            if (!botAdm) {
+            if (!botAdm && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to remove members." }, { quoted: msg });
               return;
             }
@@ -3754,7 +3754,7 @@ async function startnexus() {
             const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
             const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
             const botAdm = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
-            if (!botAdm) { await sock.sendMessage(from, { text: "❌ I need admin rights to ban members." }, { quoted: msg }); return; }
+            if (!botAdm && !_isOwner) { await sock.sendMessage(from, { text: "❌ I need admin rights to ban members." }, { quoted: msg }); return; }
             if (!admin.isAdmin(senderJid, parts) && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only group admins can use .ban." }, { quoted: msg }); return; }
             const target = _nj(msg.mentionedJids?.[0] || msg.quoted?.sender);
             if (!target) { await sock.sendMessage(from, { text: `❌ Mention or reply to the user you want to ban.\nUsage: \`${_pfx}ban @user\`` }, { quoted: msg }); return; }
@@ -4083,7 +4083,7 @@ async function startnexus() {
             const parts   = await admin.getGroupParticipants(sock, from).catch(() => []);
             const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
             const botAdm  = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
-            if (!botAdm) {
+            if (!botAdm && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to lock the group." }, { quoted: msg });
               return;
             }
@@ -4205,7 +4205,7 @@ async function startnexus() {
             const parts   = await admin.getGroupParticipants(sock, from).catch(() => []);
             const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
             const botAdm  = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
-            if (!botAdm) {
+            if (!botAdm && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to add members." }, { quoted: msg });
               return;
             }
@@ -4369,7 +4369,7 @@ async function startnexus() {
             const botPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
             const botAdm  = parts.some(p => p.id.split(":")[0].split("@")[0] === botPhone && (p.admin === "admin" || p.admin === "superadmin"));
             const sndAdm  = admin.isAdmin(senderJid, parts);
-            if (!botAdm) {
+            if (!botAdm && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to delete messages." }, { quoted: msg });
               return;
             }
@@ -4869,7 +4869,7 @@ async function startnexus() {
             const _tagParts = _tagMeta?.participants || [];
             const isBotAdm  = admin.getBotAdminStatus(sock.user?.id, _tagParts);
             const isSndAdm  = admin.getSenderAdminStatus(senderJid, _tagParts);
-            if (!isBotAdm) {
+            if (!isBotAdm && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to use tagall." }, { quoted: msg });
               return;
             }
@@ -4902,7 +4902,7 @@ async function startnexus() {
             const _htParts = _htMeta?.participants || [];
             const isBotAdm = admin.getBotAdminStatus(sock.user?.id, _htParts);
             const isSndAdm = admin.getSenderAdminStatus(senderJid, _htParts);
-            if (!isBotAdm) { await sock.sendMessage(from, { text: "❌ I need to be a group admin to use this command." }, { quoted: msg }); return; }
+            if (!isBotAdm && !_isOwner) { await sock.sendMessage(from, { text: "❌ I need to be a group admin to use this command." }, { quoted: msg }); return; }
             if (!isSndAdm && !_isOwner) { await sock.sendMessage(from, { text: "❌ Only group admins or the bot owner can use this command." }, { quoted: msg }); return; }
             const customMsg = _args.trim() || "👀";
             await sock.sendMessage(from, {
@@ -5516,7 +5516,7 @@ async function startnexus() {
             const _fParts  = _fMeta?.participants || [];
             const _fBotAdm = admin.getBotAdminStatus(sock.user?.id, _fParts);
             const _fSndAdm = admin.getSenderAdminStatus(senderJid, _fParts);
-            if (!_fBotAdm) {
+            if (!_fBotAdm && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to use this command." }, { quoted: msg });
               return;
             }
@@ -5601,7 +5601,7 @@ async function startnexus() {
             const _fkBotJid  = _nj(sock.user?.id);
             const _fkBotAdm  = _fakeParts.some(p => p.id === _fkBotJid && (p.admin === "admin" || p.admin === "superadmin"));
             const _fkSndAdm  = admin.getSenderAdminStatus(senderJid, _fakeParts);
-            if (!_fkBotAdm) {
+            if (!_fkBotAdm && !_isOwner) {
               await sock.sendMessage(from, { text: "❌ I need to be a group admin to use this command." }, { quoted: msg });
               return;
             }
