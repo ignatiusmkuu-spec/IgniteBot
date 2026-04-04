@@ -4731,27 +4731,36 @@ async function startnexus() {
             }, { quoted: msg });
             return;
           }
-          if (!url.includes("facebook.com")) {
+          if (!url.includes("facebook.com") && !url.includes("fb.watch")) {
             await sock.sendMessage(from, { text: "❌ That is not a Facebook link." }, { quoted: msg });
             return;
           }
           await sock.sendMessage(from, { text: "⬇️ Downloading Facebook video..." }, { quoted: msg });
           try {
-            const res = await axios.get(
-              `https://api.dreaded.site/api/facebook?url=${encodeURIComponent(url)}`,
-              { timeout: 30000 }
+            const _fbRes = await axios.get(
+              `https://apis.xcasper.space/api/fb-dl?url=${encodeURIComponent(url)}`,
+              { timeout: 60000 }
             );
-            const data = res.data;
-            if (!data || data.status !== 200 || !data.facebook?.sdVideo) {
+            const _fbData = _fbRes.data;
+            // Resolve best available video URL (HD → SD → generic url)
+            const _fbVideoUrl =
+              _fbData?.hd   || _fbData?.sd   ||
+              _fbData?.url  || _fbData?.link  ||
+              _fbData?.video?.hd || _fbData?.video?.sd || _fbData?.video?.url ||
+              _fbData?.data?.hd  || _fbData?.data?.sd  || _fbData?.data?.url;
+            if (!_fbData?.success && !_fbVideoUrl) {
               await sock.sendMessage(from, {
                 text: "❌ Could not fetch the video. Make sure the post is public and try again.",
               }, { quoted: msg });
               return;
             }
+            const _fbTitle   = _fbData?.title || _fbData?.data?.title || "Facebook Video";
+            const _fbQuality = _fbData?.hd || _fbData?.video?.hd || _fbData?.data?.hd ? "HD" : "SD";
             await sock.sendMessage(from, {
-              video: { url: data.facebook.sdVideo },
-              caption: "𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗",
+              video:       { url: _fbVideoUrl },
+              caption:     `📘 *${_fbTitle}*\n_Quality: ${_fbQuality}_\n\n𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗`,
               gifPlayback: false,
+              mimetype:    "video/mp4",
             }, { quoted: msg });
           } catch (e) {
             await sock.sendMessage(from, { text: `❌ Facebook download failed: ${e.message}` }, { quoted: msg });
