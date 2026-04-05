@@ -4677,58 +4677,127 @@ async function startnexus() {
           return;
         }
 
-        // ── .video — YouTube video downloader ──────────────────────────────
-        if (_cmd === "video") {
+        // ── .video / .ytmp4 — YouTube MP4 downloader (xcasper API) ────────
+        if (_cmd === "video" || _cmd === "ytmp4" || _cmd === "yt4") {
           const query = _args.trim();
           if (!query) {
             await sock.sendMessage(from, {
-              text: `🎬 Usage: \`${_pfx}video <search query>\`\n\nSearches YouTube and sends the video file.`,
+              text: `🎬 Usage: \`${_pfx}${_cmd} <search query or YouTube link>\`\n\nDownloads YouTube video as MP4.`,
             }, { quoted: msg });
             return;
           }
           await sock.sendMessage(from, { text: `🔍 Searching YouTube for *${query}*...` }, { quoted: msg });
           try {
             const yts = require("yt-search");
-            const { videos } = await yts(query);
-            if (!videos || !videos.length) {
-              await sock.sendMessage(from, { text: "❌ No video found for that query." }, { quoted: msg });
+            // Accept direct YouTube URLs or search queries
+            let videoUrl, videoTitle;
+            if (/youtu\.be\/|youtube\.com\/(watch|shorts)/i.test(query)) {
+              videoUrl   = query;
+              videoTitle = "YouTube Video";
+            } else {
+              const { videos } = await yts(query);
+              if (!videos || !videos.length) {
+                await sock.sendMessage(from, { text: "❌ No video found for that query." }, { quoted: msg });
+                return;
+              }
+              videoUrl   = videos[0].url;
+              videoTitle = videos[0].title;
+            }
+            await sock.sendMessage(from, { text: `⬇️ Downloading *${videoTitle}*...\n_Please wait..._` }, { quoted: msg });
+
+            // ── xcasper ytmp4 API ─────────────────────────────────────────
+            const apiRes = await axios.get(
+              `https://apis.xcasper.space/api/downloader/ytmp4?url=${encodeURIComponent(videoUrl)}`,
+              { timeout: 60000 }
+            );
+            const data = apiRes.data;
+            if (!data?.success || !data?.data?.downloads?.length) {
+              await sock.sendMessage(from, { text: "❌ Video download failed — API returned no download links." }, { quoted: msg });
               return;
             }
-            const videoUrl = videos[0].url;
-            await sock.sendMessage(from, { text: `⬇️ Downloading *${videos[0].title}*...` }, { quoted: msg });
-            const apis = [
-              `https://api-rin-tohsaka.vercel.app/download/ytmp4?url=${encodeURIComponent(videoUrl)}`,
-              `https://api.davidcyriltech.my.id/download/ytmp4?url=${encodeURIComponent(videoUrl)}`,
-              `https://www.dark-yasiya-api.site/download/ytmp4?url=${encodeURIComponent(videoUrl)}`,
-              `https://api.giftedtech.web.id/api/download/dlmp4?url=${encodeURIComponent(videoUrl)}&apikey=gifted-md`,
-              `https://api.dreaded.site/api/ytdl/video?url=${encodeURIComponent(videoUrl)}`,
-            ];
-            let downloadData;
-            for (const api of apis) {
-              try {
-                const res = await axios.get(api, { timeout: 30000 });
-                if (res.data?.success) { downloadData = res.data; break; }
-              } catch {}
-            }
-            if (!downloadData?.result?.download_url) {
-              await sock.sendMessage(from, { text: "❌ Failed to fetch video from all APIs. Try again later." }, { quoted: msg });
-              return;
-            }
-            const dlUrl = downloadData.result.download_url;
-            const title = downloadData.result.title || videos[0].title;
+            // Pick best quality that has audio (prefer higher resolution)
+            const downloads = data.data.downloads;
+            const withAudio = downloads.filter(d => d.hasAudio && d.extension === "mp4");
+            const best = withAudio.length
+              ? withAudio.reduce((a, b) => ((b.bitrate || 0) > (a.bitrate || 0) ? b : a))
+              : downloads[0];
+            const dlUrl    = best.url;
+            const title    = data.data.title || videoTitle;
+            const thumb    = data.data.thumbnail;
+            const quality  = best.quality || "mp4";
+            const duration = data.data.duration
+              ? `${Math.floor(data.data.duration / 60)}:${String(data.data.duration % 60).padStart(2, "0")}`
+              : "";
+            const caption  =
+              `🎬 *${title}*\n` +
+              `📊 Quality: ${quality}\n` +
+              (duration ? `⏱ Duration: ${duration}\n` : "") +
+              `\n_Downloaded by NEXUS-MD_`;
+
+            // Send as video message
             await sock.sendMessage(from, {
-              document: { url: dlUrl },
+              video:    { url: dlUrl },
               mimetype: "video/mp4",
-              fileName: `${title}.mp4`,
-              caption: "𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗",
-            }, { quoted: msg });
-            await sock.sendMessage(from, {
-              video: { url: dlUrl },
-              mimetype: "video/mp4",
-              caption: "𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗",
+              caption,
             }, { quoted: msg });
           } catch (e) {
             await sock.sendMessage(from, { text: `❌ Video download failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .y2mate — YouTube MP3 downloader via y2mate API ────────────────
+        if (_cmd === "y2mate" || _cmd === "ytdl") {
+          const query = _args.trim();
+          if (!query) {
+            await sock.sendMessage(from, {
+              text: `🎵 Usage: \`${_pfx}${_cmd} <search query or YouTube link>\`\n\nDownloads YouTube audio as MP3.`,
+            }, { quoted: msg });
+            return;
+          }
+          await sock.sendMessage(from, { text: `🔍 Searching YouTube for *${query}*...` }, { quoted: msg });
+          try {
+            const yts = require("yt-search");
+            let videoUrl, videoTitle;
+            if (/youtu\.be\/|youtube\.com\/(watch|shorts)/i.test(query)) {
+              videoUrl   = query;
+              videoTitle = "YouTube Audio";
+            } else {
+              const { videos } = await yts(query);
+              if (!videos || !videos.length) {
+                await sock.sendMessage(from, { text: "❌ No results found." }, { quoted: msg });
+                return;
+              }
+              videoUrl   = videos[0].url;
+              videoTitle = videos[0].title;
+            }
+            await sock.sendMessage(from, { text: `⬇️ Downloading *${videoTitle}*...\n_Please wait..._` }, { quoted: msg });
+
+            // ── xcasper y2mate API ────────────────────────────────────────
+            const apiRes = await axios.get(
+              `https://apis.xcasper.space/api/downloader/y2mate?url=${encodeURIComponent(videoUrl)}`,
+              { timeout: 60000 }
+            );
+            const data = apiRes.data;
+            if (!data?.success || !data?.download) {
+              await sock.sendMessage(from, { text: "❌ Audio download failed — API returned no download link." }, { quoted: msg });
+              return;
+            }
+            const dlUrl   = data.download;
+            const title   = data.title || videoTitle;
+            const caption =
+              `🎵 *${title}*\n` +
+              `📁 Format: MP3\n` +
+              `\n_Downloaded by NEXUS-MD_`;
+
+            await sock.sendMessage(from, {
+              audio:    { url: dlUrl },
+              mimetype: "audio/mpeg",
+              fileName: `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`,
+            }, { quoted: msg });
+            await sock.sendMessage(from, { text: caption }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Audio download failed: ${e.message}` }, { quoted: msg });
           }
           return;
         }
