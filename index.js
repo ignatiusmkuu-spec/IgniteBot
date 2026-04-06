@@ -7998,10 +7998,13 @@ async function startnexus() {
               _statusReactIdx++;
               const _capturedKey    = { ...msg.key };
               const _capturedPoster = _svPoster;
+              // Pick a random emoji each time so reactions feel natural and varied.
+              const _reactPool = ["❤️","🔥","😍","🥰","💯","👏","😂","🤩","💕","🌹","👀","😎","💪","🎉","✨","🙌","💥","🫶","😘","🤝"];
+              const _reactEmoji = _reactPool[Math.floor(Math.random() * _reactPool.length)];
               setTimeout(() => {
                 sock.sendMessage(
                   "status@broadcast",
-                  { react: { text: "❤️", key: _capturedKey } },
+                  { react: { text: _reactEmoji, key: _capturedKey } },
                   { statusJidList: [_capturedPoster] }
                 ).catch(() => {});
               }, _reactDelay);
