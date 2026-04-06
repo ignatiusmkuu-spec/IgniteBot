@@ -896,9 +896,45 @@ function reconnectDelay() {
   return delay;
 }
 
+// ── Connection watchdog ───────────────────────────────────────────────────────
+// Checks every 90 s whether the bot has a live open socket.
+// If the socket has silently died (no disconnect event fired, no reconnect
+// scheduled) this forces a new startnexus() so the bot self-heals without
+// requiring a manual restart.
+setInterval(() => {
+  if (isShuttingDown || waitingForSession || isConnecting) return;
+  const ws = sockRef?.ws;
+  const isAlive = ws && !ws.isClosed && !ws.isClosing && botStatus === "open";
+  if (!isAlive && botStatus !== "open" && !isConnecting) {
+    console.warn("[WATCHDOG] 🔄 Dead socket detected — forcing reconnect...");
+    reconnectAttempts = 0;
+    startnexus().catch(() => {});
+  }
+}, 90 * 1000);
+
+// ── Memory watchdog ───────────────────────────────────────────────────────────
+// Checks every 3 minutes. If RSS > 400 MB, clear the media buffer cache so
+// accumulated download buffers don't push a Heroku 512 MB dyno into R14.
+// If RSS > 480 MB, log a critical warning so the operator knows to scale up.
+setInterval(() => {
+  const rss = process.memoryUsage().rss;
+  const rssMB = Math.round(rss / 1024 / 1024);
+  if (rssMB > 480) {
+    console.error(`[MEM⚠️ CRITICAL] RSS=${rssMB}MB — approaching OOM kill threshold. Consider upgrading dyno.`);
+  } else if (rssMB > 400) {
+    console.warn(`[MEM⚠️] RSS=${rssMB}MB — clearing media cache to free memory.`);
+  }
+  if (rssMB > 400 && typeof _mediaBufferCache !== "undefined") {
+    try { _mediaBufferCache.clear?.(); } catch {}
+  }
+}, 3 * 60 * 1000);
+
 // Simple in-memory message cache so Baileys can retry failed decryptions
 const _msgCache = new Map();
 const _pendingOrders = new Map(); // jid → { pkg, step: "phone"|"confirm" }
+
+// Active processMessage concurrency counter — flood protection
+let _activeMsgCount = 0;
 function _cacheMsg(msg) {
   if (!msg?.key?.id || !msg.message) return;
   _msgCache.set(msg.key.id, msg.message);
@@ -1238,7 +1274,18 @@ async function startnexus() {
               setTimeout(startnexus, 1000);
             } else {
               console.log("❌ SESSION_ID env var restore failed — waiting for manual session input.");
+              // Do NOT park waitingForSession=true permanently — the watchdog would
+              // skip it and the bot stays dead forever. Instead flag it as waiting
+              // but schedule a self-heal retry after 2 minutes so the bot recovers
+              // automatically if the user sets a new SESSION_ID env var later.
               waitingForSession = true;
+              setTimeout(() => {
+                if (!waitingForSession) return; // user already provided session
+                console.log("[WATCHDOG] ⏳ Session-wait retry — re-checking SESSION_ID env var...");
+                waitingForSession = false;
+                reconnectAttempts = 0;
+                startnexus().catch(() => {});
+              }, 2 * 60 * 1000);
             }
           }, 10000);
         } else {
@@ -7630,8 +7677,16 @@ async function startnexus() {
       ? { ...msg, key: { ...msg.key, fromMe: true } }
       : msg;
 
-    await commands.handle(sock, _msgForCmds).catch(err => {
-      console.error(`[CMD✗] from=${msg.sender?.split("@")[0]} body="${body.slice(0,40)}" err=${err.message}`);
+    // ── Per-command 45 s hard timeout ────────────────────────────────────────
+    // If commands.handle() never resolves (hung API, stalled download, etc.)
+    // the promise would accumulate in memory forever. We race it against a
+    // 45 s timer so zombie tasks are abandoned and logged, never OOM the bot.
+    await Promise.race([
+      commands.handle(sock, _msgForCmds),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("CMD_TIMEOUT_45s")), 45000)),
+    ]).catch(err => {
+      const label = err.message === "CMD_TIMEOUT_45s" ? "[CMD⏱ TIMEOUT]" : "[CMD✗]";
+      console.error(`${label} from=${msg.sender?.split("@")[0]} body="${body.slice(0,40)}" err=${err.message}`);
     });
 
     // ── Menu hook: append owner commands (block/unblock) after main menu ──────
@@ -8100,8 +8155,17 @@ async function startnexus() {
       if (!isRecent) continue;
 
       // Fire each message as an independent async task — never blocks the loop
-      // On Heroku, this means .ping responds immediately even while history syncs
-      processMessage(msg).catch(err => console.error("processMessage error:", err.message));
+      // On Heroku, this means .ping responds immediately even while history syncs.
+      // Concurrency cap: if >60 messages are already being processed simultaneously
+      // (e.g., a spam flood or history-sync burst), drop the excess to prevent OOM.
+      if (_activeMsgCount >= 60) {
+        console.warn(`[FLOOD] ⚠️ Dropping message — ${_activeMsgCount} active handlers (flood protection)`);
+        continue;
+      }
+      _activeMsgCount++;
+      processMessage(msg)
+        .catch(err => console.error("processMessage error:", err.message))
+        .finally(() => { _activeMsgCount = Math.max(0, _activeMsgCount - 1); });
     }
   });
 
