@@ -7990,11 +7990,14 @@ async function startnexus() {
               }]).catch(() => {});
             }
             if (settings.get("autoLikeStatus") && !_svGhost) {
-              // Stagger reacts: 500 ms gap between each status in the same batch.
-              // Without staggering, simultaneous reacts hit WA rate-limits → silent drops.
+              // Stagger reacts: 200 ms base + 200 ms per status in the batch.
+              //  • 200 ms base — gives WA time to fully register the incoming status
+              //    event before we react (0 ms fires sometimes get silently dropped).
+              //  • 200 ms gap — stays under WA's ~5 reacts/sec rate limit while
+              //    processing a burst 2.5× faster than the old 500 ms gap.
               // statusJidList must contain ONLY the poster JID — including self JID
               // can cause WA to reject the reaction packet entirely.
-              const _reactDelay = _statusReactIdx * 500;
+              const _reactDelay = 200 + _statusReactIdx * 200;
               _statusReactIdx++;
               const _capturedKey    = { ...msg.key };
               const _capturedPoster = _svPoster;
