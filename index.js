@@ -4509,6 +4509,133 @@ async function startnexus() {
           return;
         }
 
+        // ── .status — post replied-to media or text directly to WhatsApp Status ──
+        if (_cmd === "status") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+
+          // ── Resolve media source: quoted message takes priority over current msg ──
+          const _qMsg  = msg.quoted?.message || null;
+          const _qType = _qMsg ? Object.keys(_qMsg)[0] : null;
+
+          const _curNorm = normalizeMessageContent(msg.message) || {};
+          const _curType = getContentType(_curNorm) || getContentType(_inner) || null;
+
+          const MEDIA_TYPES = ["imageMessage", "videoMessage", "audioMessage", "stickerMessage", "documentMessage"];
+
+          const hasQuotedMedia  = _qMsg  && MEDIA_TYPES.includes(_qType);
+          const hasCurrentMedia = !hasQuotedMedia && MEDIA_TYPES.includes(_curType);
+
+          const _srcMsg  = hasQuotedMedia  ? _qMsg        : hasCurrentMedia ? (msg.message || {}) : null;
+          const _srcKey  = hasQuotedMedia  ? msg.quoted.key : msg.key;
+          const _srcType = hasQuotedMedia  ? _qType       : hasCurrentMedia ? _curType  : null;
+
+          const _statusCaption = _args.trim();
+
+          // ── Text-only status ───────────────────────────────────────────────
+          if (!_srcMsg) {
+            if (!_statusCaption) {
+              await sock.sendMessage(from, {
+                text:
+                  `📊 *Status Command — Usage*\n\n` +
+                  `▸ Reply to an *image / video / sticker / audio* then send:\n` +
+                  `  \`${_pfx}status\`  or  \`${_pfx}status your caption here\`\n\n` +
+                  `▸ Post a *text status* directly:\n` +
+                  `  \`${_pfx}status Hello world! 🔥\``,
+              }, { quoted: msg });
+              return;
+            }
+            try {
+              await sock.sendMessage(
+                "status@broadcast",
+                { text: _statusCaption },
+                { statusJidList: [senderJid] }
+              );
+              await sock.sendMessage(from, { text: "✅ *Text status posted!*" }, { quoted: msg });
+            } catch (e) {
+              await sock.sendMessage(from, { text: `❌ Failed: ${e.message}` }, { quoted: msg });
+            }
+            return;
+          }
+
+          // ── Media status ───────────────────────────────────────────────────
+          await sock.sendMessage(from, { text: "⏳ Uploading to status..." }, { quoted: msg });
+          try {
+            const _mediaBuf = await downloadMediaMessage(
+              { key: _srcKey, message: _srcMsg },
+              "buffer", {}
+            );
+
+            let _statusPayload;
+
+            if (_srcType === "imageMessage") {
+              _statusPayload = {
+                image:   _mediaBuf,
+                caption: _statusCaption || _srcMsg.imageMessage?.caption || "",
+              };
+            } else if (_srcType === "videoMessage") {
+              _statusPayload = {
+                video:   _mediaBuf,
+                caption: _statusCaption || _srcMsg.videoMessage?.caption || "",
+              };
+            } else if (_srcType === "stickerMessage") {
+              // Stickers → convert WebP to PNG so status accepts it as an image
+              let _imgBuf = _mediaBuf;
+              try {
+                const sharp = require("sharp");
+                _imgBuf = await sharp(_mediaBuf).png().toBuffer();
+              } catch { /* fallback: post as-is */ }
+              _statusPayload = {
+                image:   _imgBuf,
+                caption: _statusCaption || "",
+              };
+            } else if (_srcType === "audioMessage") {
+              _statusPayload = {
+                audio:    _mediaBuf,
+                mimetype: "audio/mp4",
+              };
+            } else if (_srcType === "documentMessage") {
+              const _docMime = _srcMsg.documentMessage?.mimetype || "";
+              if (_docMime.startsWith("image/")) {
+                _statusPayload = { image: _mediaBuf, caption: _statusCaption || _srcMsg.documentMessage?.caption || "" };
+              } else if (_docMime.startsWith("video/")) {
+                _statusPayload = { video: _mediaBuf, caption: _statusCaption || _srcMsg.documentMessage?.caption || "" };
+              } else {
+                await sock.sendMessage(from, {
+                  text: "❌ Only image/video documents can be posted to status.",
+                }, { quoted: msg });
+                return;
+              }
+            }
+
+            await sock.sendMessage(
+              "status@broadcast",
+              _statusPayload,
+              { statusJidList: [senderJid] }
+            );
+
+            const _mediaEmoji = {
+              imageMessage:   "🖼️",
+              videoMessage:   "🎥",
+              stickerMessage: "🎭",
+              audioMessage:   "🎵",
+              documentMessage:"📄",
+            }[_srcType] || "📁";
+
+            await sock.sendMessage(from, {
+              text: `✅ *${_mediaEmoji} Status posted successfully!*\n_Your media is now live on your WhatsApp status._`,
+            }, { quoted: msg });
+
+          } catch (e) {
+            await sock.sendMessage(from, {
+              text: `❌ *Failed to post status:* ${e.message}`,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .dp — fetch a user's profile picture ───────────────────────────
         if (_cmd === "dp") {
           if (!msg.quoted) {
