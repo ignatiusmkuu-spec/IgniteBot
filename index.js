@@ -7400,12 +7400,260 @@ async function startnexus() {
 
         // ── .chatbot — AI chatbot on/off per-chat or global ──────────────────
         if (_cmd === "chatbot" || _cmd === "ai" || _cmd === "bot") {
+          const _cbSub  = (_args.trim().split(/\s+/)[0] || "").toLowerCase();
+          const _cbSub2 = (_args.trim().split(/\s+/)[1] || "").toLowerCase();
+
+          // ── .ai hehe — full AI vision analysis on image / video / sticker ───
+          // Public (no owner check) so anyone in the chat can analyse media.
+          if (_cbSub === "hehe") {
+            const _hvQMsg  = msg.quoted?.message || null;
+            const _hvQType = _hvQMsg
+              ? (getContentType(normalizeMessageContent(_hvQMsg) || {}) || Object.keys(_hvQMsg)[0])
+              : null;
+
+            const _VISION_TYPES = ["imageMessage", "videoMessage", "stickerMessage",
+                                   "viewOnceMessage", "viewOnceMessageV2"];
+            const _hvHasMedia = _hvQMsg && _VISION_TYPES.includes(_hvQType);
+
+            if (!_hvQMsg || !_hvHasMedia) {
+              await sock.sendMessage(from, {
+                text:
+                  `🤖👁 *AI Hehe — Vision Analysis*\n${"─".repeat(28)}\n\n` +
+                  `Reply to a *photo, video, or sticker* and send:\n` +
+                  `  \`${_pfx}ai hehe\`\n\n` +
+                  `Or ask a specific question:\n` +
+                  `  \`${_pfx}ai hehe what does this meme mean?\`\n\n` +
+                  `_Powered by Llama 4 Vision / GPT-4o / Gemini_`,
+              }, { quoted: msg });
+              return;
+            }
+
+            await sock.sendMessage(from, { text: "🤖👁 Analysing media... ⏳" }, { quoted: msg });
+
+            try {
+              // ── Unwrap view-once wrappers ───────────────────────────────────
+              const _hvInner =
+                _hvQMsg?.viewOnceMessage?.message ||
+                _hvQMsg?.viewOnceMessageV2?.message ||
+                _hvQMsg;
+              const _hvInnerType = getContentType(normalizeMessageContent(_hvInner) || {})
+                || Object.keys(_hvInner)[0];
+
+              // ── Download the raw media buffer ───────────────────────────────
+              const _hvBuf = await downloadMediaMessage(
+                { key: msg.quoted.key, message: _hvInner },
+                "buffer",
+                { reuploadRequest: sock.updateMediaMessage }
+              );
+
+              let _hvImgBase64 = null;
+              let _hvImgMime   = "image/jpeg";
+              let _hvMediaLabel = "image";
+
+              if (_hvInnerType === "stickerMessage") {
+                // ── Sticker: WebP → PNG via sharp ───────────────────────────
+                _hvMediaLabel = "sticker";
+                try {
+                  const sharp = require("sharp");
+                  const _pngBuf = await sharp(_hvBuf).png().toBuffer();
+                  _hvImgBase64 = _pngBuf.toString("base64");
+                  _hvImgMime   = "image/png";
+                } catch {
+                  // fallback: use raw WebP
+                  _hvImgBase64 = _hvBuf.toString("base64");
+                  _hvImgMime   = "image/webp";
+                }
+
+              } else if (_hvInnerType === "videoMessage") {
+                // ── Video: extract first frame with ffmpeg ───────────────────
+                _hvMediaLabel = "video";
+                const _vMeta = _hvInner?.videoMessage || {};
+                const _vDur  = _vMeta.seconds ? `${_vMeta.seconds}s` : "unknown duration";
+                const _vW    = _vMeta.width  || "?";
+                const _vH    = _vMeta.height || "?";
+
+                const ffmpeg      = require("fluent-ffmpeg");
+                const ffmpegPath  = require("@ffmpeg-installer/ffmpeg").path;
+                ffmpeg.setFfmpegPath(ffmpegPath);
+                const _tmpIn  = path.join(process.cwd(), "data", `hvid_in_${Date.now()}.mp4`);
+                const _tmpOut = path.join(process.cwd(), "data", `hvid_frame_${Date.now()}.jpg`);
+                try {
+                  fs.writeFileSync(_tmpIn, _hvBuf);
+                  await new Promise((res, rej) => {
+                    ffmpeg(_tmpIn)
+                      .seekInput(0)
+                      .frames(1)
+                      .output(_tmpOut)
+                      .on("end",   res)
+                      .on("error", rej)
+                      .run();
+                  });
+                  const _frameBuf = fs.readFileSync(_tmpOut);
+                  _hvImgBase64 = _frameBuf.toString("base64");
+                  _hvImgMime   = "image/jpeg";
+                  // Embed video metadata in the question context
+                  _hvMediaLabel = `video (${_vW}×${_vH}, ${_vDur})`;
+                } finally {
+                  try { fs.unlinkSync(_tmpIn);  } catch {}
+                  try { fs.unlinkSync(_tmpOut); } catch {}
+                }
+
+              } else {
+                // ── Plain image ─────────────────────────────────────────────
+                _hvImgBase64 = _hvBuf.toString("base64");
+                _hvImgMime   = _hvInner?.imageMessage?.mimetype || "image/jpeg";
+              }
+
+              const _hvDataUri = `data:${_hvImgMime};base64,${_hvImgBase64}`;
+
+              // User's extra question (everything after "hehe")
+              const _hvQuestion = _args.slice("hehe".length).trim() ||
+                `Analyze this ${_hvMediaLabel} in full detail. Describe everything: ` +
+                `people, objects, text, colors, emotions, context, setting, meme meaning ` +
+                `if applicable, and any other notable detail. Be thorough and structured.`;
+
+              // ── Vision AI cascade: Groq → OpenAI → Gemini → public fallback ─
+              let _hvAnswer = null;
+              const _hvGroqKey   = process.env.GROQ_API_KEY;
+              const _hvOpenaiKey = process.env.OPENAI_API_KEY;
+              const _hvGeminiKey = process.env.GEMINI_API_KEY;
+              const _hvXaiKey    = process.env.XAI_API_KEY;
+
+              if (_hvGroqKey && !_hvAnswer) {
+                try {
+                  const _r = await axios.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    {
+                      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+                      messages: [
+                        { role: "system", content: _AI_PERSONA },
+                        {
+                          role: "user",
+                          content: [
+                            { type: "image_url", image_url: { url: _hvDataUri } },
+                            { type: "text", text: _hvQuestion },
+                          ],
+                        },
+                      ],
+                      max_tokens: 1200,
+                      temperature: 0.4,
+                    },
+                    { headers: { Authorization: `Bearer ${_hvGroqKey}`, "Content-Type": "application/json" }, timeout: 45000 }
+                  );
+                  _hvAnswer = _r.data?.choices?.[0]?.message?.content?.trim() || null;
+                } catch (e) { console.warn("[ai hehe] Groq vision error:", e.message); }
+              }
+
+              if (_hvXaiKey && !_hvAnswer) {
+                try {
+                  const _r = await axios.post(
+                    "https://api.x.ai/v1/chat/completions",
+                    {
+                      model: "grok-2-vision-1212",
+                      messages: [
+                        { role: "system", content: _AI_PERSONA },
+                        {
+                          role: "user",
+                          content: [
+                            { type: "image_url", image_url: { url: _hvDataUri } },
+                            { type: "text", text: _hvQuestion },
+                          ],
+                        },
+                      ],
+                      max_tokens: 1200,
+                      temperature: 0.4,
+                    },
+                    { headers: { Authorization: `Bearer ${_hvXaiKey}`, "Content-Type": "application/json" }, timeout: 45000 }
+                  );
+                  _hvAnswer = _r.data?.choices?.[0]?.message?.content?.trim() || null;
+                } catch (e) { console.warn("[ai hehe] xAI vision error:", e.message); }
+              }
+
+              if (_hvOpenaiKey && !_hvAnswer) {
+                try {
+                  const _r = await axios.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    {
+                      model: "gpt-4o",
+                      messages: [
+                        { role: "system", content: _AI_PERSONA },
+                        {
+                          role: "user",
+                          content: [
+                            { type: "image_url", image_url: { url: _hvDataUri, detail: "high" } },
+                            { type: "text", text: _hvQuestion },
+                          ],
+                        },
+                      ],
+                      max_tokens: 1200,
+                    },
+                    { headers: { Authorization: `Bearer ${_hvOpenaiKey}`, "Content-Type": "application/json" }, timeout: 45000 }
+                  );
+                  _hvAnswer = _r.data?.choices?.[0]?.message?.content?.trim() || null;
+                } catch (e) { console.warn("[ai hehe] OpenAI vision error:", e.message); }
+              }
+
+              if (_hvGeminiKey && !_hvAnswer) {
+                try {
+                  const _r = await axios.post(
+                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${_hvGeminiKey}`,
+                    {
+                      contents: [{
+                        parts: [
+                          { inline_data: { mime_type: _hvImgMime, data: _hvImgBase64 } },
+                          { text: _AI_PERSONA + "\n\n" + _hvQuestion },
+                        ],
+                      }],
+                      generationConfig: { maxOutputTokens: 1200, temperature: 0.4 },
+                    },
+                    { headers: { "Content-Type": "application/json" }, timeout: 45000 }
+                  );
+                  _hvAnswer = _r.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+                } catch (e) { console.warn("[ai hehe] Gemini vision error:", e.message); }
+              }
+
+              // Public catbox + free API fallback
+              if (!_hvAnswer) {
+                try {
+                  const FormData = require("form-data");
+                  const _form = new FormData();
+                  _form.append("reqtype", "fileupload");
+                  _form.append("fileToUpload", _hvBuf, { filename: "media.jpg", contentType: _hvImgMime });
+                  const _cb = await axios.post("https://catbox.moe/user/api.php", _form, {
+                    headers: _form.getHeaders(), timeout: 20000,
+                  });
+                  const _cbUrl = (_cb.data || "").trim();
+                  if (_cbUrl.startsWith("https://")) {
+                    const _fb = await axios.get(
+                      `https://apiskeith.top/ai/gpt4?q=${encodeURIComponent("Describe this " + _hvMediaLabel + " in full detail: " + _cbUrl)}`,
+                      { timeout: 30000 }
+                    );
+                    _hvAnswer = _fb.data?.result || _fb.data?.message || _fb.data?.reply || null;
+                  }
+                } catch (e) { console.warn("[ai hehe] fallback error:", e.message); }
+              }
+
+              if (!_hvAnswer) throw new Error("All vision AI providers returned empty — add GROQ_API_KEY or OPENAI_API_KEY for best results");
+
+              const _hvEmoji = { stickerMessage: "🎭", videoMessage: "🎥" }[_hvInnerType] || "🖼️";
+              await sock.sendMessage(from, {
+                text: `🤖👁 *AI Hehe — ${_hvEmoji} ${_hvMediaLabel.charAt(0).toUpperCase() + _hvMediaLabel.slice(1)} Analysis*\n${"─".repeat(30)}\n\n${_hvAnswer}`,
+              }, { quoted: msg });
+
+            } catch (_hvErr) {
+              console.error("[ai hehe] error:", _hvErr.message);
+              await sock.sendMessage(from, {
+                text: `❌ *AI Hehe failed:* ${_hvErr.message}`,
+              }, { quoted: msg });
+            }
+            return;
+          }
+
+          // ── Owner-only commands below this point ─────────────────────────
           if (!_isOwner) {
             await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
             return;
           }
-          const _cbSub  = (_args.trim().split(/\s+/)[0] || "").toLowerCase();
-          const _cbSub2 = (_args.trim().split(/\s+/)[1] || "").toLowerCase();
 
           // .chatbot global on/off — toggle for ALL chats at once
           if (_cbSub === "global") {
