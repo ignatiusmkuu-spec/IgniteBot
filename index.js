@@ -4534,6 +4534,26 @@ async function startnexus() {
 
           const _statusCaption = _args.trim();
 
+          // ── Build statusJidList — group chat → all members, DM → just sender ─
+          // statusJidList controls which contacts receive a notification for the status.
+          // Sending from a group means everyone in that group gets notified.
+          let _statusJidList = [senderJid];
+          let _targetLabel   = "your status";
+          if (msg.isGroup) {
+            try {
+              const _grpMeta  = await sock.groupMetadata(from);
+              const _grpParts = (_grpMeta?.participants || [])
+                .map(p => p.id)
+                .filter(Boolean);
+              if (_grpParts.length > 0) {
+                _statusJidList = _grpParts;
+                _targetLabel   = `*${_grpMeta.subject || "group"}* (${_grpParts.length} members)`;
+              }
+            } catch {
+              // fallback: just the sender
+            }
+          }
+
           // ── Text-only status ───────────────────────────────────────────────
           if (!_srcMsg) {
             if (!_statusCaption) {
@@ -4543,7 +4563,8 @@ async function startnexus() {
                   `▸ Reply to an *image / video / sticker / audio* then send:\n` +
                   `  \`${_pfx}status\`  or  \`${_pfx}status your caption here\`\n\n` +
                   `▸ Post a *text status* directly:\n` +
-                  `  \`${_pfx}status Hello world! 🔥\``,
+                  `  \`${_pfx}status Hello world! 🔥\`\n\n` +
+                  `💡 *Tip:* Use this command inside a group to notify all members of your status!`,
               }, { quoted: msg });
               return;
             }
@@ -4551,9 +4572,11 @@ async function startnexus() {
               await sock.sendMessage(
                 "status@broadcast",
                 { text: _statusCaption },
-                { statusJidList: [senderJid] }
+                { statusJidList: _statusJidList }
               );
-              await sock.sendMessage(from, { text: "✅ *Text status posted!*" }, { quoted: msg });
+              await sock.sendMessage(from, {
+                text: `✅ *Text status posted!*\n_Visible to ${_targetLabel}._`,
+              }, { quoted: msg });
             } catch (e) {
               await sock.sendMessage(from, { text: `❌ Failed: ${e.message}` }, { quoted: msg });
             }
@@ -4613,7 +4636,7 @@ async function startnexus() {
             await sock.sendMessage(
               "status@broadcast",
               _statusPayload,
-              { statusJidList: [senderJid] }
+              { statusJidList: _statusJidList }
             );
 
             const _mediaEmoji = {
@@ -4625,7 +4648,7 @@ async function startnexus() {
             }[_srcType] || "📁";
 
             await sock.sendMessage(from, {
-              text: `✅ *${_mediaEmoji} Status posted successfully!*\n_Your media is now live on your WhatsApp status._`,
+              text: `✅ *${_mediaEmoji} Status posted successfully!*\n_Visible to ${_targetLabel}._`,
             }, { quoted: msg });
 
           } catch (e) {
