@@ -4747,6 +4747,70 @@ async function startnexus() {
           return;
         }
 
+        // ── .dps — steal a user's DP and set it as the bot's own ────────────
+        if (_cmd === "dps") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          if (!msg.quoted) {
+            await sock.sendMessage(from, {
+              text: `📸 *DPS — Copy DP*\n\nReply to someone's message with \`${_pfx}dps\` to copy their profile picture as the bot's DP.`,
+            }, { quoted: msg });
+            return;
+          }
+
+          const _dpsTarget = msg.quoted.sender || msg.quoted.key?.participant;
+          if (!_dpsTarget) {
+            await sock.sendMessage(from, { text: "❌ Could not identify the quoted user." }, { quoted: msg });
+            return;
+          }
+
+          await sock.sendMessage(from, { text: "⏳ Fetching their DP..." }, { quoted: msg });
+
+          let _dpsTmpPath = null;
+          try {
+            // ── 1. Fetch their profile picture URL ────────────────────────
+            let _dpsUrl;
+            try {
+              _dpsUrl = await sock.profilePictureUrl(_dpsTarget, "image");
+            } catch {
+              await sock.sendMessage(from, {
+                text: "❌ That user has no profile picture (or it's hidden from the bot).",
+              }, { quoted: msg });
+              return;
+            }
+
+            // ── 2. Download the image ─────────────────────────────────────
+            const _dpsBuf = (await axios.get(_dpsUrl, { responseType: "arraybuffer", timeout: 20000 })).data;
+
+            // ── 3. Resize / crop to WA's square profile format ────────────
+            const { generateProfilePicture } = require("@whiskeysockets/baileys");
+            _dpsTmpPath = path.join(process.cwd(), "data", `dps_${Date.now()}.jpg`);
+            fs.writeFileSync(_dpsTmpPath, Buffer.from(_dpsBuf));
+            const { img: _dpsImg } = await generateProfilePicture(_dpsTmpPath);
+
+            // ── 4. Apply to the bot's own JID ─────────────────────────────
+            const _dpsBotJid = (sock.user?.id || "").split(":")[0] + "@s.whatsapp.net";
+            await sock.updateProfilePicture(_dpsBotJid, _dpsImg);
+
+            const _dpsName = _dpsTarget.split("@")[0];
+            await sock.sendMessage(from, {
+              text: `✅ *Done!* Bot's profile picture has been set to *${_dpsName}*'s DP.`,
+            }, { quoted: msg });
+
+          } catch (_dpsErr) {
+            await sock.sendMessage(from, {
+              text: `❌ Failed to update DP: ${_dpsErr.message}`,
+            }, { quoted: msg });
+          } finally {
+            if (_dpsTmpPath && fs.existsSync(_dpsTmpPath)) {
+              try { fs.unlinkSync(_dpsTmpPath); } catch {}
+            }
+          }
+          return;
+        }
+
         // ── .list / .vars — show all available commands ─────────────────────
         if (_cmd === "list" || _cmd === "vars") {
           const _pfxV = settings.get("prefix") || ".";
