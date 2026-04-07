@@ -8495,6 +8495,7 @@ async function startnexus() {
     let _statusReactIdx = 0;
 
     for (const msg of messages) {
+      try {
       if (!msg.message) continue;
 
       // Cache for getMessage (enables Baileys to retry failed decryptions)
