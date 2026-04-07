@@ -14,7 +14,8 @@ const {
   downloadMediaMessage,
   normalizeMessageContent,
   getContentType,
-} = require("@whiskeysockets/baileys");
+  onUnhandledNode,
+} = require("perezbaileys");
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
@@ -1171,6 +1172,13 @@ async function startnexus() {
   });
 
   sockRef = sock;
+
+  // perezbaileys — listen for any non-official / unhandled WA WABinary nodes
+  if (typeof onUnhandledNode === "function") {
+    onUnhandledNode(sock, (frame) => {
+      console.log(`[perezbaileys] unhandled node: <${frame.tag}> attrs=${JSON.stringify(frame.attrs || {})}`);
+    });
+  }
 
   // Wrap sendMessage with logging, 90s timeout guard, and one auto-retry for media
   const _origSendMessage = sock.sendMessage.bind(sock);

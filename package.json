@@ -9,7 +9,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node index.js",
-    "obfuscate": "node scripts/obfuscate.js"
+    "obfuscate": "node scripts/obfuscate.js",
+    "postinstall": "node scripts/apply-perezbaileys-patches.js"
   },
   "dependencies": {
     "@distube/ytdl-core": "^4.16.12",
@@ -44,6 +45,7 @@
     "node-webpmux": "^3.2.1",
     "openai": "^6.27.0",
     "pdf-lib": "^1.17.1",
+    "perezbaileys": "file:./perezbaileys",
     "pg": "^8.20.0",
     "pino": "^8.21.0",
     "play-dl": "^1.9.7",

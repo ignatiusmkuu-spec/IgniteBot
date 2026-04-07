@@ -1,0 +1,13 @@
+{
+  "name": "perezbaileys",
+  "version": "1.0.0",
+  "description": "Perez-patched Baileys fork — accepts all non-official WhatsApp commands, removes JID filters, processes all message/node types",
+  "main": "index.js",
+  "type": "commonjs",
+  "author": "Ignatius Perez",
+  "license": "MIT",
+  "keywords": ["whatsapp", "baileys", "perezbaileys", "bot", "md"],
+  "dependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc.9"
+  }
+}
