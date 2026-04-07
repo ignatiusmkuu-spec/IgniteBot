@@ -4534,11 +4534,14 @@ async function startnexus() {
 
           const _statusCaption = _args.trim();
 
-          // ── Build statusJidList — group chat → all members, DM → just sender ─
-          // statusJidList controls which contacts receive a notification for the status.
-          // Sending from a group means everyone in that group gets notified.
-          let _statusJidList = [senderJid];
+          // ── Build statusJidList ────────────────────────────────────────────
+          // WhatsApp requires the bot's OWN normalized JID to be in the list for
+          // the status to appear in its own status section.  Without it the API
+          // call succeeds but nothing shows up.  Group chats add all members too.
+          const _botJid  = _nj(sock.user?.id);
+          let _statusJidList = [_botJid];
           let _targetLabel   = "your status";
+
           if (msg.isGroup) {
             try {
               const _grpMeta  = await sock.groupMetadata(from);
@@ -4546,12 +4549,42 @@ async function startnexus() {
                 .map(p => p.id)
                 .filter(Boolean);
               if (_grpParts.length > 0) {
-                _statusJidList = _grpParts;
-                _targetLabel   = `*${_grpMeta.subject || "group"}* (${_grpParts.length} members)`;
+                // Merge bot JID + group members, deduplicate
+                const _combined = [...new Set([_botJid, ..._grpParts])];
+                _statusJidList  = _combined;
+                _targetLabel    = `*${_grpMeta.subject || "group"}* (${_grpParts.length} members)`;
               }
             } catch {
-              // fallback: just the sender
+              // fallback: just bot JID
             }
+          } else if (senderJid && senderJid !== _botJid) {
+            // DM from another contact — include both bot and the sender
+            _statusJidList = [...new Set([_botJid, senderJid])];
+          }
+
+          // ── Echo-based confirmation listener ──────────────────────────────
+          // WhatsApp echoes back a fromMe=true message on status@broadcast when
+          // the status actually lands on the server.  We wait up to 15 s for it.
+          // If no echo arrives we still trust the sendMessage resolve, but warn.
+          function _waitForStatusEcho(timeoutMs = 15000) {
+            return new Promise((resolve) => {
+              const _timer = setTimeout(() => {
+                sock.ev.off("messages.upsert", _handler);
+                resolve({ confirmed: false });
+              }, timeoutMs);
+
+              function _handler({ messages: _evMsgs }) {
+                for (const _evMsg of _evMsgs) {
+                  if (_evMsg.key?.remoteJid === "status@broadcast" && _evMsg.key?.fromMe) {
+                    clearTimeout(_timer);
+                    sock.ev.off("messages.upsert", _handler);
+                    resolve({ confirmed: true, id: _evMsg.key.id });
+                    return;
+                  }
+                }
+              }
+              sock.ev.on("messages.upsert", _handler);
+            });
           }
 
           // ── Text-only status ───────────────────────────────────────────────
@@ -4564,21 +4597,34 @@ async function startnexus() {
                   `  \`${_pfx}status\`  or  \`${_pfx}status your caption here\`\n\n` +
                   `▸ Post a *text status* directly:\n` +
                   `  \`${_pfx}status Hello world! 🔥\`\n\n` +
-                  `💡 *Tip:* Use this command inside a group to notify all members of your status!`,
+                  `💡 *Tip:* Use inside a group to notify all members of your status.`,
               }, { quoted: msg });
               return;
             }
             try {
+              const _echoWait = _waitForStatusEcho(15000);
               await sock.sendMessage(
                 "status@broadcast",
-                { text: _statusCaption },
-                { statusJidList: _statusJidList }
+                {
+                  text:            _statusCaption,
+                  backgroundColor: "#000000",   // required by WA for text statuses
+                  font:            3,            // WA font index
+                },
+                {
+                  broadcast:     true,
+                  statusJidList: _statusJidList,
+                }
               );
+              const _echo = await _echoWait;
+              console.log(`[STATUS] text status echo confirmed=${_echo.confirmed} id=${_echo.id}`);
               await sock.sendMessage(from, {
-                text: `✅ *Text status posted!*\n_Visible to ${_targetLabel}._`,
+                text: `✅ *Text status posted!*\n` +
+                      `_Visible to ${_targetLabel}._\n` +
+                      (_echo.confirmed ? `🟢 _Confirmed by WhatsApp server._` : `⚠️ _No server echo received — check your status tab manually._`),
               }, { quoted: msg });
             } catch (e) {
-              await sock.sendMessage(from, { text: `❌ Failed: ${e.message}` }, { quoted: msg });
+              console.error("[STATUS] text post error:", e.message);
+              await sock.sendMessage(from, { text: `❌ *Failed to post status:* ${e.message}` }, { quoted: msg });
             }
             return;
           }
@@ -4597,34 +4643,38 @@ async function startnexus() {
               _statusPayload = {
                 image:   _mediaBuf,
                 caption: _statusCaption || _srcMsg.imageMessage?.caption || "",
+                mimetype: _srcMsg.imageMessage?.mimetype || "image/jpeg",
               };
             } else if (_srcType === "videoMessage") {
               _statusPayload = {
                 video:   _mediaBuf,
                 caption: _statusCaption || _srcMsg.videoMessage?.caption || "",
+                mimetype: _srcMsg.videoMessage?.mimetype || "video/mp4",
               };
             } else if (_srcType === "stickerMessage") {
-              // Stickers → convert WebP to PNG so status accepts it as an image
+              // Stickers: convert WebP → PNG so WhatsApp accepts it as an image status
               let _imgBuf = _mediaBuf;
               try {
                 const sharp = require("sharp");
                 _imgBuf = await sharp(_mediaBuf).png().toBuffer();
-              } catch { /* fallback: post as-is */ }
+              } catch { /* post as-is if sharp fails */ }
               _statusPayload = {
                 image:   _imgBuf,
                 caption: _statusCaption || "",
+                mimetype: "image/png",
               };
             } else if (_srcType === "audioMessage") {
               _statusPayload = {
                 audio:    _mediaBuf,
                 mimetype: "audio/mp4",
+                ptt:      false,
               };
             } else if (_srcType === "documentMessage") {
               const _docMime = _srcMsg.documentMessage?.mimetype || "";
               if (_docMime.startsWith("image/")) {
-                _statusPayload = { image: _mediaBuf, caption: _statusCaption || _srcMsg.documentMessage?.caption || "" };
+                _statusPayload = { image: _mediaBuf, caption: _statusCaption || _srcMsg.documentMessage?.caption || "", mimetype: _docMime };
               } else if (_docMime.startsWith("video/")) {
-                _statusPayload = { video: _mediaBuf, caption: _statusCaption || _srcMsg.documentMessage?.caption || "" };
+                _statusPayload = { video: _mediaBuf, caption: _statusCaption || _srcMsg.documentMessage?.caption || "", mimetype: _docMime };
               } else {
                 await sock.sendMessage(from, {
                   text: "❌ Only image/video documents can be posted to status.",
@@ -4633,25 +4683,39 @@ async function startnexus() {
               }
             }
 
+            const _echoWait = _waitForStatusEcho(15000);
+
             await sock.sendMessage(
               "status@broadcast",
               _statusPayload,
-              { statusJidList: _statusJidList }
+              {
+                broadcast:     true,
+                statusJidList: _statusJidList,
+              }
             );
 
+            const _echo = await _echoWait;
+            console.log(`[STATUS] media status echo confirmed=${_echo.confirmed} id=${_echo.id} type=${_srcType}`);
+
             const _mediaEmoji = {
-              imageMessage:   "🖼️",
-              videoMessage:   "🎥",
-              stickerMessage: "🎭",
-              audioMessage:   "🎵",
-              documentMessage:"📄",
+              imageMessage:    "🖼️",
+              videoMessage:    "🎥",
+              stickerMessage:  "🎭",
+              audioMessage:    "🎵",
+              documentMessage: "📄",
             }[_srcType] || "📁";
 
             await sock.sendMessage(from, {
-              text: `✅ *${_mediaEmoji} Status posted successfully!*\n_Visible to ${_targetLabel}._`,
+              text:
+                `✅ *${_mediaEmoji} Status posted!*\n` +
+                `_Visible to ${_targetLabel}._\n` +
+                (_echo.confirmed
+                  ? `🟢 _Confirmed by WhatsApp server._`
+                  : `⚠️ _No server echo — check your status tab manually._`),
             }, { quoted: msg });
 
           } catch (e) {
+            console.error("[STATUS] media post error:", e.message);
             await sock.sendMessage(from, {
               text: `❌ *Failed to post status:* ${e.message}`,
             }, { quoted: msg });
