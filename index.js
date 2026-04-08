@@ -1585,23 +1585,9 @@ async function startnexus() {
         console.warn(`[PRESENCE] ${type} → ${toJid?.split("@")[0]} failed: ${err.message}`)
       );
 
-    // Presence indicator — send once then refresh up to 3 more times (24 s max).
-    // Using a tick counter prevents interval accumulation: each message creates
-    // at most one interval that is guaranteed to self-destruct within 32 s.
+    // Presence indicator — send once only, no repeat interval.
     if (shouldRecord || shouldType) {
       _sendPresence(presenceType, from);
-      let _pTicks = 0;
-      const _pInterval = setInterval(() => {
-        _pTicks++;
-        const _sR = settings.get("autoRecording") === true || settings.get("autoRecording") === "on";
-        const _sT = !_sR && (settings.get("autoTyping") === true || settings.get("autoTyping") === "on");
-        if ((_sR || _sT) && _pTicks < 3) {
-          _sendPresence(_sR ? "recording" : "composing", from);
-        } else {
-          clearInterval(_pInterval);
-          _sendPresence("paused", from).catch(() => {});
-        }
-      }, 8000);
     }
 
     broadcast.addRecipient(senderJid);
@@ -8082,8 +8068,6 @@ async function startnexus() {
               `┃ ⛔ ${_pfx}antilink on/off\n` +
               `┃ ⛔ ${_pfx}antispam on/off\n` +
               `┃ ⛔ ${_pfx}antiflood on/off\n` +
-              `┃ ⛔ ${_pfx}antilongtext on/off\n` +
-              `┃ ⛔ ${_pfx}settextlimit <n>\n` +
               `┃ ⛔ ${_pfx}antimention on/off\n` +
               `┃ ⛔ ${_pfx}antitag on/off\n` +
               `┃ ⛔ ${_pfx}welcome on/off — welcome messages\n` +
@@ -8455,14 +8439,9 @@ async function startnexus() {
       }
     }
 
-    // ── Stop typing heartbeat — clear interval then pause after commands finish
-    if (presenceInterval) {
-      clearInterval(presenceInterval);
-      presenceInterval = null;
-    }
+    // ── Clear typing indicator when done
     if (shouldRecord || shouldType) {
-      // Small delay so WhatsApp shows the indicator briefly before hiding it
-      setTimeout(() => _sendPresence("paused", from), 1500);
+      _sendPresence("paused", from);
     }
 
     // View-once auto-reveal handled in messages.upsert for immediate firing
@@ -8707,6 +8686,9 @@ async function startnexus() {
       processMessage(msg)
         .catch(err => console.error("processMessage error:", err.message))
         .finally(() => { _activeMsgCount = Math.max(0, _activeMsgCount - 1); });
+      } catch (_syncErr) {
+        console.error("[messages.upsert] sync handler error:", _syncErr?.message || _syncErr);
+      }
     }
   });
 
