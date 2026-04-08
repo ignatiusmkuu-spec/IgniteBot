@@ -4797,6 +4797,183 @@ async function startnexus() {
           return;
         }
 
+        // ── .loc — locate a phone number (country, region, timezone, type) ──
+        if (_cmd === "loc" || _cmd === "locate" || _cmd === "tracknumber" || _cmd === "numloc") {
+          // Resolve target number: from args, quoted message sender, or mentioned JID
+          let _locRaw = _args.trim().replace(/[\s\-\(\)\.]/g, "");
+          if (!_locRaw && msg.quoted) {
+            const _qs = msg.quoted.sender || msg.quoted.key?.participant || "";
+            _locRaw = _qs.split("@")[0].split(":")[0];
+          }
+          if (!_locRaw && _mentioned.length) {
+            _locRaw = _mentioned[0].split("@")[0].split(":")[0];
+          }
+
+          if (!_locRaw) {
+            await sock.sendMessage(from, {
+              text:
+                `📍 *Number Locator*\n${"─".repeat(26)}\n\n` +
+                `Usage:\n` +
+                `  \`${_pfx}loc +254706535581\`\n` +
+                `  \`${_pfx}loc 1234567890\` _(include country code)_\n\n` +
+                `Or reply to someone's message:\n` +
+                `  \`${_pfx}loc\` _(no number needed)_`,
+            }, { quoted: msg });
+            return;
+          }
+
+          // Ensure + prefix
+          if (!_locRaw.startsWith("+")) _locRaw = "+" + _locRaw;
+
+          await sock.sendMessage(from, { text: "📡 Locating number..." }, { quoted: msg });
+
+          try {
+            const apn = require("awesome-phonenumber");
+            const _locParsed = apn.parsePhoneNumber(_locRaw);
+
+            if (!_locParsed.valid) {
+              await sock.sendMessage(from, {
+                text:
+                  `❌ *Invalid or unrecognised number:* \`${_locRaw}\`\n\n` +
+                  `Make sure to include the full country code.\n` +
+                  `Examples:\n• \`${_pfx}loc +254706535581\` (Kenya)\n• \`${_pfx}loc +12025551234\` (USA)`,
+              }, { quoted: msg });
+              return;
+            }
+
+            const _locRegionCode  = _locParsed.regionCode;   // "KE", "US"
+            const _locCountryCode = _locParsed.countryCode;  // 254, 1
+            const _locIntl        = _locParsed.number.international;
+            const _locE164        = _locParsed.number.e164;
+            const _locNational    = _locParsed.number.national;
+            const _locNumType     = _locParsed.type || "unknown";
+
+            // ── Flag emoji from ISO code ────────────────────────────────────
+            const _locFlag = [..._locRegionCode.toUpperCase()]
+              .map(c => String.fromCodePoint(c.charCodeAt(0) + 127397))
+              .join("");
+
+            // ── Country details via restcountries.com (free, no key) ────────
+            let _locCountryName = _locRegionCode;
+            let _locContinent   = "";
+            let _locSubregion   = "";
+            let _locTimezones   = "";
+            let _locCapital     = "";
+            let _locCurrency    = "";
+            try {
+              const _rcRes = await axios.get(
+                `https://restcountries.com/v3.1/alpha/${_locRegionCode}?fields=name,timezones,region,subregion,capital,currencies`,
+                { timeout: 8000 }
+              );
+              const _rc = _rcRes.data;
+              _locCountryName = _rc?.name?.common   || _locRegionCode;
+              _locContinent   = _rc?.region         || "";
+              _locSubregion   = _rc?.subregion      || "";
+              _locTimezones   = (_rc?.timezones || []).slice(0, 2).join(", ");
+              _locCapital     = (_rc?.capital  || [])[0] || "";
+              const _cur = _rc?.currencies ? Object.values(_rc.currencies)[0] : null;
+              _locCurrency    = _cur ? `${_cur.name} (${_cur.symbol || ""})` : "";
+            } catch {}
+
+            // ── WhatsApp presence check ─────────────────────────────────────
+            let _locWA = "⚠️ Unable to check";
+            try {
+              const _waJid = _locE164.replace("+", "") + "@s.whatsapp.net";
+              const _waRes = await sock.onWhatsApp(_waJid).catch(() => []);
+              _locWA = (_waRes && _waRes[0]?.exists) ? "✅ Registered" : "❌ Not on WhatsApp";
+            } catch {}
+
+            // ── Optional carrier lookup ─────────────────────────────────────
+            let _locCarrier = null;
+            const _absKey  = process.env.ABSTRACT_API_KEY;
+            const _nvKey   = process.env.NUMVERIFY_KEY;
+            const _nlKey   = process.env.NUMLOOKUP_API_KEY;
+
+            if (_absKey && !_locCarrier) {
+              try {
+                const _ar = await axios.get(
+                  `https://phonevalidation.abstractapi.com/v1/?api_key=${_absKey}&phone=${encodeURIComponent(_locE164)}`,
+                  { timeout: 8000 }
+                );
+                _locCarrier = _ar.data?.carrier?.name || null;
+              } catch {}
+            }
+            if (_nvKey && !_locCarrier) {
+              try {
+                const _nr = await axios.get(
+                  `http://apilayer.net/api/validate?access_key=${_nvKey}&number=${_locE164.replace("+","")}&format=1`,
+                  { timeout: 8000 }
+                );
+                _locCarrier = _nr.data?.carrier || null;
+              } catch {}
+            }
+            if (_nlKey && !_locCarrier) {
+              try {
+                const _nlr = await axios.get(
+                  `https://api.numlookupapi.com/v1/validate/${_locE164.replace("+","")}?apikey=${_nlKey}`,
+                  { timeout: 8000 }
+                );
+                _locCarrier = _nlr.data?.carrier || null;
+              } catch {}
+            }
+
+            // ── Line type label ─────────────────────────────────────────────
+            const _locTypeMap = {
+              "mobile":               "📱 Mobile",
+              "fixed-line":           "☎️ Fixed Line",
+              "fixed-line-or-mobile": "📱 Mobile / Fixed Line",
+              "toll-free":            "📞 Toll-Free",
+              "premium-rate":         "💲 Premium Rate",
+              "shared-cost":          "🔄 Shared Cost",
+              "voip":                 "💻 VoIP",
+              "personal-number":      "🔑 Personal Number",
+              "pager":                "📟 Pager",
+              "uan":                  "🏢 UAN",
+              "unknown":              "❓ Unknown",
+            };
+            const _locTypeLabel = _locTypeMap[_locNumType] || _locNumType;
+
+            // ── Build response ──────────────────────────────────────────────
+            let _locOut =
+              `╭━━━〔 📍 *NUMBER TRACKER* 〕━━━⬣\n` +
+              `┃\n` +
+              `┃ 📞 *Number:*  ${_locIntl}\n` +
+              `┃ 🔢 *Dial Code:* +${_locCountryCode}\n` +
+              `┃ ${_locFlag} *Country:*  ${_locCountryName}\n`;
+
+            if (_locCapital)   _locOut += `┃ 🏛️ *Capital:*  ${_locCapital}\n`;
+            if (_locSubregion) _locOut += `┃ 🌍 *Region:*   ${_locSubregion}\n`;
+            if (_locContinent && _locContinent !== _locSubregion)
+                               _locOut += `┃ 🗺️ *Continent:* ${_locContinent}\n`;
+            if (_locTimezones) _locOut += `┃ 🕐 *Timezone:*  ${_locTimezones}\n`;
+            if (_locCurrency)  _locOut += `┃ 💵 *Currency:*  ${_locCurrency}\n`;
+            if (_locCarrier)   _locOut += `┃ 📡 *Carrier:*   ${_locCarrier}\n`;
+
+            _locOut +=
+              `┃ 📶 *Line Type:* ${_locTypeLabel}\n` +
+              `┃ ✅ *Valid:*     Yes\n` +
+              `┃ 💬 *WhatsApp:*  ${_locWA}\n` +
+              `┃\n` +
+              `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `_⚠️ Based on number registration data, not real-time GPS location._`;
+
+            if (!_locCarrier && (_absKey || _nvKey || _nlKey)) {
+              _locOut += `\n_📡 Carrier data unavailable for this number._`;
+            } else if (!_locCarrier) {
+              _locOut += `\n_📡 Add *ABSTRACT\\_API\\_KEY*, *NUMVERIFY\\_KEY*, or *NUMLOOKUP\\_API\\_KEY* secret for carrier data._`;
+            }
+
+            await sock.sendMessage(from, { text: _locOut }, { quoted: msg });
+
+          } catch (_locErr) {
+            console.error("[.loc] error:", _locErr.message);
+            await sock.sendMessage(from, {
+              text: `❌ *Tracker error:* ${_locErr.message}`,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .list / .vars — show all available commands ─────────────────────
         if (_cmd === "list" || _cmd === "vars") {
           const _pfxV = settings.get("prefix") || ".";
