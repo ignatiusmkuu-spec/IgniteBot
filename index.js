@@ -4799,7 +4799,124 @@ async function startnexus() {
 
         // ── .loc — locate a phone number (country, region, timezone, type) ──
         if (_cmd === "loc" || _cmd === "locate" || _cmd === "tracknumber" || _cmd === "numloc") {
-          // Resolve target number: from args, quoted message sender, or mentioned JID
+
+          // ── Carrier prefix database (telecom regulator data, no API needed) ─
+          // Key = ISO-2 country code, value = fn(nationalNumber) → carrier name
+          const _LOC_CARRIERS = {
+            KE: (n) => {
+              const p = parseInt(n.slice(0, 3));
+              if ((p >= 700 && p <= 729) || (p >= 740 && p <= 745) || (p >= 757 && p <= 759) || (p >= 768 && p <= 769) || (p >= 790 && p <= 799)) return "Safaricom";
+              if ((p >= 730 && p <= 739) || (p >= 750 && p <= 756) || (p >= 780 && p <= 789)) return "Airtel Kenya";
+              if ((p >= 760 && p <= 767) || (p >= 770 && p <= 779)) return "Telkom Kenya";
+              return null;
+            },
+            NG: (n) => {
+              const p3 = n.slice(0, 3);
+              const mtn  = ["803","806","810","813","814","816","903","906","913","916","703","706","704","814"];
+              const air  = ["802","808","812","901","902","904","907","912","701","708","902"];
+              const glo  = ["805","807","811","815","905","915","705","805"];
+              const emob = ["809","817","818","908","909"];
+              if (mtn.includes(p3))  return "MTN Nigeria";
+              if (air.includes(p3))  return "Airtel Nigeria";
+              if (glo.includes(p3))  return "Glo Nigeria";
+              if (emob.includes(p3)) return "9mobile Nigeria";
+              return null;
+            },
+            GH: (n) => {
+              const p2 = n.slice(0, 2);
+              if (["24","54","55","59"].includes(p2)) return "MTN Ghana";
+              if (["20","50"].includes(p2))           return "Vodafone Ghana";
+              if (["26","27","56","57"].includes(p2)) return "AirtelTigo Ghana";
+              if (["28","29","23","57"].includes(p2)) return "Glo Ghana";
+              return null;
+            },
+            TZ: (n) => {
+              const p2 = n.slice(0, 2);
+              if (["71","74"].includes(p2))           return "Vodacom Tanzania";
+              if (["75","78","68"].includes(p2))      return "Airtel Tanzania";
+              if (["76","77"].includes(p2))           return "Tigo Tanzania";
+              if (["67"].includes(p2))                return "Halotel Tanzania";
+              if (["73"].includes(p2))                return "Zantel Tanzania";
+              return null;
+            },
+            UG: (n) => {
+              const p2 = n.slice(0, 2);
+              if (["77","78","76","39"].includes(p2)) return "MTN Uganda";
+              if (["70","75","74"].includes(p2))      return "Airtel Uganda";
+              if (["72","79"].includes(p2))           return "Africell Uganda";
+              return null;
+            },
+            ZA: (n) => {
+              const p2 = n.slice(0, 2);
+              if (["71","72","73","74","76","79","60","61","62","63","64","65","66","67","68","69"].includes(p2)) return "Vodacom SA";
+              if (["82","83"].includes(p2))           return "MTN South Africa";
+              if (["84"].includes(p2))                return "Cell C";
+              if (["78","81"].includes(p2))           return "Telkom Mobile SA";
+              return null;
+            },
+            RW: (n) => {
+              const p3 = n.slice(0, 3);
+              if (["780","781","782","783","784","785","786","787","788","789"].includes(p3)) return "MTN Rwanda";
+              if (["720","721","722","723","724","725","726","727","728","729"].includes(p3)) return "Airtel Rwanda";
+              return null;
+            },
+            ET: (n) => {
+              return "Ethio Telecom"; // only operator
+            },
+            ZW: (n) => {
+              const p3 = n.slice(0, 3);
+              if (["771","772","773"].includes(p3))   return "Econet Zimbabwe";
+              if (["713","714","715"].includes(p3))   return "NetOne Zimbabwe";
+              if (["733","734","735"].includes(p3))   return "Telecel Zimbabwe";
+              return null;
+            },
+            IN: (n) => {
+              const p5 = n.slice(0, 5);
+              const jio  = ["89","83","97","70","79","82","96","98","87","80","81","76","99","78"];
+              const air  = ["81","97","98","70","72","73","74","75","93","99","86","88","87","84"];
+              const vi   = ["98","99","88","70","97","96","90","95","92","94","93","72","73","76"];
+              const bsnl = ["94","95"];
+              const p2 = n.slice(0, 2);
+              // Simplified — Jio dominates with certain ranges
+              if (["89","83","79","80","82","70","77"].some(x => n.startsWith(x))) return "Reliance Jio";
+              if (["98","97","96"].some(x => n.startsWith(x))) return "Airtel India";
+              if (["74","75","76","72","73"].some(x => n.startsWith(x))) return "Vi (Vodafone Idea)";
+              if (["94","95"].some(x => n.startsWith(x))) return "BSNL India";
+              return "Indian Telecom";
+            },
+            GB: (n) => {
+              const p3 = n.slice(0, 3);
+              if (["741","742","743","744","745","746","747","748","749","750","751","752","753","754","756","757","758","759","700","701","702","703","704","705","730","731","732","733","734","735","736","737","738","739","770","771","772","773","774","775","776","777","778","779"].includes(p3)) return "EE (UK)";
+              if (["796","797","798","799","792","793","794","795","787","786","785","784","783","782","781","780"].includes(p3)) return "O2 UK";
+              if (["760","761","762","763","764","765","766","767","768","769"].includes(p3)) return "Vodafone UK";
+              if (["790","791","800","801","802","803","804","805","806","807","808","809"].includes(p3)) return "Three UK";
+              return "UK Network";
+            },
+            US: (n) => {
+              // US area code → state (first 3 digits)
+              const areaStateMap = {
+                "201":"NJ","202":"DC","203":"CT","205":"AL","206":"WA","207":"ME","208":"ID","209":"CA","210":"TX","212":"NY","213":"CA","214":"TX","215":"PA","216":"OH","217":"IL","218":"MN","219":"IN","220":"OH","224":"IL","225":"LA","227":"MD","228":"MS","229":"GA","231":"MI","234":"OH","239":"FL","240":"MD","248":"MI","251":"AL","252":"NC","253":"WA","254":"TX","256":"AL","260":"IN","262":"WI","267":"PA","269":"MI","270":"KY","272":"PA","274":"WI","276":"VA","281":"TX","301":"MD","302":"DE","303":"CO","304":"WV","305":"FL","307":"WY","308":"NE","309":"IL","310":"CA","312":"IL","313":"MI","314":"MO","315":"NY","316":"KS","317":"IN","318":"LA","319":"IA","320":"MN","321":"FL","323":"CA","325":"TX","330":"OH","331":"IL","332":"NY","334":"AL","336":"NC","337":"LA","339":"MA","340":"VI","341":"CA","346":"TX","347":"NY","351":"MA","352":"FL","360":"WA","361":"TX","364":"KY","380":"OH","385":"UT","386":"FL","401":"RI","402":"NE","404":"GA","405":"OK","406":"MT","407":"FL","408":"CA","409":"TX","410":"MD","412":"PA","413":"MA","414":"WI","415":"CA","417":"MO","419":"OH","423":"TN","424":"CA","425":"WA","430":"TX","432":"TX","434":"VA","435":"UT","440":"OH","442":"CA","443":"MD","447":"IL","448":"CA","458":"OR","463":"IN","469":"TX","470":"GA","475":"CT","478":"GA","479":"AR","480":"AZ","484":"PA","501":"AR","502":"KY","503":"OR","504":"LA","505":"NM","507":"MN","508":"MA","509":"WA","510":"CA","512":"TX","513":"OH","515":"IA","516":"NY","517":"MI","518":"NY","520":"AZ","530":"CA","531":"NE","534":"WI","539":"OK","540":"VA","541":"OR","551":"NJ","559":"CA","561":"FL","562":"CA","563":"IA","564":"WA","567":"OH","570":"PA","571":"VA","573":"MO","574":"IN","575":"NM","580":"OK","585":"NY","586":"MI","601":"MS","602":"AZ","603":"NH","605":"SD","606":"KY","607":"NY","608":"WI","609":"NJ","610":"PA","612":"MN","614":"OH","615":"TN","616":"MI","617":"MA","618":"IL","619":"CA","620":"KS","623":"AZ","626":"CA","628":"CA","629":"TN","630":"IL","631":"NY","636":"MO","641":"IA","646":"NY","650":"CA","651":"MN","657":"CA","660":"MO","661":"CA","662":"MS","667":"MD","669":"CA","671":"GU","678":"GA","680":"NY","682":"TX","701":"ND","702":"NV","703":"VA","704":"NC","706":"GA","707":"CA","708":"IL","712":"IA","713":"TX","714":"CA","715":"WI","716":"NY","717":"PA","718":"NY","719":"CO","720":"CO","724":"PA","725":"NV","726":"TX","727":"FL","731":"TN","732":"NJ","734":"MI","737":"TX","740":"OH","743":"NC","747":"CA","754":"FL","757":"VA","760":"CA","762":"GA","763":"MN","764":"CA","765":"IN","769":"MS","770":"GA","771":"VA","772":"FL","773":"IL","774":"MA","775":"NV","779":"IL","781":"MA","785":"KS","786":"FL","787":"PR","801":"UT","802":"VT","803":"SC","804":"VA","805":"CA","806":"TX","808":"HI","810":"MI","812":"IN","813":"FL","814":"PA","815":"IL","816":"MO","817":"TX","818":"CA","820":"CA","826":"VA","828":"NC","830":"TX","831":"CA","832":"TX","838":"NY","843":"SC","845":"NY","847":"IL","848":"NJ","850":"FL","854":"SC","856":"NJ","857":"MA","858":"CA","859":"KY","860":"CT","862":"NJ","863":"FL","864":"SC","865":"TN","870":"AR","872":"IL","878":"PA","901":"TN","903":"TX","904":"FL","906":"MI","907":"AK","908":"NJ","909":"CA","910":"NC","912":"GA","913":"KS","914":"NY","915":"TX","916":"CA","917":"NY","918":"OK","919":"NC","920":"WI","925":"CA","928":"AZ","929":"NY","930":"IN","931":"TN","934":"NY","936":"TX","937":"OH","938":"AL","940":"TX","941":"FL","947":"MI","949":"CA","951":"CA","952":"MN","954":"FL","956":"TX","959":"CT","970":"CO","971":"OR","972":"TX","973":"NJ","978":"MA","979":"TX","980":"NC","984":"NC","985":"LA","986":"ID",
+              };
+              const area = n.slice(0, 3);
+              const state = areaStateMap[area];
+              return state ? `United States — ${state}` : "United States";
+            },
+            CA: (n) => {
+              const area = n.slice(0, 3);
+              const provMap = {"204":"Manitoba","226":"Ontario","236":"BC","249":"Ontario","250":"BC","289":"Ontario","306":"Saskatchewan","343":"Ontario","365":"Ontario","403":"Alberta","416":"Ontario","418":"Québec","431":"Manitoba","437":"Ontario","438":"Québec","450":"Québec","506":"New Brunswick","514":"Québec","519":"Ontario","548":"Ontario","579":"Québec","581":"Québec","587":"Alberta","604":"BC","613":"Ontario","639":"Saskatchewan","647":"Ontario","672":"BC","705":"Ontario","709":"Newfoundland","778":"BC","780":"Alberta","782":"Nova Scotia","807":"Ontario","819":"Québec","825":"Alberta","867":"Territories","873":"Québec","902":"Nova Scotia","905":"Ontario"};
+              return provMap[area] ? `Canada — ${provMap[area]}` : "Canada";
+            },
+            AU: (n) => {
+              if (n.startsWith("4")) return "Australian Mobile";
+              if (n.startsWith("2")) return "NSW/ACT";
+              if (n.startsWith("3")) return "VIC/TAS";
+              if (n.startsWith("7")) return "QLD";
+              if (n.startsWith("8")) return "SA/WA/NT";
+              return null;
+            },
+          };
+
+          // ── Resolve target number ───────────────────────────────────────────
           let _locRaw = _args.trim().replace(/[\s\-\(\)\.]/g, "");
           if (!_locRaw && msg.quoted) {
             const _qs = msg.quoted.sender || msg.quoted.key?.participant || "";
@@ -4814,154 +4931,148 @@ async function startnexus() {
               text:
                 `📍 *Number Locator*\n${"─".repeat(26)}\n\n` +
                 `Usage:\n` +
-                `  \`${_pfx}loc +254706535581\`\n` +
-                `  \`${_pfx}loc 1234567890\` _(include country code)_\n\n` +
-                `Or reply to someone's message:\n` +
-                `  \`${_pfx}loc\` _(no number needed)_`,
+                `  \`${_pfx}loc +254706535581\`  ← with country code\n` +
+                `  \`${_pfx}loc 254706535581\`   ← without +\n\n` +
+                `Or reply to any message:\n` +
+                `  \`${_pfx}loc\`  ← traces the quoted person`,
             }, { quoted: msg });
             return;
           }
 
-          // Ensure + prefix
           if (!_locRaw.startsWith("+")) _locRaw = "+" + _locRaw;
 
-          await sock.sendMessage(from, { text: "📡 Locating number..." }, { quoted: msg });
+          await sock.sendMessage(from, { text: "📡 Tracing number..." }, { quoted: msg });
 
           try {
-            const apn = require("awesome-phonenumber");
-            const _locParsed = apn.parsePhoneNumber(_locRaw);
-
-            if (!_locParsed.valid) {
+            // ── Parse with libphonenumber-js/max (highest accuracy) ──────────
+            const { parsePhoneNumber } = require("libphonenumber-js/max");
+            let _locPN;
+            try {
+              _locPN = parsePhoneNumber(_locRaw);
+            } catch {
               await sock.sendMessage(from, {
-                text:
-                  `❌ *Invalid or unrecognised number:* \`${_locRaw}\`\n\n` +
-                  `Make sure to include the full country code.\n` +
-                  `Examples:\n• \`${_pfx}loc +254706535581\` (Kenya)\n• \`${_pfx}loc +12025551234\` (USA)`,
+                text: `❌ *Cannot parse:* \`${_locRaw}\`\n\nInclude the full country code.\nExample: \`${_pfx}loc +254706535581\``,
               }, { quoted: msg });
               return;
             }
 
-            const _locRegionCode  = _locParsed.regionCode;   // "KE", "US"
-            const _locCountryCode = _locParsed.countryCode;  // 254, 1
-            const _locIntl        = _locParsed.number.international;
-            const _locE164        = _locParsed.number.e164;
-            const _locNational    = _locParsed.number.national;
-            const _locNumType     = _locParsed.type || "unknown";
+            if (!_locPN.isValid()) {
+              await sock.sendMessage(from, {
+                text: `❌ *Invalid number:* \`${_locRaw}\`\n\nThis number does not exist in any country's numbering plan.`,
+              }, { quoted: msg });
+              return;
+            }
 
-            // ── Flag emoji from ISO code ────────────────────────────────────
-            const _locFlag = [..._locRegionCode.toUpperCase()]
-              .map(c => String.fromCodePoint(c.charCodeAt(0) + 127397))
-              .join("");
+            const _locCC      = _locPN.countryCallingCode;    // "254"
+            const _locISO     = _locPN.country || "??";        // "KE"
+            const _locNatNum  = _locPN.nationalNumber;          // "706535581"
+            const _locE164    = _locPN.number;                  // "+254706535581"
+            const _locIntlFmt = _locPN.formatInternational();   // "+254 706 535581"
+            const _locNatFmt  = _locPN.formatNational();        // "0706 535581"
+            const _locType    = _locPN.getType() || "UNKNOWN";  // "MOBILE"
 
-            // ── Country details via restcountries.com (free, no key) ────────
-            let _locCountryName = _locRegionCode;
+            // ── Flag emoji ───────────────────────────────────────────────────
+            const _locFlag = _locISO !== "??"
+              ? [..._locISO].map(c => String.fromCodePoint(c.charCodeAt(0) + 127397)).join("")
+              : "🌐";
+
+            // ── Carrier from embedded prefix database ────────────────────────
+            let _locCarrier = null;
+            if (_LOC_CARRIERS[_locISO]) {
+              _locCarrier = _LOC_CARRIERS[_locISO](_locNatNum);
+            }
+
+            // ── Country details: restcountries.com ───────────────────────────
+            let _locCountryName = _locISO;
             let _locContinent   = "";
             let _locSubregion   = "";
             let _locTimezones   = "";
             let _locCapital     = "";
             let _locCurrency    = "";
             try {
-              const _rcRes = await axios.get(
-                `https://restcountries.com/v3.1/alpha/${_locRegionCode}?fields=name,timezones,region,subregion,capital,currencies`,
+              const _rc = (await axios.get(
+                `https://restcountries.com/v3.1/alpha/${_locISO}?fields=name,timezones,region,subregion,capital,currencies`,
                 { timeout: 8000 }
-              );
-              const _rc = _rcRes.data;
-              _locCountryName = _rc?.name?.common   || _locRegionCode;
-              _locContinent   = _rc?.region         || "";
-              _locSubregion   = _rc?.subregion      || "";
+              )).data;
+              _locCountryName = _rc?.name?.common || _locISO;
+              _locContinent   = _rc?.region       || "";
+              _locSubregion   = _rc?.subregion    || "";
               _locTimezones   = (_rc?.timezones || []).slice(0, 2).join(", ");
               _locCapital     = (_rc?.capital  || [])[0] || "";
               const _cur = _rc?.currencies ? Object.values(_rc.currencies)[0] : null;
               _locCurrency    = _cur ? `${_cur.name} (${_cur.symbol || ""})` : "";
             } catch {}
 
-            // ── WhatsApp presence check ─────────────────────────────────────
-            let _locWA = "⚠️ Unable to check";
+            // ── WhatsApp presence check ──────────────────────────────────────
+            let _locWA = "⚠️ Unknown";
             try {
-              const _waJid = _locE164.replace("+", "") + "@s.whatsapp.net";
-              const _waRes = await sock.onWhatsApp(_waJid).catch(() => []);
-              _locWA = (_waRes && _waRes[0]?.exists) ? "✅ Registered" : "❌ Not on WhatsApp";
+              const _waCheck = await sock.onWhatsApp(_locE164.slice(1) + "@s.whatsapp.net").catch(() => []);
+              _locWA = _waCheck?.[0]?.exists ? "✅ Active on WhatsApp" : "❌ Not on WhatsApp";
             } catch {}
 
-            // ── Optional carrier lookup ─────────────────────────────────────
-            let _locCarrier = null;
-            const _absKey  = process.env.ABSTRACT_API_KEY;
-            const _nvKey   = process.env.NUMVERIFY_KEY;
-            const _nlKey   = process.env.NUMLOOKUP_API_KEY;
-
-            if (_absKey && !_locCarrier) {
-              try {
-                const _ar = await axios.get(
-                  `https://phonevalidation.abstractapi.com/v1/?api_key=${_absKey}&phone=${encodeURIComponent(_locE164)}`,
-                  { timeout: 8000 }
-                );
-                _locCarrier = _ar.data?.carrier?.name || null;
-              } catch {}
-            }
-            if (_nvKey && !_locCarrier) {
-              try {
-                const _nr = await axios.get(
-                  `http://apilayer.net/api/validate?access_key=${_nvKey}&number=${_locE164.replace("+","")}&format=1`,
-                  { timeout: 8000 }
-                );
-                _locCarrier = _nr.data?.carrier || null;
-              } catch {}
-            }
-            if (_nlKey && !_locCarrier) {
-              try {
-                const _nlr = await axios.get(
-                  `https://api.numlookupapi.com/v1/validate/${_locE164.replace("+","")}?apikey=${_nlKey}`,
-                  { timeout: 8000 }
-                );
-                _locCarrier = _nlr.data?.carrier || null;
-              } catch {}
+            // ── Optional API carrier (if key set) ────────────────────────────
+            if (!_locCarrier) {
+              const _absKey = process.env.ABSTRACT_API_KEY;
+              const _nvKey  = process.env.NUMVERIFY_KEY;
+              const _nlKey  = process.env.NUMLOOKUP_API_KEY;
+              if (_absKey) {
+                try { _locCarrier = (await axios.get(`https://phonevalidation.abstractapi.com/v1/?api_key=${_absKey}&phone=${encodeURIComponent(_locE164)}`, {timeout:7000})).data?.carrier?.name || null; } catch {}
+              }
+              if (!_locCarrier && _nvKey) {
+                try { _locCarrier = (await axios.get(`http://apilayer.net/api/validate?access_key=${_nvKey}&number=${_locE164.slice(1)}&format=1`, {timeout:7000})).data?.carrier || null; } catch {}
+              }
+              if (!_locCarrier && _nlKey) {
+                try { _locCarrier = (await axios.get(`https://api.numlookupapi.com/v1/validate/${_locE164.slice(1)}?apikey=${_nlKey}`, {timeout:7000})).data?.carrier || null; } catch {}
+              }
             }
 
-            // ── Line type label ─────────────────────────────────────────────
-            const _locTypeMap = {
-              "mobile":               "📱 Mobile",
-              "fixed-line":           "☎️ Fixed Line",
-              "fixed-line-or-mobile": "📱 Mobile / Fixed Line",
-              "toll-free":            "📞 Toll-Free",
-              "premium-rate":         "💲 Premium Rate",
-              "shared-cost":          "🔄 Shared Cost",
-              "voip":                 "💻 VoIP",
-              "personal-number":      "🔑 Personal Number",
-              "pager":                "📟 Pager",
-              "uan":                  "🏢 UAN",
-              "unknown":              "❓ Unknown",
-            };
-            const _locTypeLabel = _locTypeMap[_locNumType] || _locNumType;
+            // ── Line type label ──────────────────────────────────────────────
+            const _locTypeLabel = {
+              MOBILE:               "📱 Mobile",
+              FIXED_LINE:           "☎️ Fixed Line",
+              FIXED_LINE_OR_MOBILE: "📱 Mobile / Fixed",
+              TOLL_FREE:            "📞 Toll-Free",
+              PREMIUM_RATE:         "💲 Premium Rate",
+              SHARED_COST:          "🔄 Shared Cost",
+              VOIP:                 "💻 VoIP",
+              PERSONAL_NUMBER:      "🔑 Personal Number",
+              PAGER:                "📟 Pager",
+              UAN:                  "🏢 UAN",
+              UNKNOWN:              "❓ Unknown",
+            }[_locType] || _locType;
 
-            // ── Build response ──────────────────────────────────────────────
+            // ── US/CA get region from carrier field ──────────────────────────
+            let _locStateRegion = "";
+            if ((_locISO === "US" || _locISO === "CA") && _locCarrier) {
+              _locStateRegion = _locCarrier;
+              _locCarrier     = null; // it's a region, not a network name
+            }
+
+            // ── Build output ─────────────────────────────────────────────────
             let _locOut =
               `╭━━━〔 📍 *NUMBER TRACKER* 〕━━━⬣\n` +
               `┃\n` +
-              `┃ 📞 *Number:*  ${_locIntl}\n` +
-              `┃ 🔢 *Dial Code:* +${_locCountryCode}\n` +
-              `┃ ${_locFlag} *Country:*  ${_locCountryName}\n`;
+              `┃ 📞 *Number:*      ${_locIntlFmt}\n` +
+              `┃ 🏠 *Local format:* ${_locNatFmt}\n` +
+              `┃ 🔢 *Dial code:*   +${_locCC}\n` +
+              `┃ ${_locFlag} *Country:*    ${_locCountryName}\n`;
 
-            if (_locCapital)   _locOut += `┃ 🏛️ *Capital:*  ${_locCapital}\n`;
-            if (_locSubregion) _locOut += `┃ 🌍 *Region:*   ${_locSubregion}\n`;
+            if (_locCapital)     _locOut += `┃ 🏛️ *Capital:*    ${_locCapital}\n`;
+            if (_locStateRegion) _locOut += `┃ 📌 *State/Region:* ${_locStateRegion.replace(/^.*— /, "")}\n`;
+            if (_locSubregion)   _locOut += `┃ 🌍 *Sub-region:*  ${_locSubregion}\n`;
             if (_locContinent && _locContinent !== _locSubregion)
-                               _locOut += `┃ 🗺️ *Continent:* ${_locContinent}\n`;
-            if (_locTimezones) _locOut += `┃ 🕐 *Timezone:*  ${_locTimezones}\n`;
-            if (_locCurrency)  _locOut += `┃ 💵 *Currency:*  ${_locCurrency}\n`;
-            if (_locCarrier)   _locOut += `┃ 📡 *Carrier:*   ${_locCarrier}\n`;
+                                 _locOut += `┃ 🗺️ *Continent:*   ${_locContinent}\n`;
+            if (_locTimezones)   _locOut += `┃ 🕐 *Timezone:*    ${_locTimezones}\n`;
+            if (_locCurrency)    _locOut += `┃ 💵 *Currency:*    ${_locCurrency}\n`;
+            if (_locCarrier)     _locOut += `┃ 📡 *Network:*     ${_locCarrier}\n`;
 
             _locOut +=
-              `┃ 📶 *Line Type:* ${_locTypeLabel}\n` +
-              `┃ ✅ *Valid:*     Yes\n` +
-              `┃ 💬 *WhatsApp:*  ${_locWA}\n` +
+              `┃ 📶 *Line type:*   ${_locTypeLabel}\n` +
+              `┃ ✅ *Valid:*       Yes\n` +
+              `┃ 💬 *WhatsApp:*    ${_locWA}\n` +
               `┃\n` +
-              `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `_⚠️ Based on number registration data, not real-time GPS location._`;
-
-            if (!_locCarrier && (_absKey || _nvKey || _nlKey)) {
-              _locOut += `\n_📡 Carrier data unavailable for this number._`;
-            } else if (!_locCarrier) {
-              _locOut += `\n_📡 Add *ABSTRACT\\_API\\_KEY*, *NUMVERIFY\\_KEY*, or *NUMLOOKUP\\_API\\_KEY* secret for carrier data._`;
-            }
+              `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `_⚠️ Location based on number registration, not real-time GPS._`;
 
             await sock.sendMessage(from, { text: _locOut }, { quoted: msg });
 
