@@ -1301,13 +1301,14 @@ async function startnexus() {
           setTimeout(startnexus, 5000);
         }
       } else if (isReplaced) {
-        // Another WhatsApp instance connected with the same session (e.g. a
-        // new Heroku dyno starting while the old one is still running).
-        // Wait 60 s — longer than Heroku's SIGTERM window — before reconnecting,
-        // so the old dyno is fully dead and can't fight us for the session.
-        console.log("⚠️  Connection replaced (440) — another instance started. Retrying in 60 s...");
+        // Another WhatsApp instance connected with the same session.
+        // On Heroku we wait 60 s (longer than the SIGTERM window) so the old
+        // dyno is fully dead before the new one reconnects.
+        // On other platforms (Replit, VPS, local) 10 s is enough.
+        const _replacedDelay = process.env.DYNO ? 60000 : 10000;
+        console.log(`⚠️  Connection replaced (440) — another instance started. Retrying in ${_replacedDelay / 1000} s...`);
         reconnectAttempts = 0;
-        setTimeout(startnexus, 60000);
+        setTimeout(startnexus, _replacedDelay);
       } else if (waitingForSession) {
         // No session yet — don't loop. Wait for the user to POST a session.
         console.log(`⏳ No session configured. Visit /dashboard?tab=setup to get started.`);
@@ -1457,19 +1458,34 @@ async function startnexus() {
     // Use Baileys v7 normalizeMessageContent to fully unwrap ALL wrapper types
     // (ephemeral, viewOnce, deviceSent, documentWithCaption, etc.) for body extraction
     const _normalized = normalizeMessageContent(msg.message) || {};
+    // For group messages, WhatsApp may wrap content alongside messageContextInfo.
+    // Build a direct unwrap fallback by looking at all non-context keys in msg.message.
+    const _directMsg = (() => {
+      const m = msg.message || {};
+      const skip = new Set(["messageContextInfo","senderKeyDistributionMessage","protocolMessage"]);
+      for (const k of Object.keys(m)) {
+        if (!skip.has(k) && m[k] && typeof m[k] === "object") return m[k];
+      }
+      return {};
+    })();
     const body    =
       _normalized.conversation ||
       _normalized.extendedTextMessage?.text ||
       _inner.conversation ||
       _inner.extendedTextMessage?.text ||
+      _directMsg.conversation ||
+      _directMsg.extendedTextMessage?.text ||
       _normalized.imageMessage?.caption ||
       _inner.imageMessage?.caption ||
+      _directMsg.imageMessage?.caption ||
       _normalized.videoMessage?.caption ||
       _inner.videoMessage?.caption ||
+      _directMsg.videoMessage?.caption ||
       _inner.buttonsResponseMessage?.selectedDisplayText ||
       _inner.listResponseMessage?.title ||
       _inner.templateButtonReplyMessage?.selectedDisplayText ||
       _normalized.documentMessage?.caption ||
+      _directMsg.documentMessage?.caption ||
       "";
     const msgType = getContentType(_normalized) || getContentType(_inner) || Object.keys(msg.message || {})[0] || "unknown";
 
@@ -4211,14 +4227,27 @@ async function startnexus() {
           }
           try {
             const googleTTS = require("google-tts-api");
+            // Auto-detect language from the text (default to English)
+            const _ttsLang = (() => {
+              const t = _args.trim();
+              if (/[\u0600-\u06FF]/.test(t)) return "ar";
+              if (/[\u4E00-\u9FFF]/.test(t)) return "zh";
+              if (/[\u0900-\u097F]/.test(t)) return "hi";
+              if (/[\u0400-\u04FF]/.test(t)) return "ru";
+              return "en";
+            })();
             const audioUrl  = googleTTS.getAudioUrl(_args.trim(), {
-              lang: "hi-IN",
+              lang: _ttsLang,
               slow: false,
               host: "https://translate.google.com",
             });
+            // Fetch the audio and send as buffer to avoid mimetype mismatch
+            const _ttsAxios = require("axios");
+            const _ttsBuf = await _ttsAxios.get(audioUrl, { responseType: "arraybuffer", timeout: 10000 });
+            const _ttsBuffer = Buffer.from(_ttsBuf.data);
             await sock.sendMessage(from, {
-              audio: { url: audioUrl },
-              mimetype: "audio/mp4",
+              audio: _ttsBuffer,
+              mimetype: "audio/mpeg",
               ptt: true,
             }, { quoted: msg });
           } catch (e) {
@@ -8479,9 +8508,16 @@ async function startnexus() {
     // When the owner sends from their own number (ADMIN_NUMBERS), fromMe is
     // false because it's not the bot's own WhatsApp account — so we patch a
     // shallow copy of msg so the handler treats them as the bot owner.
-    const _msgForCmds = (!msg.key.fromMe && admin.isSuperAdmin(senderJid))
+    // For group members in public mode, also patch fromMe=true so the obfuscated
+    // handler can process their commands, but mark _groupMember=true so
+    // owner-only built-in guards know they are not the actual owner.
+    const _publicMode = (settings.get("mode") || "public") === "public";
+    const _isActualOwner = msg.key.fromMe === true || admin.isSuperAdmin(senderJid);
+    const _msgForCmds = _isActualOwner
       ? { ...msg, key: { ...msg.key, fromMe: true } }
-      : msg;
+      : (_publicMode && msg.isGroup)
+        ? { ...msg, key: { ...msg.key, fromMe: true }, _groupMember: true, _isOwner: false }
+        : msg;
 
     // ── Per-command 45 s hard timeout ────────────────────────────────────────
     // If commands.handle() never resolves (hung API, stalled download, etc.)
@@ -8781,17 +8817,20 @@ async function startnexus() {
         // Guard with isLive: "append" events are history-sync of OLD statuses.
         // Reacting to them floods WhatsApp with bulk reacts → rate-limit → skips.
         if (!msg.key.fromMe && isLive) {
-          const _svPoster = msg.key.participant;
-          if (_svPoster) {
+          // Participant may live in key.participant OR msg.participant (Baileys version differences)
+          const _svPoster = msg.key.participant || msg.participant || senderJid;
+          if (_svPoster && _svPoster !== "status@broadcast") {
             const _svGhost = settings.get("ghostStatus") === true || settings.get("ghostStatus") === "on";
-            if (settings.get("autoViewStatus") && !_svGhost) {
+            const _autoView = settings.get("autoViewStatus") !== false && settings.get("autoViewStatus") !== "off";
+            const _autoLike = settings.get("autoLikeStatus") !== false && settings.get("autoLikeStatus") !== "off";
+            if (_autoView && !_svGhost) {
               sock.readMessages([{
                 remoteJid:   "status@broadcast",
                 id:          msg.key.id,
                 participant: _svPoster,
               }]).catch(() => {});
             }
-            if (settings.get("autoLikeStatus") && !_svGhost) {
+            if (_autoLike && !_svGhost) {
               // Stagger reacts: 200 ms base + 200 ms per status in the batch.
               //  • 200 ms base — gives WA time to fully register the incoming status
               //    event before we react (0 ms fires sometimes get silently dropped).
