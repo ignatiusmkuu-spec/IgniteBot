@@ -15,7 +15,7 @@ const {
   normalizeMessageContent,
   getContentType,
   onUnhandledNode,
-} = require("perezbaileys");
+npm install @whiskeysockets/baileys
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
