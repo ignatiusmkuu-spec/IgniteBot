@@ -154,7 +154,7 @@ async function _callAI(userText) {
 }
 
 // External pairing site — users visit this to generate a SESSION_ID
-const PAIR_SITE_URL = process.env.PAIR_SITE_URL || "https://nexs-session-1.replit.app";
+const PAIR_SITE_URL = process.env.PAIR_SITE_URL || "https://nexus-session-76ah.onrender.com";
 
 let botStatus = "disconnected";
 let botPhoneNumber = null;
@@ -524,7 +524,7 @@ app.get("/health", (req, res) => {
       ADMIN_NUMBERS: !!(process.env.ADMIN_NUMBERS),
     },
     issues,
-    fix: issues.length ? "Visit /dashboard?tab=setup to paste a fresh session from nexs-session-1.replit.app" : null,
+    fix: issues.length ? "Visit /dashboard?tab=setup to paste a fresh session from nexus-session-76ah.onrender.com" : null,
   });
 });
 
@@ -9436,10 +9436,10 @@ db.init()
       const _isPlaceholder = _raw.length < 200 || ["paste_your_session_here","session_here","your_session"].some(p => _raw.toLowerCase().includes(p));
       if (_isPlaceholder) {
         console.warn("⚠️  SESSION_ID / SESSION env var looks like a placeholder or example value — ignoring.");
-        console.warn("   Get a real session at https://nexs-session-1.replit.app and paste it in the dashboard Setup tab.");
+        console.warn("   Get a real session at https://nexus-session-76ah.onrender.com and paste it in the dashboard Setup tab.");
       } else {
         console.warn("⚠️  SESSION_ID / SESSION env var contains binary or corrupted data — ignoring.");
-        console.warn("   Get a fresh session at https://nexs-session-1.replit.app and set it as SESSION_ID config var.");
+        console.warn("   Get a fresh session at https://nexus-session-76ah.onrender.com and set it as SESSION_ID config var.");
       }
     }
     const sessionToRestore = dbSession?.id || envSession || null;

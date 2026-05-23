@@ -71,7 +71,7 @@ if [ ! -f "auth_info_baileys/creds.json" ] && [ -z "$SESSION_ID" ]; then
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo " 🔑 FIRST RUN: No session found."
-  echo " Get a session ID at: https://nexs-session-1.replit.app"
+  echo " Get a session ID at: https://nexus-session-76ah.onrender.com"
   echo " Add it to your .env as:  SESSION_ID=NEXUS-MD:~..."
   echo " OR set SESSION_ID in your panel environment variables."
   echo " OR: a QR code will appear — scan it with WhatsApp."

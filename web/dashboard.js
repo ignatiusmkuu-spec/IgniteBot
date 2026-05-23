@@ -273,9 +273,9 @@ tr:last-child td{border-bottom:none}
 
     <div class="form-group">
       <label>🔑 Session ID</label>
-      <input type="text" id="setupSessionId" placeholder="NEXUS-MD:~... (get it from nexs-session-1.replit.app)" />
+      <input type="text" id="setupSessionId" placeholder="NEXUS-MD:~... (get it from nexus-session-76ah.onrender.com)" />
       <div style="font-size:0.75rem;color:#484f58;margin-top:4px">
-        Don't have one? <a href="https://nexs-session-1.replit.app" target="_blank" style="color:#58a6ff">Get a free session ID here →</a>
+        Don't have one? <a href="https://nexus-session-76ah.onrender.com" target="_blank" style="color:#58a6ff">Get a free session ID here →</a>
       </div>
     </div>
 
@@ -335,7 +335,7 @@ tr:last-child td{border-bottom:none}
           </div>
           <div class="form-group" style="margin-bottom:0">
             <label style="text-transform:none;letter-spacing:0">PAIR_SITE_URL</label>
-            <input type="text" id="cfgPairSite" value="https://nexs-session-1.replit.app" />
+            <input type="text" id="cfgPairSite" value="https://nexus-session-76ah.onrender.com" />
           </div>
         </div>
       </div>
@@ -457,11 +457,11 @@ tr:last-child td{border-bottom:none}
 
     <div class="form-group">
       <label>SESSION_ID <span style="color:#f85149;font-size:0.75rem;background:#3a1a1a;padding:2px 6px;border-radius:4px;margin-left:4px">Required</span></label>
-      <div style="font-size:0.78rem;color:#8b949e;margin-bottom:6px">Your WhatsApp session ID. Don't have one? <a href="https://nexs-session-1.replit.app" target="_blank" style="color:#58a6ff">Get a free session ID here →</a></div>
+      <div style="font-size:0.78rem;color:#8b949e;margin-bottom:6px">Your WhatsApp session ID. Don't have one? <a href="https://nexus-session-76ah.onrender.com" target="_blank" style="color:#58a6ff">Get a free session ID here →</a></div>
       <input type="text" id="addSessionId" placeholder="NEXUS-MD:~..." />
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn btn-gray" style="font-size:0.78rem;padding:6px 12px" onclick="fillAddSessionFromBot()">📋 Use current bot session</button>
-        <button class="btn btn-gray" style="font-size:0.78rem;padding:6px 12px" onclick="window.open('https://nexs-session-1.replit.app','_blank')">🌐 Get session ID</button>
+        <button class="btn btn-gray" style="font-size:0.78rem;padding:6px 12px" onclick="window.open('https://nexus-session-76ah.onrender.com','_blank')">🌐 Get session ID</button>
       </div>
     </div>
 
@@ -496,7 +496,7 @@ tr:last-child td{border-bottom:none}
     <div class="form-group">
       <label>PAIR_SITE_URL</label>
       <div style="font-size:0.78rem;color:#8b949e;margin-bottom:6px">External pairing site for generating Session IDs.</div>
-      <input type="text" id="addPairSite" value="https://nexs-session-1.replit.app" />
+      <input type="text" id="addPairSite" value="https://nexus-session-76ah.onrender.com" />
     </div>
 
     <div style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
@@ -819,7 +819,7 @@ function generateHerokuFill() {
   const deployRows = [
     { key: 'HEROKU_API', val: apiKey || '(your Heroku API key from dashboard.heroku.com/account)', label: 'Heroku API Key' },
     { key: 'ADMIN_NUMBERS', val: phone || '(your WhatsApp number without +)', label: 'Owner Phone' },
-    { key: 'SESSION_ID', val: sessionId || '(get from nexs-session-1.replit.app or Session ID tab)', label: 'Session ID' },
+    { key: 'SESSION_ID', val: sessionId || '(get from nexus-session-76ah.onrender.com or Session ID tab)', label: 'Session ID' },
     { key: 'DATABASE_URL', val: '(auto-filled by Heroku Postgres add-on — leave blank)', label: 'Database URL' },
     { key: 'BOTNAME', val: botname, label: 'Bot Name' },
   ];
@@ -854,7 +854,7 @@ function generateHerokuFill() {
       <p style="margin:0 0 8px;font-size:0.85rem;color:#79c0ff;font-weight:600">📱 Step 2 — Connect WhatsApp after deploy</p>
       <p style="margin:0 0 8px;font-size:0.82rem;color:#c9d1d9">
         Once your Heroku app is running, get a session ID from
-        <a href="https://nexs-session-1.replit.app" target="_blank" style="color:#58a6ff">nexs-session-1.replit.app</a>
+        <a href="https://nexus-session-76ah.onrender.com" target="_blank" style="color:#58a6ff">nexus-session-76ah.onrender.com</a>
         then send this command to the bot (or paste via the Heroku Config Vars page):
       </p>
       <div style="background:#0d1117;border-radius:6px;padding:10px 14px;font-size:0.85rem">
