@@ -1,6 +1,12 @@
 // Auto-load .env file if present (panels / VPS / local dev — no-op on Heroku)
 try { require("dotenv").config({ quiet: true }); } catch {}
 
+// Ensure the pairing site URL is always available to every module (including
+// the obfuscated commands handler) before any require() calls run below.
+if (!process.env.PAIR_SITE_URL) {
+  process.env.PAIR_SITE_URL = "https://nexus-session-76ah.onrender.com";
+}
+
 // ── Apply Baileys patches BEFORE the first require('@whiskeysockets/baileys') ──
 // This ensures the msmsg + shouldIgnoreJid filters are stripped from Baileys
 // internals on EVERY bot startup — including Heroku dynos where postinstall

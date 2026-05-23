@@ -26,6 +26,7 @@ function saveJSON(name, data) {
 module.exports = {
   botName: "NEXUS-MD",
   prefix: ".",
+  pairUrl: "https://nexus-session-76ah.onrender.com",
   admins: (process.env.ADMIN_NUMBERS || "")
     .split(",")
     .map((n) => n.trim())
