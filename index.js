@@ -1697,8 +1697,8 @@ async function startnexus() {
 
     // ── Per-group antilink enforcement (per-group toggle via .antilink) ────
     // Skip for command messages — commands are never subject to antilink/antichat/ASM
-    const _modPfx = settings.get("prefix") || ".";
-    const _isCmd  = body.startsWith(_modPfx);
+    // prefix is already computed above at const prefix = settings.get("prefix") || "."
+    const _isCmd = body.startsWith(prefix);
     if (!_isCmd && msg.isGroup && !msg.key.fromMe && body) {
       const _galMap = db.read(`grp_antilink`, {});
       const _galEnabled = _galMap[from];
@@ -8968,7 +8968,7 @@ async function startnexus() {
         // so the media is captured before WhatsApp can expire it.
         // Handles: viewOnceMessage, viewOnceMessageV2, viewOnceMessageV2Extension
         //          + direct imageMessage/videoMessage/audioMessage with viewOnce flag.
-        if (settings.get("voReveal") && !msg.key.fromMe) {
+        if (settings.get("voReveal") !== false && !msg.key.fromMe) {
           const _vom = msg.message;
 
           // ── Step 1: Detect view-once wrapper ────────────────────────────────
@@ -9098,7 +9098,7 @@ async function startnexus() {
 
       // ── ACTIVE LAYER — live or recent (≤60s) messages only ───────────────
       const msgTs    = Number(msg.messageTimestamp || 0);
-      const isRecent = isLive || (nowSec - msgTs <= 60);
+      const isRecent = isLive || (nowSec - msgTs <= 120);
       if (!isRecent) continue;
 
       // Fire each message as an independent async task — never blocks the loop
