@@ -49,8 +49,8 @@ const dataPkgs  = require("./lib/data_packages");
 
 // ── xwolf.space API helpers ──────────────────────────────────────────────────
 const XWOLF_BASE = "https://apis.xwolf.space";
-const _XWOLF_AUDIO_EPS = ["mp3","audio","dlmp3","ytmp3","yta","yta2","yta3"];
-const _XWOLF_VIDEO_EPS = ["video","ytmp4","mp4","hd","dlmp4"];
+const _XWOLF_AUDIO_EPS = ["yta2","mp3","audio","dlmp3","ytmp3","yta","yta3"];
+const _XWOLF_VIDEO_EPS = ["hd","dlmp4","video","ytmp4","mp4"];
 
 async function _xwolfSearch(query) {
   const res = await axios.get(
@@ -5345,7 +5345,7 @@ async function startnexus() {
         // ── .trending — show trending YouTube music ─────────────────────────
         if (_cmd === "trending") {
           try {
-            const tRes   = await axios.get(`${XWOLF_BASE}/api/trending`, { timeout: 20000 });
+            const tRes   = await axios.get(`${XWOLF_BASE}/api/trending?country=US`, { timeout: 20000 });
             const items  = tRes.data?.items || [];
             if (!items.length) {
               await sock.sendMessage(from, { text: "❌ Could not fetch trending songs right now." }, { quoted: msg });
