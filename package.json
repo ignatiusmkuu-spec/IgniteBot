@@ -10,7 +10,8 @@
     "start": "node index.js",
     "dev": "node index.js",
     "obfuscate": "node scripts/obfuscate.js",
-    "postinstall": "node scripts/apply-baileys-patches.js"
+    "postinstall": "node scripts/apply-baileys-patches.js",
+    "heroku-postbuild": "node scripts/apply-baileys-patches.js"
   },
   "dependencies": {
     "@distube/ytdl-core": "^4.16.12",

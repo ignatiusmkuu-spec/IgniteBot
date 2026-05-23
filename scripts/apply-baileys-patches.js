@@ -160,6 +160,24 @@ applyPatch(CHATS, {
         // [nexus-patch:presenceUpdate] shouldIgnoreJid filter removed — handle presence for all JIDs`,
 });
 
+// Patch 5: handleReceipt — remove shouldIgnoreJid filter
+// Blocks delivery/read receipt tracking for certain JIDs; also indirectly
+// affects message retry logic which can stall message delivery.
+applyPatch(RECV, {
+  label:   "handleReceipt — remove shouldIgnoreJid filter",
+  marker:  "[nexus-patch:handleReceipt]",
+  find:
+`        if (shouldIgnoreJid(remoteJid) && remoteJid !== S_WHATSAPP_NET) {
+            logger.debug({ remoteJid }, 'ignoring receipt from jid');
+            await sendMessageAck(node);
+            return;
+        }
+        const ids = [attrs.id];`,
+  replace:
+`        // [nexus-patch:handleReceipt] shouldIgnoreJid filter removed — track receipts for all JIDs
+        const ids = [attrs.id];`,
+});
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 console.log(`[baileys-patch] done — applied: ${applied}, skipped: ${skipped}, warnings: ${warned}`);
 if (warned > 0) {
