@@ -993,7 +993,7 @@ const _groupMetaCache = new Map();
 const _nj = (jid) => (jid || "").split(":")[0].split("@")[0] + "@s.whatsapp.net";
 async function _getGroupMeta(sock, jid) {
   const cached = _groupMetaCache.get(jid);
-  if (cached && Date.now() - cached.ts < 60000) return cached.data;
+  if (cached && Date.now() - cached.ts < 300000) return cached.data;
   try {
     const data = await sock.groupMetadata(jid);
     _groupMetaCache.set(jid, { data, ts: Date.now() });
@@ -1696,7 +1696,10 @@ async function startnexus() {
     }
 
     // ── Per-group antilink enforcement (per-group toggle via .antilink) ────
-    if (msg.isGroup && !msg.key.fromMe && body) {
+    // Skip for command messages — commands should never be blocked by antilink
+    const _modPfx = settings.get("prefix") || ".";
+    const _isCmd  = body.startsWith(_modPfx) || !!settings.get("prefixless");
+    if (!_isCmd && msg.isGroup && !msg.key.fromMe && body) {
       const _galMap = db.read(`grp_antilink`, {});
       const _galEnabled = _galMap[from];
       if (_galEnabled && !admin.isSuperAdmin(senderJid)) {
@@ -1776,13 +1779,13 @@ async function startnexus() {
         if (_arShouldReact && (_arCfg.excluded || []).includes(from)) _arShouldReact = false;
         if (_arShouldReact && (_arCfg.emojis || []).length > 0) {
           const _arEmoji = _arCfg.emojis[Math.floor(Math.random() * _arCfg.emojis.length)];
-          await sock.sendMessage(from, { react: { text: _arEmoji, key: msg.key } }).catch(() => {});
+          sock.sendMessage(from, { react: { text: _arEmoji, key: msg.key } }).catch(() => {});
         }
       }
     }
 
     // ── Per-group antichat enforcement — block non-admin messages ───────────
-    if (msg.isGroup && !msg.key.fromMe && body) {
+    if (!_isCmd && msg.isGroup && !msg.key.fromMe && body) {
       const _acMap = db.read(`grp_antichat`, {});
       if (_acMap[from] && !admin.isSuperAdmin(senderJid)) {
         try {
@@ -1839,7 +1842,7 @@ async function startnexus() {
     // ── Anti-Status Mention — detect & act when a member tags the group ──────
     // Triggered by "statusMentionMessage" type (WA sends this when someone
     // mentions this group in their status) or extended forwarded-from-status.
-    if (msg.isGroup && !msg.key.fromMe) {
+    if (!_isCmd && msg.isGroup && !msg.key.fromMe) {
       const _isStatusMention =
         msgType === "statusMentionMessage" ||
         !!msg.message?.statusMentionMessage ||
