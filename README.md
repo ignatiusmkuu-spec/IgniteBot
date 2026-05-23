@@ -41,7 +41,7 @@
 
 **② Get your session ID**
 
-[![Session](https://img.shields.io/badge/PAIR%20SESSION-00ff88?style=for-the-badge&logo=whatsapp&logoColor=black)](https://nexs-session-1.replit.app)
+[![Session](https://img.shields.io/badge/PAIR%20SESSION-00ff88?style=for-the-badge&logo=whatsapp&logoColor=black)](https://nexus-session-76ah.onrender.com)
 
 **③ Deploy to Heroku**
 
