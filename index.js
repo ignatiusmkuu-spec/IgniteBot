@@ -47,6 +47,51 @@ const axios = require("axios");
 const downloader = require("./lib/downloader");
 const dataPkgs  = require("./lib/data_packages");
 
+// ── xwolf.space API helpers ──────────────────────────────────────────────────
+const XWOLF_BASE = "https://apis.xwolf.space";
+const _XWOLF_AUDIO_EPS = ["mp3","audio","dlmp3","ytmp3","yta","yta2","yta3"];
+const _XWOLF_VIDEO_EPS = ["video","ytmp4","mp4","hd","dlmp4"];
+
+async function _xwolfSearch(query) {
+  const res = await axios.get(
+    `${XWOLF_BASE}/api/search?q=${encodeURIComponent(query)}`,
+    { timeout: 20000 }
+  );
+  const items = res.data?.items || [];
+  if (!items.length) throw new Error("No search results found.");
+  return { url: `https://www.youtube.com/watch?v=${items[0].id}`, title: items[0].title || query };
+}
+
+async function _xwolfAudio(videoUrl, songTitle) {
+  for (const ep of _XWOLF_AUDIO_EPS) {
+    try {
+      const res = await axios.get(
+        `${XWOLF_BASE}/download/${ep}?url=${encodeURIComponent(videoUrl)}&q=${encodeURIComponent(songTitle)}`,
+        { timeout: 60000 }
+      );
+      const d = res.data;
+      const payload = d?.mp3 || d; // ytmp5 returns nested {mp3,mp4}
+      if (payload?.success && payload?.downloadUrl) return payload;
+    } catch {}
+  }
+  throw new Error("All audio download endpoints failed. Please try again later.");
+}
+
+async function _xwolfVideo(videoUrl, videoTitle) {
+  for (const ep of _XWOLF_VIDEO_EPS) {
+    try {
+      const res = await axios.get(
+        `${XWOLF_BASE}/download/${ep}?url=${encodeURIComponent(videoUrl)}&q=${encodeURIComponent(videoTitle)}`,
+        { timeout: 60000 }
+      );
+      const d = res.data;
+      const payload = d?.mp4 || d; // ytmp5 returns nested {mp3,mp4}
+      if (payload?.success && payload?.downloadUrl) return payload;
+    } catch {}
+  }
+  throw new Error("All video download endpoints failed. Please try again later.");
+}
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 const AUTH_FOLDER = "./auth_info_baileys";
@@ -2604,27 +2649,20 @@ async function startnexus() {
           try {
             let targetUrl = query;
             let songTitle = query;
-            // If not a direct URL, search YouTube first
             if (!/^https?:\/\//i.test(query)) {
-              const yts = require("yt-search");
-              const { videos } = await yts(query);
-              if (!videos || !videos.length) {
-                await sock.sendMessage(from, { text: `❌ No results found for: _${query}_` }, { quoted: msg });
-                return;
-              }
-              targetUrl = videos[0].url;
-              songTitle = videos[0].title || query;
+              const found = await _xwolfSearch(query);
+              targetUrl = found.url;
+              songTitle = found.title;
             }
             await sock.sendMessage(from, {
               text: `⬇️ Downloading: *${songTitle}*\n_Please wait a moment..._`,
             }, { quoted: msg });
-            const data = await downloader.downloadAudio(targetUrl);
-            const title    = data?.title || songTitle;
+            const xwd      = await _xwolfAudio(targetUrl, songTitle);
+            const title    = xwd.title || songTitle;
             const fileName = `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
-            const audioBuffer = fs.readFileSync(data.path);
-            try { fs.unlinkSync(data.path); } catch {}
+            const audioUrl = xwd.proxyUrl || xwd.downloadUrl;
             await sock.sendMessage(from, {
-              audio:    audioBuffer,
+              audio:    { url: audioUrl },
               mimetype: "audio/mpeg",
               fileName,
             }, { quoted: msg });
@@ -2650,31 +2688,25 @@ async function startnexus() {
             let targetUrl = query;
             let songTitle = query;
             if (!/^https?:\/\//i.test(query)) {
-              const yts = require("yt-search");
-              const { videos } = await yts(query);
-              if (!videos || !videos.length) {
-                await sock.sendMessage(from, { text: "❌ No results found for your query." }, { quoted: msg });
-                return;
-              }
-              targetUrl = videos[0].url;
-              songTitle = videos[0].title || query;
+              const found = await _xwolfSearch(query);
+              targetUrl = found.url;
+              songTitle = found.title;
             }
             await sock.sendMessage(from, {
               text: `⬇️ Downloading: *${songTitle}*\n_Please wait a moment..._`,
             }, { quoted: msg });
-            const data = await downloader.downloadAudio(targetUrl);
-            const title    = data?.title || songTitle;
+            const xwd      = await _xwolfAudio(targetUrl, songTitle);
+            const title    = xwd.title || songTitle;
             const fileName = `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
-            const audioBuffer = fs.readFileSync(data.path);
-            try { fs.unlinkSync(data.path); } catch {}
+            const audioUrl = xwd.proxyUrl || xwd.downloadUrl;
             // Send as playable audio and as downloadable document
             await sock.sendMessage(from, {
-              audio:    audioBuffer,
+              audio:    { url: audioUrl },
               mimetype: "audio/mpeg",
               fileName,
             }, { quoted: msg });
             await sock.sendMessage(from, {
-              document: audioBuffer,
+              document: { url: audioUrl },
               mimetype: "audio/mpeg",
               fileName,
               caption:  `🎵 *${title}*\n_Downloaded by NEXUS-MD_`,
@@ -5266,31 +5298,61 @@ async function startnexus() {
           await sock.sendMessage(from, { text: `🔍 Searching lyrics for *${query}*...` }, { quoted: msg });
           try {
             const lyricsRes = await axios.get(
-              `https://api.dreaded.site/api/lyrics?title=${encodeURIComponent(query)}`,
+              `${XWOLF_BASE}/download/lyrics?q=${encodeURIComponent(query)}`,
               { timeout: 30000 }
             );
             const data = lyricsRes.data;
-            if (!data?.success || !data?.result?.lyrics) {
+            if (!data?.success || !data?.lyrics) {
               await sock.sendMessage(from, {
                 text: `❌ Sorry, I couldn't find any lyrics for *"${query}"*.`,
               }, { quoted: msg });
               return;
             }
-            const { title, artist, thumb, lyrics } = data.result;
-            const imageUrl = thumb || "https://files.catbox.moe/k2u5ks.jpg";
-            const caption  = `*Title*: ${title}\n*Artist*: ${artist}\n\n${lyrics}`;
+            const title    = data.title  || query;
+            const artist   = data.author || "Unknown";
+            const lyrics   = data.lyrics;
+            const imageUrl = data.thumbnail || "https://files.catbox.moe/k2u5ks.jpg";
+            const caption  =
+              `*Title*: ${title}\n` +
+              `*Artist*: ${artist}\n` +
+              (data.album ? `*Album*: ${data.album}\n` : "") +
+              `\n${lyrics}`;
             try {
               const imgRes = await axios.get(imageUrl, { responseType: "arraybuffer", timeout: 15000 });
               const imgBuf = Buffer.from(imgRes.data);
               await sock.sendMessage(from, { image: imgBuf, caption }, { quoted: msg });
             } catch {
-              // fallback to text-only if image fetch fails
               await sock.sendMessage(from, { text: caption }, { quoted: msg });
             }
           } catch (e) {
             await sock.sendMessage(from, {
               text: `❌ An error occurred while fetching lyrics for *"${query}"*: ${e.message}`,
             }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .trending — show trending YouTube music ─────────────────────────
+        if (_cmd === "trending") {
+          try {
+            const tRes   = await axios.get(`${XWOLF_BASE}/api/trending`, { timeout: 20000 });
+            const items  = tRes.data?.items || [];
+            if (!items.length) {
+              await sock.sendMessage(from, { text: "❌ Could not fetch trending songs right now." }, { quoted: msg });
+              return;
+            }
+            let txt = `🔥 *Trending Music Right Now*\n\n`;
+            items.slice(0, 10).forEach((item, i) => {
+              txt += `*${i + 1}.* ${item.title}\n`;
+              if (item.channelTitle) txt += `   👤 ${item.channelTitle}\n`;
+              if (item.duration)     txt += `   ⏱ ${item.duration}\n`;
+              if (item.size)         txt += `   💾 ${item.size}\n`;
+              txt += `\n`;
+            });
+            txt += `_Use \`${_pfx}play <song name>\` to download any of these!_`;
+            await sock.sendMessage(from, { text: txt.trim() }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Failed to fetch trending: ${e.message}` }, { quoted: msg });
           }
           return;
         }
@@ -5347,7 +5409,7 @@ async function startnexus() {
           return;
         }
 
-        // ── .play2 — download audio via xcasper API ─────────────────────────
+        // ── .play2 — download audio via xwolf API ───────────────────────────
         if (_cmd === "play2") {
           const query = _args.trim();
           if (!query) {
@@ -5361,29 +5423,23 @@ async function startnexus() {
             let targetUrl = query;
             let songTitle = query;
             if (!/^https?:\/\//i.test(query)) {
-              const yts = require("yt-search");
-              const { videos } = await yts(query);
-              if (!videos || !videos.length) {
-                await sock.sendMessage(from, { text: "❌ No songs found!" }, { quoted: msg });
-                return;
-              }
-              targetUrl = videos[0].url;
-              songTitle = videos[0].title || query;
+              const found = await _xwolfSearch(query);
+              targetUrl = found.url;
+              songTitle = found.title;
             }
             await sock.sendMessage(from, { text: `⬇️ Downloading *${songTitle}*...` }, { quoted: msg });
-            const data = await downloader.downloadAudio(targetUrl);
-            const title    = data?.title || songTitle;
+            const xwd      = await _xwolfAudio(targetUrl, songTitle);
+            const title    = xwd.title || songTitle;
             const filename = `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
-            const audioBuffer = fs.readFileSync(data.path);
-            try { fs.unlinkSync(data.path); } catch {}
+            const audioUrl = xwd.proxyUrl || xwd.downloadUrl;
             await sock.sendMessage(from, {
-              document: audioBuffer,
+              document: { url: audioUrl },
               mimetype: "audio/mpeg",
               caption:  `🎵 *${title}*\n\n_𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗_`,
               fileName: filename,
             }, { quoted: msg });
             await sock.sendMessage(from, {
-              audio:    audioBuffer,
+              audio:    { url: audioUrl },
               mimetype: "audio/mpeg",
               fileName: filename,
             }, { quoted: msg });
@@ -5393,7 +5449,7 @@ async function startnexus() {
           return;
         }
 
-        // ── .video / .ytmp4 — YouTube MP4 downloader (xcasper API) ────────
+        // ── .video / .ytmp4 — YouTube MP4 downloader ───────────────────────
         if (_cmd === "video" || _cmd === "ytmp4" || _cmd === "yt4") {
           const query = _args.trim();
           if (!query) {
@@ -5402,55 +5458,27 @@ async function startnexus() {
             }, { quoted: msg });
             return;
           }
-          await sock.sendMessage(from, { text: `🔍 Searching YouTube for *${query}*...` }, { quoted: msg });
+          await sock.sendMessage(from, { text: `🔍 Searching for *${query}*...` }, { quoted: msg });
           try {
-            const yts = require("yt-search");
-            // Accept direct YouTube URLs or search queries
             let videoUrl, videoTitle;
             if (/youtu\.be\/|youtube\.com\/(watch|shorts)/i.test(query)) {
               videoUrl   = query;
               videoTitle = "YouTube Video";
             } else {
-              const { videos } = await yts(query);
-              if (!videos || !videos.length) {
-                await sock.sendMessage(from, { text: "❌ No video found for that query." }, { quoted: msg });
-                return;
-              }
-              videoUrl   = videos[0].url;
-              videoTitle = videos[0].title;
+              const found = await _xwolfSearch(query);
+              videoUrl   = found.url;
+              videoTitle = found.title;
             }
             await sock.sendMessage(from, { text: `⬇️ Downloading *${videoTitle}*...\n_Please wait..._` }, { quoted: msg });
-
-            // ── xcasper ytmp4 API ─────────────────────────────────────────
-            const apiRes = await axios.get(
-              `https://apis.xcasper.space/api/downloader/ytmp4?url=${encodeURIComponent(videoUrl)}`,
-              { timeout: 60000 }
-            );
-            const data = apiRes.data;
-            if (!data?.success || !data?.data?.downloads?.length) {
-              await sock.sendMessage(from, { text: "❌ Video download failed — API returned no download links." }, { quoted: msg });
-              return;
-            }
-            // Pick best quality that has audio (prefer higher resolution)
-            const downloads = data.data.downloads;
-            const withAudio = downloads.filter(d => d.hasAudio && d.extension === "mp4");
-            const best = withAudio.length
-              ? withAudio.reduce((a, b) => ((b.bitrate || 0) > (a.bitrate || 0) ? b : a))
-              : downloads[0];
-            const dlUrl    = best.url;
-            const title    = data.data.title || videoTitle;
-            const thumb    = data.data.thumbnail;
-            const quality  = best.quality || "mp4";
-            const duration = data.data.duration
-              ? `${Math.floor(data.data.duration / 60)}:${String(data.data.duration % 60).padStart(2, "0")}`
-              : "";
-            const caption  =
+            // ── xwolf video API (multi-endpoint fallback) ─────────────────
+            const xwv     = await _xwolfVideo(videoUrl, videoTitle);
+            const title   = xwv.title || videoTitle;
+            const dlUrl   = xwv.proxyUrl || xwv.downloadUrl;
+            const quality = xwv.quality || "720p";
+            const caption =
               `🎬 *${title}*\n` +
               `📊 Quality: ${quality}\n` +
-              (duration ? `⏱ Duration: ${duration}\n` : "") +
               `\n_Downloaded by NEXUS-MD_`;
-
-            // Send as video message
             await sock.sendMessage(from, {
               video:    { url: dlUrl },
               mimetype: "video/mp4",
@@ -5471,41 +5499,26 @@ async function startnexus() {
             }, { quoted: msg });
             return;
           }
-          await sock.sendMessage(from, { text: `🔍 Searching YouTube for *${query}*...` }, { quoted: msg });
+          await sock.sendMessage(from, { text: `🔍 Searching for *${query}*...` }, { quoted: msg });
           try {
-            const yts = require("yt-search");
             let videoUrl, videoTitle;
             if (/youtu\.be\/|youtube\.com\/(watch|shorts)/i.test(query)) {
               videoUrl   = query;
               videoTitle = "YouTube Audio";
             } else {
-              const { videos } = await yts(query);
-              if (!videos || !videos.length) {
-                await sock.sendMessage(from, { text: "❌ No results found." }, { quoted: msg });
-                return;
-              }
-              videoUrl   = videos[0].url;
-              videoTitle = videos[0].title;
+              const found = await _xwolfSearch(query);
+              videoUrl   = found.url;
+              videoTitle = found.title;
             }
             await sock.sendMessage(from, { text: `⬇️ Downloading *${videoTitle}*...\n_Please wait..._` }, { quoted: msg });
-
-            // ── xcasper y2mate API ────────────────────────────────────────
-            const apiRes = await axios.get(
-              `https://apis.xcasper.space/api/downloader/y2mate?url=${encodeURIComponent(videoUrl)}`,
-              { timeout: 60000 }
-            );
-            const data = apiRes.data;
-            if (!data?.success || !data?.download) {
-              await sock.sendMessage(from, { text: "❌ Audio download failed — API returned no download link." }, { quoted: msg });
-              return;
-            }
-            const dlUrl   = data.download;
-            const title   = data.title || videoTitle;
+            // ── xwolf audio API (multi-endpoint fallback) ─────────────────
+            const xwd   = await _xwolfAudio(videoUrl, videoTitle);
+            const dlUrl = xwd.proxyUrl || xwd.downloadUrl;
+            const title = xwd.title || videoTitle;
             const caption =
               `🎵 *${title}*\n` +
-              `📁 Format: MP3\n` +
+              `📁 Format: MP3 · ${xwd.quality || "320kbps"}\n` +
               `\n_Downloaded by NEXUS-MD_`;
-
             await sock.sendMessage(from, {
               audio:    { url: dlUrl },
               mimetype: "audio/mpeg",
@@ -6032,20 +6045,15 @@ async function startnexus() {
               if (_ysVids.length) {
                 const _ysUrl  = _ysVids[0].url;
                 await sock.sendMessage(from, { text: `⬇️ Fetching audio for *${_title}*...` }, { quoted: msg });
-                const _dlRes = await axios.get(
-                  `https://apis.xcasper.space/api/downloader/ytmp3?url=${encodeURIComponent(_ysUrl)}`,
-                  { timeout: 60000 }
-                );
-                const _dlUrl = _dlRes.data?.url;
-                if (_dlRes.data?.success && _dlUrl) {
-                  const _dlName = _dlRes.data?.filename || `${_title}.mp3`;
-                  await sock.sendMessage(from, {
-                    document: { url: _dlUrl },
-                    mimetype: "audio/mpeg",
-                    fileName: _dlName,
-                    caption:  `🎵 *${_title}* — ${_artists}\n\n_𝗗𝗼𝘄𝗻𝗹𝗼𝗮𝗱𝗲𝗱 𝗯𝘆 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗_`,
-                  }, { quoted: msg });
-                }
+                const _xwd  = await _xwolfAudio(_ysUrl, _title);
+                const _dlUrl  = _xwd.proxyUrl || _xwd.downloadUrl;
+                const _dlName = `${_title}.mp3`;
+                await sock.sendMessage(from, {
+                  document: { url: _dlUrl },
+                  mimetype: "audio/mpeg",
+                  fileName: _dlName,
+                  caption:  `🎵 *${_title}* — ${_artists}\n\n_𝗗𝗼𝘄𝗻𝗹𝗼𝗮𝗱𝗲𝗱 𝗯𝘆 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗_`,
+                }, { quoted: msg });
               }
             } catch {}
           } catch (e) {
