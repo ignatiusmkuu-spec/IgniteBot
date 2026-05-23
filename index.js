@@ -1,6 +1,14 @@
 // Auto-load .env file if present (panels / VPS / local dev — no-op on Heroku)
 try { require("dotenv").config({ quiet: true }); } catch {}
 
+// ── Apply Baileys patches BEFORE the first require('@whiskeysockets/baileys') ──
+// This ensures the msmsg + shouldIgnoreJid filters are stripped from Baileys
+// internals on EVERY bot startup — including Heroku dynos where postinstall
+// may have been skipped due to build-cache hits.
+try { require("./scripts/apply-baileys-patches"); } catch (_pErr) {
+  console.warn("[startup-patch] Could not apply Baileys patches:", _pErr.message);
+}
+
 // Hint for libuv thread pool (effective when set before process start via Procfile)
 process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || "8";
 
@@ -1168,7 +1176,7 @@ async function startnexus() {
       keys: makeCacheableSignalKeyStore(state.keys, logger),
     },
     generateHighQualityLinkPreview: false,
-    shouldIgnoreJid: (jid) => isJidBroadcast(jid) && jid !== "status@broadcast",
+    shouldIgnoreJid: () => false,   // accept messages from ALL JIDs — filters removed by startup patch
     markOnlineOnConnect: true,
     retryRequestDelayMs: 250,           // reduced from 2000 for instant retries
     connectTimeoutMs: 20000,            // fail-fast on slow connections
