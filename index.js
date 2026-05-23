@@ -1188,13 +1188,13 @@ async function startnexus() {
     },
     generateHighQualityLinkPreview: false,
     shouldIgnoreJid: () => false,   // accept messages from ALL JIDs — filters removed by startup patch
-    markOnlineOnConnect: true,
+    markOnlineOnConnect: false,         // don't mark online immediately — prevents WA from pushing app-state sync to other linked devices
     retryRequestDelayMs: 250,           // reduced from 2000 for instant retries
     connectTimeoutMs: 20000,            // fail-fast on slow connections
     keepAliveIntervalMs: 15000,         // WA WebSocket keepalive every 15s
     maxMsgRetryCount: 3,                // limit retry storms
     syncFullHistory: false,             // don't sync old message history on connect
-    fireInitQueries: true,
+    fireInitQueries: false,             // prevent initial WA protocol queries that disconnect other linked devices
     getMessage: async (key) => {
       return _msgCache.get(key.id) || undefined;
     },
@@ -1696,9 +1696,9 @@ async function startnexus() {
     }
 
     // ── Per-group antilink enforcement (per-group toggle via .antilink) ────
-    // Skip for command messages — commands should never be blocked by antilink
+    // Skip for command messages — commands are never subject to antilink/antichat/ASM
     const _modPfx = settings.get("prefix") || ".";
-    const _isCmd  = body.startsWith(_modPfx) || !!settings.get("prefixless");
+    const _isCmd  = body.startsWith(_modPfx);
     if (!_isCmd && msg.isGroup && !msg.key.fromMe && body) {
       const _galMap = db.read(`grp_antilink`, {});
       const _galEnabled = _galMap[from];
