@@ -37,6 +37,26 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const AUTH_FOLDER = "./auth_info_baileys";
 
+// ── Heroku app name / URL resolver ───────────────────────────────────────────
+// HEROKU_APP_NAME is only auto-set when the Heroku dyno-metadata lab is enabled.
+// Users may not have that lab. As a permanent fallback:
+//   1. Honour HEROKU_APP_NAME if present (env var or dyno-metadata).
+//   2. Parse APP_URL — if it points to *.herokuapp.com, extract the app name.
+//   3. Return null if neither is available (user should set APP_URL).
+function _resolveHerokuAppName() {
+  if (process.env.HEROKU_APP_NAME) return process.env.HEROKU_APP_NAME;
+  const url = process.env.APP_URL || "";
+  const m = url.match(/^https?:\/\/([a-z0-9-]+)\.herokuapp\.com/i);
+  return m ? m[1] : null;
+}
+function _resolveAppUrl() {
+  if (process.env.APP_URL) return process.env.APP_URL;
+  if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  const appName = _resolveHerokuAppName();
+  if (appName) return `https://${appName}.herokuapp.com`;
+  return null;
+}
+
 // ── Ignatius Perez AI Persona ─────────────────────────────────────────────────
 // Injected as system context into every AI chatbot call.
 // Change this to customize the bot's personality and expertise.
@@ -480,7 +500,7 @@ app.get("/health", (req, res) => {
       DATABASE_URL_set: _hasDB,
       db_has_session: _dbSession,
       creds_on_disk: _credsOnDisk,
-      HEROKU_APP_NAME: process.env.HEROKU_APP_NAME || null,
+      HEROKU_APP_NAME: _resolveHerokuAppName() || null,
       APP_URL: process.env.APP_URL || null,
       ADMIN_NUMBERS: !!(process.env.ADMIN_NUMBERS),
     },
@@ -690,7 +710,7 @@ app.get("/api/platform", (req, res) => {
     icon: plat.icon,
     isPanel: plat.isPanel,
     isHeroku: plat.name === "Heroku",
-    herokuAppName: process.env.HEROKU_APP_NAME || null,
+    herokuAppName: _resolveHerokuAppName(),
     waitingForSession,
     botStatus,
   });
@@ -769,14 +789,7 @@ _server.on("error", (err) => {
   console.log(`💓 Keep-alive: internal self-ping every 10 min (port ${PORT})`);
 
   // ── Layer 2: external URL ping (belt-and-suspenders) ─────────────────────
-  const appUrl =
-    process.env.APP_URL ||
-    (process.env.REPLIT_DEV_DOMAIN
-      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-      : null) ||
-    (process.env.HEROKU_APP_NAME
-      ? `https://${process.env.HEROKU_APP_NAME}.herokuapp.com`
-      : null);
+  const appUrl = _resolveAppUrl();
   if (appUrl) {
     setInterval(async () => {
       try { await axios.get(appUrl, { timeout: 10000 }); } catch {}
@@ -1107,10 +1120,8 @@ async function startnexus() {
       host = process.env.RAILWAY_STATIC_URL.startsWith("http")
         ? process.env.RAILWAY_STATIC_URL
         : `https://${process.env.RAILWAY_STATIC_URL}`;
-    } else if (process.env.HEROKU_APP_NAME) {
-      host = `https://${process.env.HEROKU_APP_NAME}.herokuapp.com`;
     } else {
-      host = `http://localhost:${PORT}`;
+      host = _resolveAppUrl() || `http://localhost:${PORT}`;
     }
     console.log("⚠️  No WhatsApp session — waiting for setup.");
     console.log(`🔗 Visit the dashboard to set up: ${host}/dashboard?tab=setup`);
@@ -5160,6 +5171,77 @@ async function startnexus() {
           return;
         }
 
+        // ── .setvar — set Heroku config vars directly from WhatsApp ───────────
+        // Reads HEROKU_API_KEY and HEROKU_APP_NAME from process.env so the
+        // command works without needing to pass credentials in chat.
+        // Usage: .setvar KEY=VALUE  or  .setvar KEY VALUE
+        if (_cmd === "setvar") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, {
+              text: `❌ *setvar* is an owner-only command.`,
+            }, { quoted: msg });
+            return;
+          }
+          const _hApiKey  = process.env.HEROKU_API_KEY;
+          const _hAppName = _resolveHerokuAppName();
+          if (!_hApiKey || !_hAppName) {
+            const missing = [];
+            if (!_hApiKey)  missing.push("HEROKU_API_KEY");
+            if (!_hAppName) missing.push("HEROKU_APP_NAME (or APP_URL pointing to *.herokuapp.com)");
+            await sock.sendMessage(from, {
+              text: `⚙️ *setvar* needs these Heroku config vars to be set first:\n\n${missing.map(m => `• \`${m}\``).join("\n")}\n\nSet them in your Heroku dashboard → Settings → Config Vars.`,
+            }, { quoted: msg });
+            return;
+          }
+          // Parse KEY=VALUE or KEY VALUE
+          const _svRaw = _args.trim();
+          if (!_svRaw) {
+            await sock.sendMessage(from, {
+              text: `📋 *Usage:* \`${_pfx}setvar KEY=VALUE\`\n\nExample:\n\`${_pfx}setvar BOTNAME=MyBot\``,
+            }, { quoted: msg });
+            return;
+          }
+          let _svKey, _svVal;
+          const _eqIdx = _svRaw.indexOf("=");
+          if (_eqIdx > 0) {
+            _svKey = _svRaw.slice(0, _eqIdx).trim().toUpperCase();
+            _svVal = _svRaw.slice(_eqIdx + 1).trim();
+          } else {
+            const _parts = _svRaw.split(/\s+/);
+            _svKey = _parts[0].toUpperCase();
+            _svVal = _parts.slice(1).join(" ");
+          }
+          if (!_svKey || _svVal === undefined || _svVal === "") {
+            await sock.sendMessage(from, {
+              text: `❌ Could not parse key/value. Use: \`${_pfx}setvar KEY=VALUE\``,
+            }, { quoted: msg });
+            return;
+          }
+          try {
+            await axios.patch(
+              `https://api.heroku.com/apps/${_hAppName}/config-vars`,
+              { [_svKey]: _svVal },
+              {
+                headers: {
+                  "Authorization": `Bearer ${_hApiKey}`,
+                  "Accept": "application/vnd.heroku+json; version=3",
+                  "Content-Type": "application/json",
+                },
+                timeout: 15000,
+              }
+            );
+            await sock.sendMessage(from, {
+              text: `✅ *Config var updated!*\n\n🔑 Key: \`${_svKey}\`\n📝 Value: \`${_svVal}\`\n🟣 App: \`${_hAppName}\`\n\n_Heroku will restart your dyno automatically._`,
+            }, { quoted: msg });
+          } catch (_svErr) {
+            const _svErrMsg = _svErr.response?.data?.message || _svErr.message;
+            await sock.sendMessage(from, {
+              text: `❌ *Failed to update config var:* ${_svErrMsg}`,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .lyrics — fetch song lyrics with thumbnail ─────────────────────
         if (_cmd === "lyrics") {
           const query = _args.trim();
@@ -8506,10 +8588,13 @@ async function startnexus() {
     // owner-only built-in guards know they are not the actual owner.
     const _publicMode = (settings.get("mode") || "public") === "public";
     const _isActualOwner = msg.key.fromMe === true || admin.isSuperAdmin(senderJid);
+    // In public mode ALL senders (groups AND DMs) must get fromMe:true so
+    // commands.handle() processes their commands. Without this patch, the
+    // obfuscated handler silently ignores non-owner messages in DMs.
     const _msgForCmds = _isActualOwner
       ? { ...msg, key: { ...msg.key, fromMe: true } }
-      : (_publicMode && msg.isGroup)
-        ? { ...msg, key: { ...msg.key, fromMe: true }, _groupMember: true, _isOwner: false }
+      : _publicMode
+        ? { ...msg, key: { ...msg.key, fromMe: true }, _publicUser: true, _isOwner: false }
         : msg;
 
     // ── Per-command 45 s hard timeout ────────────────────────────────────────
@@ -9293,8 +9378,8 @@ db.init()
         SESSION:    !!(process.env.SESSION),
         DATABASE_URL: !!(process.env.DATABASE_URL),
         ADMIN_NUMBERS: !!(process.env.ADMIN_NUMBERS),
-        HEROKU_APP_NAME: process.env.HEROKU_APP_NAME || "(not set — enable dyno-metadata lab)",
-        APP_URL: process.env.APP_URL || "(not set — keep-alive disabled)",
+        HEROKU_APP_NAME: _resolveHerokuAppName() || "(not set — set APP_URL or HEROKU_APP_NAME config var)",
+        APP_URL: process.env.APP_URL || "(not set — set APP_URL to your app's public URL for keep-alive)",
       };
       console.log("━".repeat(60));
       console.log("🟣 HEROKU STARTUP CHECKLIST");
