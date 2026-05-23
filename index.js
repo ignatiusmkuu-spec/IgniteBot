@@ -93,44 +93,59 @@ async function _xwolfVideo(videoUrl, videoTitle) {
 }
 
 // ── Download status bar builder ──────────────────────────────────────────────
-function _buildSearchBar(query) {
+function _buildCombinedBar(query, title, type) {
+  const isVideo = type === "video";
+  const emoji   = isVideo ? "🎬" : "🎵";
+  const mode    = isVideo ? "𝗩𝗜𝗗𝗘𝗢" : "𝗔𝗨𝗗𝗜𝗢";
+  const pipe    = isVideo ? "🎞️  Output  ⟶  MP4 · 720p" : "🎧  Output  ⟶  MP3 · 320kbps";
+  const proc    = isVideo ? "🧬  Processing video pipeline..." : "🧬  Processing audio pipeline...";
+  const db      = isVideo ? "video" : "music";
   return [
-    `🔍 *𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 · 𝗦𝗘𝗔𝗥𝗖𝗛 𝗘𝗡𝗚𝗜𝗡𝗘*`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `🌐  Scanning music database...`,
+    `╔══════════════════════════════╗`,
+    `   ⚡ *𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 𝗢𝗣𝗘𝗥𝗔𝗧𝗜𝗢𝗡 𝗖𝗘𝗡𝗧𝗥𝗘* ⚡`,
+    `╚══════════════════════════════╝`,
+    ``,
+    `┌──────────────────────────────┐`,
+    `│  🔎  *𝗦𝗘𝗔𝗥𝗖𝗛 𝗣𝗛𝗔𝗦𝗘*  ·  ✅ 𝗖𝗢𝗠𝗣𝗟𝗘𝗧𝗘  │`,
+    `└──────────────────────────────┘`,
+    `🌐  Scanning ${db} database...`,
     `🎯  Query: *${query}*`,
-    `📡  Connecting to servers...`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `_Please wait..._`,
+    `✅  *${title}*`,
+    ``,
+    `┌──────────────────────────────┐`,
+    `│  ⬇️  *𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗 𝗣𝗛𝗔𝗦𝗘*  ·  ⏳ 𝗟𝗜𝗩𝗘   │`,
+    `└──────────────────────────────┘`,
+    `🛰️  *${mode} STREAM LOCKED*`,
+    `${emoji}  *${title}*`,
+    ``,
+    `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱  *70%*`,
+    ``,
+    `⚙️  Decoding stream data...`,
+    `🔌  Syncing with CDN servers...`,
+    proc,
+    pipe,
+    `📥  Preparing secure download...`,
+    ``,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `        ⚡ *𝗡𝗘𝗫𝗨𝗦-𝗠𝗗* ⚡`,
   ].join("\n");
 }
 
-function _buildDownloadBar(title, type) {
+function _buildFileDone(title, type, quality) {
   const isVideo = type === "video";
   const emoji   = isVideo ? "🎬" : "🎵";
-  const mode    = isVideo ? "VIDEO" : "AUDIO";
-  const pipe    = isVideo ? "🎞️   Output  ⟶  MP4 · 720p" : "🎧   Output  ⟶  MP3 · 320kbps";
-  const proc    = isVideo ? "🧬   Processing video pipeline..." : "🧬   Processing audio pipeline...";
+  const fmt     = quality || (isVideo ? "MP4 · 720p" : "MP3 · 320kbps");
   return [
-    `⚡ *𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 · 𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗥* ⚡`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `🛰️   *${mode} STREAM LOCKED*`,
-    `${emoji}   *${title}*`,
+    `╔══════════════════════════════╗`,
+    `   ✅  *𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗 𝗖𝗢𝗠𝗣𝗟𝗘𝗧𝗘*  ✅`,
+    `╚══════════════════════════════╝`,
     ``,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `📡   *[ INITIALIZING ]* · · ·`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `${emoji}  *${title}*`,
+    `🎯  Format: *${fmt}*`,
+    `🌐  Source: *YouTube*`,
     ``,
-    `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱  70%`,
-    ``,
-    `⚙️   Decoding stream data...`,
-    `🔌   Syncing with servers...`,
-    proc,
-    pipe,
-    `📥   Preparing download link...`,
-    ``,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `⚡ _𝗣𝗼𝘄𝗲𝗿𝗲𝗱 𝗯𝘆 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗_`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `  ⚡ *𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗* ⚡`,
   ].join("\n");
 }
 
@@ -2687,7 +2702,6 @@ async function startnexus() {
             await sock.sendMessage(from, { text: `🎵 Usage: \`${_pfx}${_cmd} <song name or YouTube URL>\`` }, { quoted: msg });
             return;
           }
-          await sock.sendMessage(from, { text: _buildSearchBar(query) }, { quoted: msg });
           try {
             let targetUrl = query;
             let songTitle = query;
@@ -2696,18 +2710,16 @@ async function startnexus() {
               targetUrl = found.url;
               songTitle = found.title;
             }
-            await sock.sendMessage(from, { text: _buildDownloadBar(songTitle, "audio") }, { quoted: msg });
+            await sock.sendMessage(from, { text: _buildCombinedBar(query, songTitle, "audio") }, { quoted: msg });
             const xwd      = await _xwolfAudio(targetUrl, songTitle);
             const title    = xwd.title || songTitle;
             const fileName = `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
             const audioUrl = xwd.proxyUrl || xwd.downloadUrl;
             await sock.sendMessage(from, {
-              audio:    { url: audioUrl },
+              document: { url: audioUrl },
               mimetype: "audio/mpeg",
               fileName,
-            }, { quoted: msg });
-            await sock.sendMessage(from, {
-              text: `✅ *${title}*\n\n_𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗_`,
+              caption:  _buildFileDone(title, "audio"),
             }, { quoted: msg });
           } catch (e) {
             await sock.sendMessage(from, { text: `❌ Download failed: ${e.message}` }, { quoted: msg });
@@ -2724,7 +2736,6 @@ async function startnexus() {
             }, { quoted: msg });
             return;
           }
-          await sock.sendMessage(from, { text: _buildSearchBar(query) }, { quoted: msg });
           try {
             let targetUrl = query;
             let songTitle = query;
@@ -2733,22 +2744,16 @@ async function startnexus() {
               targetUrl = found.url;
               songTitle = found.title;
             }
-            await sock.sendMessage(from, { text: _buildDownloadBar(songTitle, "audio") }, { quoted: msg });
+            await sock.sendMessage(from, { text: _buildCombinedBar(query, songTitle, "audio") }, { quoted: msg });
             const xwd      = await _xwolfAudio(targetUrl, songTitle);
             const title    = xwd.title || songTitle;
             const fileName = `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
             const audioUrl = xwd.proxyUrl || xwd.downloadUrl;
-            // Send as playable audio and as downloadable document
-            await sock.sendMessage(from, {
-              audio:    { url: audioUrl },
-              mimetype: "audio/mpeg",
-              fileName,
-            }, { quoted: msg });
             await sock.sendMessage(from, {
               document: { url: audioUrl },
               mimetype: "audio/mpeg",
               fileName,
-              caption:  `🎵 *${title}*\n\n_𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗_`,
+              caption:  _buildFileDone(title, "audio"),
             }, { quoted: msg });
           } catch (e) {
             await sock.sendMessage(from, {
@@ -5457,7 +5462,6 @@ async function startnexus() {
             }, { quoted: msg });
             return;
           }
-          await sock.sendMessage(from, { text: _buildSearchBar(query) }, { quoted: msg });
           try {
             let targetUrl = query;
             let songTitle = query;
@@ -5466,7 +5470,7 @@ async function startnexus() {
               targetUrl = found.url;
               songTitle = found.title;
             }
-            await sock.sendMessage(from, { text: _buildDownloadBar(songTitle, "audio") }, { quoted: msg });
+            await sock.sendMessage(from, { text: _buildCombinedBar(query, songTitle, "audio") }, { quoted: msg });
             const xwd      = await _xwolfAudio(targetUrl, songTitle);
             const title    = xwd.title || songTitle;
             const filename = `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
@@ -5474,13 +5478,8 @@ async function startnexus() {
             await sock.sendMessage(from, {
               document: { url: audioUrl },
               mimetype: "audio/mpeg",
-              caption:  `🎵 *${title}*\n\n_𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗_`,
               fileName: filename,
-            }, { quoted: msg });
-            await sock.sendMessage(from, {
-              audio:    { url: audioUrl },
-              mimetype: "audio/mpeg",
-              fileName: filename,
+              caption:  _buildFileDone(title, "audio"),
             }, { quoted: msg });
           } catch (e) {
             await sock.sendMessage(from, { text: `❌ Download failed: ${e.message}` }, { quoted: msg });
@@ -5497,7 +5496,6 @@ async function startnexus() {
             }, { quoted: msg });
             return;
           }
-          await sock.sendMessage(from, { text: _buildSearchBar(query) }, { quoted: msg });
           try {
             let videoUrl, videoTitle;
             if (/youtu\.be\/|youtube\.com\/(watch|shorts)/i.test(query)) {
@@ -5508,20 +5506,16 @@ async function startnexus() {
               videoUrl   = found.url;
               videoTitle = found.title;
             }
-            await sock.sendMessage(from, { text: _buildDownloadBar(videoTitle, "video") }, { quoted: msg });
+            await sock.sendMessage(from, { text: _buildCombinedBar(query, videoTitle, "video") }, { quoted: msg });
             // ── xwolf video API (multi-endpoint fallback) ─────────────────
             const xwv     = await _xwolfVideo(videoUrl, videoTitle);
             const title   = xwv.title || videoTitle;
             const dlUrl   = xwv.proxyUrl || xwv.downloadUrl;
             const quality = xwv.quality || "720p";
-            const caption =
-              `🎬 *${title}*\n` +
-              `📊 Quality: ${quality}\n` +
-              `\n_Downloaded by NEXUS-MD_`;
             await sock.sendMessage(from, {
               video:    { url: dlUrl },
               mimetype: "video/mp4",
-              caption,
+              caption:  _buildFileDone(title, "video", `MP4 · ${quality}`),
             }, { quoted: msg });
           } catch (e) {
             await sock.sendMessage(from, { text: `❌ Video download failed: ${e.message}` }, { quoted: msg });
@@ -5538,7 +5532,6 @@ async function startnexus() {
             }, { quoted: msg });
             return;
           }
-          await sock.sendMessage(from, { text: _buildSearchBar(query) }, { quoted: msg });
           try {
             let videoUrl, videoTitle;
             if (/youtu\.be\/|youtube\.com\/(watch|shorts)/i.test(query)) {
@@ -5549,21 +5542,17 @@ async function startnexus() {
               videoUrl   = found.url;
               videoTitle = found.title;
             }
-            await sock.sendMessage(from, { text: _buildDownloadBar(videoTitle, "audio") }, { quoted: msg });
+            await sock.sendMessage(from, { text: _buildCombinedBar(query, videoTitle, "audio") }, { quoted: msg });
             // ── xwolf audio API (multi-endpoint fallback) ─────────────────
             const xwd   = await _xwolfAudio(videoUrl, videoTitle);
             const dlUrl = xwd.proxyUrl || xwd.downloadUrl;
             const title = xwd.title || videoTitle;
-            const caption =
-              `🎵 *${title}*\n` +
-              `📁 Format: MP3 · ${xwd.quality || "320kbps"}\n` +
-              `\n_Downloaded by NEXUS-MD_`;
             await sock.sendMessage(from, {
-              audio:    { url: dlUrl },
+              document: { url: dlUrl },
               mimetype: "audio/mpeg",
               fileName: `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`,
+              caption:  _buildFileDone(title, "audio"),
             }, { quoted: msg });
-            await sock.sendMessage(from, { text: caption }, { quoted: msg });
           } catch (e) {
             await sock.sendMessage(from, { text: `❌ Audio download failed: ${e.message}` }, { quoted: msg });
           }
