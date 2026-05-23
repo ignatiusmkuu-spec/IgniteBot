@@ -2618,20 +2618,13 @@ async function startnexus() {
             await sock.sendMessage(from, {
               text: `⬇️ Downloading: *${songTitle}*\n_Please wait a moment..._`,
             }, { quoted: msg });
-            const apiRes = await axios.get(
-              `https://apis.xcasper.space/api/downloader/ytmp3?url=${encodeURIComponent(targetUrl)}`,
-              { timeout: 60000 }
-            );
-            const data = apiRes.data;
-            const audioUrl = data?.url;
-            if (!data?.success || !audioUrl) {
-              await sock.sendMessage(from, { text: `❌ Download failed — API returned no audio link.` }, { quoted: msg });
-              return;
-            }
+            const data = await downloader.downloadAudio(targetUrl);
             const title    = data?.title || songTitle;
-            const fileName = data?.filename || `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
+            const fileName = `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
+            const audioBuffer = fs.readFileSync(data.path);
+            try { fs.unlinkSync(data.path); } catch {}
             await sock.sendMessage(from, {
-              audio:    { url: audioUrl },
+              audio:    audioBuffer,
               mimetype: "audio/mpeg",
               fileName,
             }, { quoted: msg });
@@ -2669,28 +2662,19 @@ async function startnexus() {
             await sock.sendMessage(from, {
               text: `⬇️ Downloading: *${songTitle}*\n_Please wait a moment..._`,
             }, { quoted: msg });
-            const apiRes = await axios.get(
-              `https://apis.xcasper.space/api/downloader/ytmp3?url=${encodeURIComponent(targetUrl)}`,
-              { timeout: 60000 }
-            );
-            const data = apiRes.data;
-            const audioUrl = data?.url;
-            if (!data?.success || !audioUrl) {
-              await sock.sendMessage(from, {
-                text: "❌ Failed to retrieve the MP3 download link.",
-              }, { quoted: msg });
-              return;
-            }
+            const data = await downloader.downloadAudio(targetUrl);
             const title    = data?.title || songTitle;
-            const fileName = data?.filename || `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
+            const fileName = `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
+            const audioBuffer = fs.readFileSync(data.path);
+            try { fs.unlinkSync(data.path); } catch {}
             // Send as playable audio and as downloadable document
             await sock.sendMessage(from, {
-              audio:    { url: audioUrl },
+              audio:    audioBuffer,
               mimetype: "audio/mpeg",
               fileName,
             }, { quoted: msg });
             await sock.sendMessage(from, {
-              document: { url: audioUrl },
+              document: audioBuffer,
               mimetype: "audio/mpeg",
               fileName,
               caption:  `🎵 *${title}*\n_Downloaded by NEXUS-MD_`,
@@ -5387,26 +5371,19 @@ async function startnexus() {
               songTitle = videos[0].title || query;
             }
             await sock.sendMessage(from, { text: `⬇️ Downloading *${songTitle}*...` }, { quoted: msg });
-            const apiRes = await axios.get(
-              `https://apis.xcasper.space/api/downloader/ytmp3?url=${encodeURIComponent(targetUrl)}`,
-              { timeout: 60000 }
-            );
-            const data = apiRes.data;
-            const audioUrl = data?.url;
-            if (!data?.success || !audioUrl) {
-              await sock.sendMessage(from, { text: "❌ Failed to fetch audio from the API." }, { quoted: msg });
-              return;
-            }
-            const title    = data?.title    || songTitle;
-            const filename = data?.filename || `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
+            const data = await downloader.downloadAudio(targetUrl);
+            const title    = data?.title || songTitle;
+            const filename = `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
+            const audioBuffer = fs.readFileSync(data.path);
+            try { fs.unlinkSync(data.path); } catch {}
             await sock.sendMessage(from, {
-              document: { url: audioUrl },
+              document: audioBuffer,
               mimetype: "audio/mpeg",
               caption:  `🎵 *${title}*\n\n_𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗_`,
               fileName: filename,
             }, { quoted: msg });
             await sock.sendMessage(from, {
-              audio:    { url: audioUrl },
+              audio:    audioBuffer,
               mimetype: "audio/mpeg",
               fileName: filename,
             }, { quoted: msg });
