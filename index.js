@@ -345,23 +345,34 @@ async function restoreSession(sessionId) {
         return await restoreSession(fetched);   // recurse with fetched content
       }
 
-      // Try to decode as multi-file map first (new encodeSession() format)
+      // Decode base64 payload and detect format
       try {
         const decoded = Buffer.from(afterPrefix, "base64").toString("utf8");
         const parsed  = JSON.parse(decoded);
-        if (typeof parsed === "object" && !Array.isArray(parsed) && parsed["creds.json"]) {
-          // Multi-file map — restore every file
-          for (const [name, content] of Object.entries(parsed)) {
-            const filePath = path.join(AUTH_FOLDER, name);
-            fs.mkdirSync(path.dirname(filePath), { recursive: true });
-            fs.writeFileSync(filePath, Buffer.from(String(content), "base64"));
+        if (typeof parsed === "object" && !Array.isArray(parsed)) {
+          // ── Multi-file map: { "creds.json": "<b64>", "app-state-...": "<b64>", ... }
+          if (parsed["creds.json"]) {
+            for (const [name, content] of Object.entries(parsed)) {
+              const filePath = path.join(AUTH_FOLDER, name);
+              fs.mkdirSync(path.dirname(filePath), { recursive: true });
+              fs.writeFileSync(filePath, Buffer.from(String(content), "base64"));
+            }
+            console.log(`✅ Session restored (NEXUS-MD multi-file, ${Object.keys(parsed).length} files)`);
+            return true;
           }
-          console.log(`✅ Session restored (NEXUS-MD multi-file, ${Object.keys(parsed).length} files)`);
-          return true;
+          // ── Raw creds.json object encoded as base64 after the prefix
+          // Format: NEXUS-MD:~eyJ{base64 of raw creds JSON}
+          // Detected by presence of Baileys creds fields at the top level.
+          if (parsed.noiseKey || parsed.signedIdentityKey || parsed.registered !== undefined || parsed.me) {
+            fs.mkdirSync(AUTH_FOLDER, { recursive: true });
+            fs.writeFileSync(path.join(AUTH_FOLDER, "creds.json"), JSON.stringify(parsed));
+            console.log("✅ Session restored (NEXUS-MD creds format)");
+            return true;
+          }
         }
-      } catch { /* not a multi-file map — fall through to writeCreds */ }
+      } catch { /* not base64 JSON — fall through to writeCreds */ }
 
-      // Legacy NEXUS-MD single creds.json
+      // Legacy: afterPrefix is a raw JSON string or other encodable form
       writeCreds(afterPrefix);
       console.log("✅ Session restored (NEXUS-MD format)");
       return true;
