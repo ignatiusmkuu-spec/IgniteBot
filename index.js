@@ -787,8 +787,8 @@ _server.on("error", (err) => {
     try { execSync(`pkill -f "node.*index" 2>/dev/null || true`, { stdio: "ignore" }); } catch {}
     setTimeout(() => _server.listen(PORT, "0.0.0.0"), 1500);
   } else {
-    console.error("Server error:", err.message);
-    process.exit(1);
+    // Log but do NOT exit — crashing here causes a Heroku restart loop on non-fatal errors
+    console.error("Server error (non-fatal):", err.message);
   }
 });
 
@@ -936,8 +936,8 @@ function reconnectDelay() {
 setInterval(() => {
   if (isShuttingDown || waitingForSession || isConnecting) return;
   const ws = sockRef?.ws;
-  const isAlive = ws && !ws.isClosed && !ws.isClosing && botStatus === "open";
-  if (!isAlive && botStatus !== "open" && !isConnecting) {
+  const isAlive = ws && !ws.isClosed && !ws.isClosing && botStatus === "connected";
+  if (!isAlive && botStatus !== "connected" && !isConnecting) {
     console.warn("[WATCHDOG] 🔄 Dead socket detected — forcing reconnect...");
     reconnectAttempts = 0;
     startnexus().catch(() => {});
