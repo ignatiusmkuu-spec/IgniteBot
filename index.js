@@ -96,38 +96,17 @@ async function _xwolfVideo(videoUrl, videoTitle) {
 function _buildCombinedBar(query, title, type) {
   const isVideo = type === "video";
   const emoji   = isVideo ? "🎬" : "🎵";
-  const mode    = isVideo ? "𝗩𝗜𝗗𝗘𝗢" : "𝗔𝗨𝗗𝗜𝗢";
-  const pipe    = isVideo ? "🎞️  Output  ⟶  MP4 · 720p" : "🎧  Output  ⟶  MP3 · 320kbps";
-  const proc    = isVideo ? "🧬  Processing video pipeline..." : "🧬  Processing audio pipeline...";
-  const db      = isVideo ? "video" : "music";
+  const fmt     = isVideo ? "MP4 · 720p" : "MP3 · 320kbps";
   return [
-    `╔══════════════════════════════╗`,
-    `   ⚡ *𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 𝗢𝗣𝗘𝗥𝗔𝗧𝗜𝗢𝗡 𝗖𝗘𝗡𝗧𝗥𝗘* ⚡`,
-    `╚══════════════════════════════╝`,
+    `⚡ *𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗥* ⚡`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `🔎  *${query}*`,
+    `✅  ${emoji} *${title}*`,
     ``,
-    `┌──────────────────────────────┐`,
-    `│  🔎  *𝗦𝗘𝗔𝗥𝗖𝗛 𝗣𝗛𝗔𝗦𝗘*  ·  ✅ 𝗖𝗢𝗠𝗣𝗟𝗘𝗧𝗘  │`,
-    `└──────────────────────────────┘`,
-    `🌐  Scanning ${db} database...`,
-    `🎯  Query: *${query}*`,
-    `✅  *${title}*`,
-    ``,
-    `┌──────────────────────────────┐`,
-    `│  ⬇️  *𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗 𝗣𝗛𝗔𝗦𝗘*  ·  ⏳ 𝗟𝗜𝗩𝗘   │`,
-    `└──────────────────────────────┘`,
-    `🛰️  *${mode} STREAM LOCKED*`,
-    `${emoji}  *${title}*`,
-    ``,
-    `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱  *70%*`,
-    ``,
-    `⚙️  Decoding stream data...`,
-    `🔌  Syncing with CDN servers...`,
-    proc,
-    pipe,
-    `📥  Preparing secure download...`,
-    ``,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `        ⚡ *𝗡𝗘𝗫𝗨𝗦-𝗠𝗗* ⚡`,
+    `▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱  *70%*`,
+    `📡  Fetching · ${fmt}`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `_𝗣𝗼𝘄𝗲𝗿𝗲𝗱 𝗯𝘆 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗_`,
   ].join("\n");
 }
 
@@ -135,18 +114,7 @@ function _buildFileDone(title, type, quality) {
   const isVideo = type === "video";
   const emoji   = isVideo ? "🎬" : "🎵";
   const fmt     = quality || (isVideo ? "MP4 · 720p" : "MP3 · 320kbps");
-  return [
-    `╔══════════════════════════════╗`,
-    `   ✅  *𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗 𝗖𝗢𝗠𝗣𝗟𝗘𝗧𝗘*  ✅`,
-    `╚══════════════════════════════╝`,
-    ``,
-    `${emoji}  *${title}*`,
-    `🎯  Format: *${fmt}*`,
-    `🌐  Source: *YouTube*`,
-    ``,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `  ⚡ *𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗* ⚡`,
-  ].join("\n");
+  return `${emoji} *${title}*\n🎯 ${fmt}  ·  ⚡ *𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗*`;
 }
 
 const app = express();
@@ -2716,10 +2684,9 @@ async function startnexus() {
             const fileName = `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
             const audioUrl = xwd.proxyUrl || xwd.downloadUrl;
             await sock.sendMessage(from, {
-              document: { url: audioUrl },
+              audio:    { url: audioUrl },
               mimetype: "audio/mpeg",
               fileName,
-              caption:  _buildFileDone(title, "audio"),
             }, { quoted: msg });
           } catch (e) {
             await sock.sendMessage(from, { text: `❌ Download failed: ${e.message}` }, { quoted: msg });
@@ -2750,10 +2717,9 @@ async function startnexus() {
             const fileName = `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
             const audioUrl = xwd.proxyUrl || xwd.downloadUrl;
             await sock.sendMessage(from, {
-              document: { url: audioUrl },
+              audio:    { url: audioUrl },
               mimetype: "audio/mpeg",
               fileName,
-              caption:  _buildFileDone(title, "audio"),
             }, { quoted: msg });
           } catch (e) {
             await sock.sendMessage(from, {
@@ -5476,10 +5442,9 @@ async function startnexus() {
             const filename = `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
             const audioUrl = xwd.proxyUrl || xwd.downloadUrl;
             await sock.sendMessage(from, {
-              document: { url: audioUrl },
+              audio:    { url: audioUrl },
               mimetype: "audio/mpeg",
               fileName: filename,
-              caption:  _buildFileDone(title, "audio"),
             }, { quoted: msg });
           } catch (e) {
             await sock.sendMessage(from, { text: `❌ Download failed: ${e.message}` }, { quoted: msg });
@@ -5548,10 +5513,9 @@ async function startnexus() {
             const dlUrl = xwd.proxyUrl || xwd.downloadUrl;
             const title = xwd.title || videoTitle;
             await sock.sendMessage(from, {
-              document: { url: dlUrl },
+              audio:    { url: dlUrl },
               mimetype: "audio/mpeg",
               fileName: `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`,
-              caption:  _buildFileDone(title, "audio"),
             }, { quoted: msg });
           } catch (e) {
             await sock.sendMessage(from, { text: `❌ Audio download failed: ${e.message}` }, { quoted: msg });
