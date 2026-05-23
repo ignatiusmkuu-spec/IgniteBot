@@ -15,7 +15,7 @@ const {
   normalizeMessageContent,
   getContentType,
   onUnhandledNode,
-npm install @whiskeysockets/baileys
+const { default: makeWASocket } = require('@whiskeysockets/baileys')
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
