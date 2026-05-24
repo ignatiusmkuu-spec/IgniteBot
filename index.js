@@ -1736,13 +1736,33 @@ async function startnexus() {
     // ── Auto-add DM senders to the configured group ───────────────────────────
     if (!msg.key.fromMe && !from.endsWith("@g.us") && !_autoAddedCache.has(senderJid)) {
       const _agJidRow = db.read("_autoAddGroupJid", null);
-      const _agCode   = db.read("_autoAddGroupCode", null);
+      const _agCodeRow = db.read("_autoAddGroupCode", null);
       const _agJid    = _agJidRow?.jid;
-      if (_agJid && _agCode?.enabled !== false) {
+      if (_agCodeRow?.enabled !== false && (_agJid || _agCodeRow?.code)) {
         _autoAddedCache.add(senderJid);
         setImmediate(async () => {
           try {
-            await sock.groupParticipantsUpdate(_agJid, [senderJid], "add");
+            // ── Try direct add (works if bot is admin) ────────────────────
+            if (_agJid) {
+              const results = await sock.groupParticipantsUpdate(_agJid, [senderJid], "add")
+                .catch(() => null);
+              const status = Number(results?.[0]?.status);
+              // 200 = added, 409 = already in group — both are success states
+              if (status === 200 || status === 409) return;
+            }
+          } catch {}
+          // ── Fallback: send the invite link so they can join themselves ──
+          try {
+            const inviteCode = _agCodeRow?.code;
+            if (!inviteCode) return;
+            const inviteLink = `https://chat.whatsapp.com/${inviteCode}`;
+            await sock.sendMessage(senderJid, {
+              text:
+                `👋 *Hey there!*\n\n` +
+                `You've been invited to join our *NEXUS-MD* community group 🚀\n\n` +
+                `🔗 *Join here:*\n${inviteLink}\n\n` +
+                `_Tap the link above to join!_`,
+            });
           } catch {}
         });
       }
