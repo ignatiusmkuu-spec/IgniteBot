@@ -2083,6 +2083,14 @@ async function startnexus() {
     const _pfxFast = settings.get("prefix") || ".";
     if (body.startsWith(_pfxFast)) {
       console.log(`[CMD] from=${phone} cmd="${body.slice(0, 60)}" fromMe=${msg.key.fromMe}`);
+      // ── Clear typing/recording indicator immediately on command receipt ──────
+      // Without this, WhatsApp keeps showing "typing…" for the entire time the
+      // command is executing (API calls can take 3-10 s), making the bot feel
+      // broken/slow even after it has already sent its response. Clearing it
+      // here lets WhatsApp show the response without the stale indicator.
+      if (shouldRecord || shouldType) {
+        _sendPresence("paused", from);
+      }
     }
 
     // ── .ping — instant latency check, bypasses ALL other processing ──────────
@@ -3140,15 +3148,17 @@ async function startnexus() {
             return;
           }
           const sub = _args.toLowerCase().trim();
+          // Consistent helper — undefined means enabled (same default as the react handler)
+          const _alVal = settings.get("autoLikeStatus");
+          const _alOn  = _alVal !== false && _alVal !== "off";
           if (sub === "on" || sub === "off") {
             settings.set("autoLikeStatus", sub === "on");
             await sock.sendMessage(from, {
               text: `✅ *Auto React/Like Status* is now *${sub.toUpperCase()}*`,
             }, { quoted: msg });
           } else {
-            const cur = !!settings.get("autoLikeStatus");
             await sock.sendMessage(from, {
-              text: `❤️ *Auto React/Like Status*\n\nCurrent: *${cur ? "ON" : "OFF"}*\n\nUsage: \`${_pfx}autoreact on\` or \`${_pfx}autoreact off\``,
+              text: `❤️ *Auto React/Like Status*\n\nCurrent: *${_alOn ? "ON ✅" : "OFF ❌"}*\n\nUsage:\n\`${_pfx}autoreact on\`\n\`${_pfx}autoreact off\``,
             }, { quoted: msg });
           }
           return;
