@@ -535,110 +535,207 @@ tr:hover td{background:rgba(0,212,255,0.03)}
 .hidden{display:none!important}
 
 /* ── Pairing Site Bar ── */
-.pair-bar {
+/* ── NEXUS Repo Bar ────────────────────────────────────────────────────── */
+.nexus-bar{
   position:relative;
-  margin-top:14px;
-  border-radius:16px;
+  margin-top:18px;
+  border-radius:20px;
   overflow:hidden;
-  background:linear-gradient(135deg,rgba(0,212,255,0.06) 0%,rgba(168,85,247,0.08) 50%,rgba(0,212,255,0.04) 100%);
-  border:1px solid transparent;
-  background-clip:padding-box;
+  background:linear-gradient(135deg,#020c14 0%,#060d1a 50%,#08101f 100%);
+  border:1px solid rgba(0,212,255,0.18);
+  box-shadow:0 0 0 1px rgba(168,85,247,0.08),0 12px 50px rgba(0,0,0,0.7),0 0 80px rgba(0,212,255,0.05);
 }
-.pair-bar::before {
+/* animated top accent line */
+.nexus-bar::before{
+  content:'';
+  position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent 0%,#00d4ff 30%,#a855f7 60%,#00d4ff 80%,transparent 100%);
+  background-size:300% 100%;
+  animation:nexus-accent 4s linear infinite;
+  z-index:2;
+}
+/* circuit grid overlay */
+.nexus-bar::after{
   content:'';
   position:absolute;inset:0;
-  border-radius:16px;
-  padding:1px;
-  background:linear-gradient(135deg,rgba(0,212,255,0.5),rgba(168,85,247,0.5),rgba(0,212,255,0.3));
-  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
-  -webkit-mask-composite:xor;
-  mask-composite:exclude;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,212,255,0.025) 1px,transparent 1px);
+  background-size:36px 36px;
   pointer-events:none;
 }
-.pair-bar-inner {
-  padding:18px 20px;
-  display:flex;align-items:center;gap:18px;
+@keyframes nexus-accent{
+  0%{background-position:0% 0%}
+  100%{background-position:300% 0%}
+}
+/* main body row */
+.nexus-bar-body{
+  position:relative;z-index:1;
+  padding:22px 26px;
+  display:flex;align-items:center;gap:22px;
   flex-wrap:wrap;
 }
-.pair-bar-icon {
-  width:48px;height:48px;min-width:48px;
-  background:linear-gradient(135deg,var(--cyan),var(--purple));
-  border-radius:14px;
+/* icon cluster */
+.nexus-bar-icon-wrap{
+  position:relative;
+  width:60px;height:60px;min-width:60px;
   display:flex;align-items:center;justify-content:center;
-  font-size:22px;
-  box-shadow:0 0 24px rgba(0,212,255,0.35),0 0 48px rgba(168,85,247,0.2);
-  animation:pair-pulse 3s ease-in-out infinite;
 }
-@keyframes pair-pulse {
-  0%,100%{box-shadow:0 0 24px rgba(0,212,255,0.35),0 0 48px rgba(168,85,247,0.2)}
-  50%{box-shadow:0 0 36px rgba(0,212,255,0.6),0 0 64px rgba(168,85,247,0.35)}
+.nexus-bar-ring{
+  position:absolute;inset:-9px;
+  border-radius:22px;
+  border:1px solid rgba(0,212,255,0.18);
+  animation:nexus-ring 3s ease-in-out infinite;
 }
-.pair-bar-text {
-  flex:1;min-width:180px;
+.nexus-bar-ring2{
+  position:absolute;inset:-18px;
+  border-radius:30px;
+  border:1px solid rgba(168,85,247,0.1);
+  animation:nexus-ring 3s ease-in-out infinite reverse;
+  animation-delay:.5s;
 }
-.pair-bar-label {
+@keyframes nexus-ring{
+  0%,100%{opacity:.35;transform:scale(1)}
+  50%{opacity:.8;transform:scale(1.07)}
+}
+.nexus-bar-icon{
+  width:60px;height:60px;
+  background:linear-gradient(135deg,rgba(0,212,255,0.14),rgba(168,85,247,0.2));
+  border:1px solid rgba(0,212,255,0.3);
+  border-radius:18px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:26px;
+  position:relative;z-index:1;
+  box-shadow:0 0 28px rgba(0,212,255,0.22),inset 0 0 20px rgba(0,212,255,0.06);
+  animation:nexus-glow 3s ease-in-out infinite;
+}
+@keyframes nexus-glow{
+  0%,100%{box-shadow:0 0 28px rgba(0,212,255,0.22),inset 0 0 20px rgba(0,212,255,0.06)}
+  50%{box-shadow:0 0 50px rgba(0,212,255,0.5),0 0 80px rgba(168,85,247,0.2),inset 0 0 30px rgba(0,212,255,0.12)}
+}
+/* center text */
+.nexus-bar-center{flex:1;min-width:210px}
+.nexus-bar-eyebrow{
   font-family:'Syne',sans-serif;
-  font-size:0.65rem;font-weight:700;
-  text-transform:uppercase;letter-spacing:2px;
-  color:var(--muted);margin-bottom:4px;
+  font-size:0.6rem;font-weight:800;
+  text-transform:uppercase;letter-spacing:3px;
+  color:rgba(0,212,255,0.55);
+  margin-bottom:5px;
 }
-.pair-bar-heading {
+.nexus-bar-title{
   font-family:'Orbitron',monospace;
-  font-size:0.95rem;font-weight:700;
-  background:linear-gradient(90deg,var(--cyan),var(--purple),var(--cyan));
+  font-size:1.05rem;font-weight:900;
+  background:linear-gradient(90deg,#00d4ff,#a855f7,#00d4ff);
   background-size:200%;
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-  animation:pair-shine 4s linear infinite;
-  margin-bottom:5px;
-  letter-spacing:0.5px;
+  animation:nexus-shine 5s linear infinite;
+  margin-bottom:7px;
+  letter-spacing:1.5px;
 }
-@keyframes pair-shine {
+@keyframes nexus-shine{
   0%{background-position:0%}
   100%{background-position:200%}
 }
-.pair-bar-url {
+.nexus-bar-url{
   font-family:'JetBrains Mono',monospace;
   font-size:0.72rem;
-  color:rgba(0,212,255,0.65);
-  letter-spacing:0.3px;
-  word-break:break-all;
+  color:rgba(0,212,255,0.5);
+  margin-bottom:11px;
+  display:flex;align-items:center;gap:7px;
 }
-.pair-bar-btn {
-  display:inline-flex;align-items:center;gap:7px;
-  padding:10px 20px;
-  border-radius:10px;
-  background:linear-gradient(135deg,var(--cyan),var(--purple));
-  color:#000;
+.nexus-bar-url-arrow{color:rgba(168,85,247,0.75);font-style:normal}
+/* chips row */
+.nexus-bar-chips{display:flex;gap:6px;flex-wrap:wrap}
+.nexus-bar-chip{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 10px;
+  border-radius:999px;
+  font-size:0.61rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:0.8px;
   font-family:'Syne',sans-serif;
-  font-size:0.8rem;font-weight:700;
+}
+.nexus-bar-chip.c-green{background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.28);color:#10b981}
+.nexus-bar-chip.c-cyan{background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.22);color:#00d4ff}
+.nexus-bar-chip.c-purple{background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.25);color:#a855f7}
+.nexus-bar-chip-dot{
+  width:5px;height:5px;border-radius:50%;
+  background:currentColor;
+  box-shadow:0 0 5px currentColor;
+  animation:pulse 2s infinite;
+}
+/* CTA button */
+.nexus-bar-cta{
+  display:inline-flex;flex-direction:column;align-items:center;gap:5px;
+  padding:15px 26px;
+  border-radius:15px;
+  background:linear-gradient(135deg,#00d4ff,#a855f7);
+  color:#000;
+  font-family:'Orbitron',monospace;
+  font-size:0.72rem;font-weight:900;
   text-decoration:none;
-  letter-spacing:0.5px;
+  letter-spacing:1.5px;
+  text-transform:uppercase;
   white-space:nowrap;
   border:none;cursor:pointer;
   transition:all .25s;
-  box-shadow:0 4px 20px rgba(0,212,255,0.3);
+  box-shadow:0 6px 28px rgba(0,212,255,0.38),0 0 0 1px rgba(255,255,255,0.08);
+  position:relative;overflow:hidden;
+  min-width:130px;
+  text-align:center;
 }
-.pair-bar-btn:hover {
-  transform:translateY(-2px);
-  box-shadow:0 8px 30px rgba(0,212,255,0.5),0 4px 20px rgba(168,85,247,0.3);
+.nexus-bar-cta::before{
+  content:'';
+  position:absolute;top:-50%;left:-60%;
+  width:60%;height:200%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.25),transparent);
+  transform:skewX(-20deg);
+  animation:nexus-sweep 3.5s ease-in-out infinite;
+}
+@keyframes nexus-sweep{
+  0%{left:-60%}
+  60%,100%{left:160%}
+}
+.nexus-bar-cta:hover{
+  transform:translateY(-3px) scale(1.02);
+  box-shadow:0 14px 45px rgba(0,212,255,0.55),0 6px 24px rgba(168,85,247,0.4);
   filter:brightness(1.1);
 }
-.pair-bar-badge {
-  display:inline-flex;align-items:center;gap:5px;
-  margin-top:7px;
-  background:rgba(16,185,129,0.1);
-  border:1px solid rgba(16,185,129,0.25);
-  border-radius:999px;
-  padding:3px 10px;
-  font-size:0.65rem;font-weight:700;
-  color:var(--green);letter-spacing:1px;
-  text-transform:uppercase;
+.nexus-bar-cta-label{display:block;font-size:0.72rem;font-weight:900;letter-spacing:1.5px}
+.nexus-bar-cta-sub{
+  display:block;
+  font-family:'JetBrains Mono',monospace;
+  font-size:0.52rem;font-weight:400;
+  color:rgba(0,0,0,0.55);
+  text-transform:none;letter-spacing:0;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width:140px;
 }
-.pair-bar-badge-dot {
-  width:6px;height:6px;border-radius:50%;
-  background:var(--green);
-  box-shadow:0 0 6px var(--green);
-  animation:pulse 2s infinite;
+/* bottom stats strip */
+.nexus-bar-stats{
+  position:relative;z-index:1;
+  display:flex;
+  border-top:1px solid rgba(0,212,255,0.08);
+}
+.nexus-bar-stat{
+  flex:1;
+  padding:10px 8px;
+  border-right:1px solid rgba(0,212,255,0.07);
+  text-align:center;
+}
+.nexus-bar-stat:last-child{border-right:none}
+.nexus-bar-stat-val{
+  font-family:'Orbitron',monospace;
+  font-size:0.78rem;font-weight:800;
+  color:var(--cyan);
+  margin-bottom:2px;
+}
+.nexus-bar-stat-lbl{
+  font-size:0.57rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:1px;
+  color:var(--muted);
+  font-family:'Syne',sans-serif;
 }
 
 /* ── Toggle section ── */
@@ -819,18 +916,34 @@ tr:hover td{background:rgba(0,212,255,0.03)}
       </div>
     </div>
 
-    <div class="pair-bar">
-      <div class="pair-bar-inner">
-        <div class="pair-bar-icon">🔗</div>
-        <div class="pair-bar-text">
-          <div class="pair-bar-label">Need a Session ID?</div>
-          <div class="pair-bar-heading">NEXUS Session Generator</div>
-          <div class="pair-bar-url">nexus-session-76ah.onrender.com</div>
-          <div class="pair-bar-badge"><span class="pair-bar-badge-dot"></span>Free · Instant · No Login</div>
+    <div class="nexus-bar">
+      <div class="nexus-bar-body">
+        <div class="nexus-bar-icon-wrap">
+          <div class="nexus-bar-ring2"></div>
+          <div class="nexus-bar-ring"></div>
+          <div class="nexus-bar-icon">⚡</div>
         </div>
-        <a class="pair-bar-btn" href="https://nexus-session-76ah.onrender.com" target="_blank">
-          ⚡ Get Session
+        <div class="nexus-bar-center">
+          <div class="nexus-bar-eyebrow">◈ Official Pairing Portal</div>
+          <div class="nexus-bar-title">NEXUS SESSION GENERATOR</div>
+          <div class="nexus-bar-url"><i class="nexus-bar-url-arrow">→</i> nexus-session-76ah.onrender.com</div>
+          <div class="nexus-bar-chips">
+            <span class="nexus-bar-chip c-green"><span class="nexus-bar-chip-dot"></span>Live</span>
+            <span class="nexus-bar-chip c-cyan">⚡ &lt;30s Setup</span>
+            <span class="nexus-bar-chip c-purple">🔐 Encrypted</span>
+            <span class="nexus-bar-chip c-cyan">🌍 Free Forever</span>
+          </div>
+        </div>
+        <a class="nexus-bar-cta" href="https://nexus-session-76ah.onrender.com/" target="_blank">
+          <span class="nexus-bar-cta-label">⚡ LAUNCH</span>
+          <span class="nexus-bar-cta-sub">nexus-session-76ah.onrender.com</span>
         </a>
+      </div>
+      <div class="nexus-bar-stats">
+        <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">100%</div><div class="nexus-bar-stat-lbl">Free</div></div>
+        <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">&lt;30s</div><div class="nexus-bar-stat-lbl">Pair Time</div></div>
+        <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">E2E</div><div class="nexus-bar-stat-lbl">Encrypted</div></div>
+        <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">24/7</div><div class="nexus-bar-stat-lbl">Online</div></div>
       </div>
     </div>
 
@@ -883,18 +996,34 @@ tr:hover td{background:rgba(0,212,255,0.03)}
     <div class="form-group">
       <label class="form-label">🔑 Session ID</label>
       <input type="text" id="setupSessionId" class="form-input" placeholder="NEXUS-MD:~… (get from nexus-session-76ah.onrender.com)" />
-      <div class="pair-bar">
-        <div class="pair-bar-inner">
-          <div class="pair-bar-icon">⚡</div>
-          <div class="pair-bar-text">
-            <div class="pair-bar-label">Official Pairing Site</div>
-            <div class="pair-bar-heading">Get Your Session ID Free</div>
-            <div class="pair-bar-url">nexus-session-76ah.onrender.com</div>
-            <div class="pair-bar-badge"><span class="pair-bar-badge-dot"></span>Free · Instant · No Login</div>
+      <div class="nexus-bar">
+        <div class="nexus-bar-body">
+          <div class="nexus-bar-icon-wrap">
+            <div class="nexus-bar-ring2"></div>
+            <div class="nexus-bar-ring"></div>
+            <div class="nexus-bar-icon">⚡</div>
           </div>
-          <a class="pair-bar-btn" href="https://nexus-session-76ah.onrender.com" target="_blank">
-            ⚡ Open Site
+          <div class="nexus-bar-center">
+            <div class="nexus-bar-eyebrow">◈ Official Pairing Portal</div>
+            <div class="nexus-bar-title">NEXUS SESSION GENERATOR</div>
+            <div class="nexus-bar-url"><i class="nexus-bar-url-arrow">→</i> nexus-session-76ah.onrender.com</div>
+            <div class="nexus-bar-chips">
+              <span class="nexus-bar-chip c-green"><span class="nexus-bar-chip-dot"></span>Live</span>
+              <span class="nexus-bar-chip c-cyan">⚡ &lt;30s Setup</span>
+              <span class="nexus-bar-chip c-purple">🔐 Encrypted</span>
+              <span class="nexus-bar-chip c-cyan">🌍 Free Forever</span>
+            </div>
+          </div>
+          <a class="nexus-bar-cta" href="https://nexus-session-76ah.onrender.com/" target="_blank">
+            <span class="nexus-bar-cta-label">⚡ LAUNCH</span>
+            <span class="nexus-bar-cta-sub">nexus-session-76ah.onrender.com</span>
           </a>
+        </div>
+        <div class="nexus-bar-stats">
+          <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">100%</div><div class="nexus-bar-stat-lbl">Free</div></div>
+          <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">&lt;30s</div><div class="nexus-bar-stat-lbl">Pair Time</div></div>
+          <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">E2E</div><div class="nexus-bar-stat-lbl">Encrypted</div></div>
+          <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">24/7</div><div class="nexus-bar-stat-lbl">Online</div></div>
         </div>
       </div>
     </div>
