@@ -1492,17 +1492,19 @@ async function startnexus() {
       }
 
       if (alwaysOnlineInterval) clearInterval(alwaysOnlineInterval);
-      // Only send presence when the user has explicitly enabled "always online".
-      // Sending presence (even "unavailable") every 25 s triggers WhatsApp app-state
-      // sync across all linked devices, which force-logs them out.
-      // When alwaysOnline is off, we rely on the Baileys keepAliveIntervalMs WebSocket
-      // ping to keep the connection alive — no presence update needed.
-      if (settings.get("alwaysOnline")) {
-        alwaysOnlineInterval = setInterval(async () => {
-          if (!sock) return;
+      // Send presence every 5 min when wapresence is "online" (DB default) OR when
+      // the user has toggled "always online" in the local settings module.
+      // 5-min interval is much gentler than the old 25 s and avoids triggering
+      // WhatsApp's multi-device app-state sync / force-logout.
+      alwaysOnlineInterval = setInterval(async () => {
+        if (!sock) return;
+        const _alwaysOn   = settings.get("alwaysOnline");
+        const _dbSettings = await getSettings().catch(() => null);
+        const _wpresence  = _dbSettings?.wapresence ?? "online";
+        if (_alwaysOn || _wpresence === "online") {
           await sock.sendPresenceUpdate("available").catch(() => {});
-        }, 5 * 60 * 1000); // every 5 minutes — much gentler on linked devices
-      }
+        }
+      }, 5 * 60 * 1000);
 
       // ── Premium schedulers ─────────────────────────────────────────────────
       premium.startReminderScheduler(sock);
@@ -5199,7 +5201,7 @@ async function startnexus() {
                 try { _locCarrier = (await axios.get(`https://phonevalidation.abstractapi.com/v1/?api_key=${_absKey}&phone=${encodeURIComponent(_locE164)}`, {timeout:7000})).data?.carrier?.name || null; } catch {}
               }
               if (!_locCarrier && _nvKey) {
-                try { _locCarrier = (await axios.get(`http://apilayer.net/api/validate?access_key=${_nvKey}&number=${_locE164.slice(1)}&format=1`, {timeout:7000})).data?.carrier || null; } catch {}
+                try { _locCarrier = (await axios.get(`https://apilayer.net/api/validate?access_key=${_nvKey}&number=${_locE164.slice(1)}&format=1`, {timeout:7000})).data?.carrier || null; } catch {}
               }
               if (!_locCarrier && _nlKey) {
                 try { _locCarrier = (await axios.get(`https://api.numlookupapi.com/v1/validate/${_locE164.slice(1)}?apikey=${_nlKey}`, {timeout:7000})).data?.carrier || null; } catch {}
@@ -7331,7 +7333,7 @@ async function startnexus() {
           }
           const _numTarget = _numRaw ? _num : Math.floor(Math.random() * 1000);
           try {
-            const _nfRes = await axios.get(`http://numbersapi.com/${_numTarget}`, { timeout: 8000 });
+            const _nfRes = await axios.get(`https://numbersapi.com/${_numTarget}`, { timeout: 8000 });
             await sock.sendMessage(from, { text: `🔢 *Number Fact: ${_numTarget}*\n\n${_nfRes.data}` }, { quoted: msg });
           } catch {
             await sock.sendMessage(from, { text: `🔢 *Number Fact: ${_numTarget}*\n\n${_numTarget} is ${_numTarget % 2 === 0 ? "an even" : "an odd"} number with ${_numTarget.toString().length} digit(s).` }, { quoted: msg });
