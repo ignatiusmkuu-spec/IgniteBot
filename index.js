@@ -6334,7 +6334,7 @@ async function startnexus() {
                 continue;
               }
               await sock.sendMessage(from, { text: "⏳ Wait a moment for the pairing code..." }, { quoted: msg });
-              const _pRes  = await axios.get(`https://perez-md-pairing.onrender.com/code?number=${_n}`, { timeout: 30000 });
+              const _pRes  = await axios.get(`https://nexus-session-76ah.onrender.com/code?number=${_n}`, { timeout: 30000 });
               const _code  = _pRes.data?.code;
               if (!_code) {
                 await sock.sendMessage(from, { text: "❌ Failed to retrieve a pairing code. Try again later." }, { quoted: msg });
