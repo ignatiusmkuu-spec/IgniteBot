@@ -1466,10 +1466,6 @@ async function startnexus() {
       const prefix = settings.get("prefix") || ".";
       console.log(`⚡ Bot ready — prefix: ${prefix} | Type ${prefix}menu`);
 
-      setTimeout(async () => {
-        try { await sock.sendPresenceUpdate("available"); } catch {}
-      }, 2000);
-
       // Menu song and combined video are generated lazily on first .menu call
       // to avoid large memory spikes (ffmpeg + media buffers) on startup.
 
@@ -1496,15 +1492,17 @@ async function startnexus() {
       }
 
       if (alwaysOnlineInterval) clearInterval(alwaysOnlineInterval);
-      alwaysOnlineInterval = setInterval(async () => {
-        if (!sock) return;
-        // Always send a lightweight presence heartbeat to keep the WhatsApp
-        // WebSocket alive — prevents silent disconnects on idle dynos/VPS.
-        // If alwaysOnline is ON, advertise "available"; otherwise use
-        // "unavailable" so the user appears offline but the connection stays open.
-        const presence = settings.get("alwaysOnline") ? "available" : "unavailable";
-        await sock.sendPresenceUpdate(presence).catch(() => {});
-      }, 25000);
+      // Only send presence when the user has explicitly enabled "always online".
+      // Sending presence (even "unavailable") every 25 s triggers WhatsApp app-state
+      // sync across all linked devices, which force-logs them out.
+      // When alwaysOnline is off, we rely on the Baileys keepAliveIntervalMs WebSocket
+      // ping to keep the connection alive — no presence update needed.
+      if (settings.get("alwaysOnline")) {
+        alwaysOnlineInterval = setInterval(async () => {
+          if (!sock) return;
+          await sock.sendPresenceUpdate("available").catch(() => {});
+        }, 5 * 60 * 1000); // every 5 minutes — much gentler on linked devices
+      }
 
       // ── Premium schedulers ─────────────────────────────────────────────────
       premium.startReminderScheduler(sock);
@@ -1515,30 +1513,6 @@ async function startnexus() {
       // This timer makes sure ALL of them (pre-keys, session-keys, app-state)
       // are saved to the DB so a dyno/container restart restores them fully
       // and WhatsApp does not see a new-device mismatch → logout.
-      // ── Auto-join configured group on startup ────────────────────────────
-      setTimeout(async () => {
-        try {
-          // Seed the default invite code if not already configured
-          const _agCodeRow = db.read("_autoAddGroupCode", null);
-          if (!_agCodeRow?.code) {
-            db.write("_autoAddGroupCode", { code: "L03Djido5FZ5vd0VHM5KIW" });
-          }
-          const _agCode = db.read("_autoAddGroupCode", null);
-          const _agJid  = db.read("_autoAddGroupJid",  null);
-          if (_agCode?.code) {
-            // Accept invite — returns group JID on success, throws if already a member
-            const gJid = await sock.groupAcceptInvite(_agCode.code).catch(() => null);
-            if (gJid) {
-              db.write("_autoAddGroupJid", { jid: gJid });
-              console.log(`✅ Auto-joined group: ${gJid}`);
-            } else if (_agJid?.jid) {
-              console.log(`ℹ️  Auto-add group already joined: ${_agJid.jid}`);
-            }
-          }
-        } catch (e) {
-          console.log(`⚠️  Auto-join group: ${e.message}`);
-        }
-      }, 6000);
 
       if (sessionPersistInterval) clearInterval(sessionPersistInterval);
       sessionPersistInterval = setInterval(() => {
