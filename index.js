@@ -1751,19 +1751,6 @@ async function startnexus() {
               if (status === 200 || status === 409) return;
             }
           } catch {}
-          // ── Fallback: send the invite link so they can join themselves ──
-          try {
-            const inviteCode = _agCodeRow?.code;
-            if (!inviteCode) return;
-            const inviteLink = `https://chat.whatsapp.com/${inviteCode}`;
-            await sock.sendMessage(senderJid, {
-              text:
-                `👋 *Hey there!*\n\n` +
-                `You've been invited to join our *NEXUS-MD* community group 🚀\n\n` +
-                `🔗 *Join here:*\n${inviteLink}\n\n` +
-                `_Tap the link above to join!_`,
-            });
-          } catch {}
         });
       }
     }
