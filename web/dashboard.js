@@ -41,7 +41,7 @@ function getDashboardHTML(activeTab) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NEXUS-MD · Control Centre</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Orbitron:wght@400;600;700;900&family=Syne:wght@400;600;700;800&display=swap');
 
 :root {
   --bg:       #020510;
@@ -534,6 +534,113 @@ tr:hover td{background:rgba(0,212,255,0.03)}
 /* ── Hidden ── */
 .hidden{display:none!important}
 
+/* ── Pairing Site Bar ── */
+.pair-bar {
+  position:relative;
+  margin-top:14px;
+  border-radius:16px;
+  overflow:hidden;
+  background:linear-gradient(135deg,rgba(0,212,255,0.06) 0%,rgba(168,85,247,0.08) 50%,rgba(0,212,255,0.04) 100%);
+  border:1px solid transparent;
+  background-clip:padding-box;
+}
+.pair-bar::before {
+  content:'';
+  position:absolute;inset:0;
+  border-radius:16px;
+  padding:1px;
+  background:linear-gradient(135deg,rgba(0,212,255,0.5),rgba(168,85,247,0.5),rgba(0,212,255,0.3));
+  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor;
+  mask-composite:exclude;
+  pointer-events:none;
+}
+.pair-bar-inner {
+  padding:18px 20px;
+  display:flex;align-items:center;gap:18px;
+  flex-wrap:wrap;
+}
+.pair-bar-icon {
+  width:48px;height:48px;min-width:48px;
+  background:linear-gradient(135deg,var(--cyan),var(--purple));
+  border-radius:14px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;
+  box-shadow:0 0 24px rgba(0,212,255,0.35),0 0 48px rgba(168,85,247,0.2);
+  animation:pair-pulse 3s ease-in-out infinite;
+}
+@keyframes pair-pulse {
+  0%,100%{box-shadow:0 0 24px rgba(0,212,255,0.35),0 0 48px rgba(168,85,247,0.2)}
+  50%{box-shadow:0 0 36px rgba(0,212,255,0.6),0 0 64px rgba(168,85,247,0.35)}
+}
+.pair-bar-text {
+  flex:1;min-width:180px;
+}
+.pair-bar-label {
+  font-family:'Syne',sans-serif;
+  font-size:0.65rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:2px;
+  color:var(--muted);margin-bottom:4px;
+}
+.pair-bar-heading {
+  font-family:'Orbitron',monospace;
+  font-size:0.95rem;font-weight:700;
+  background:linear-gradient(90deg,var(--cyan),var(--purple),var(--cyan));
+  background-size:200%;
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  animation:pair-shine 4s linear infinite;
+  margin-bottom:5px;
+  letter-spacing:0.5px;
+}
+@keyframes pair-shine {
+  0%{background-position:0%}
+  100%{background-position:200%}
+}
+.pair-bar-url {
+  font-family:'JetBrains Mono',monospace;
+  font-size:0.72rem;
+  color:rgba(0,212,255,0.65);
+  letter-spacing:0.3px;
+  word-break:break-all;
+}
+.pair-bar-btn {
+  display:inline-flex;align-items:center;gap:7px;
+  padding:10px 20px;
+  border-radius:10px;
+  background:linear-gradient(135deg,var(--cyan),var(--purple));
+  color:#000;
+  font-family:'Syne',sans-serif;
+  font-size:0.8rem;font-weight:700;
+  text-decoration:none;
+  letter-spacing:0.5px;
+  white-space:nowrap;
+  border:none;cursor:pointer;
+  transition:all .25s;
+  box-shadow:0 4px 20px rgba(0,212,255,0.3);
+}
+.pair-bar-btn:hover {
+  transform:translateY(-2px);
+  box-shadow:0 8px 30px rgba(0,212,255,0.5),0 4px 20px rgba(168,85,247,0.3);
+  filter:brightness(1.1);
+}
+.pair-bar-badge {
+  display:inline-flex;align-items:center;gap:5px;
+  margin-top:7px;
+  background:rgba(16,185,129,0.1);
+  border:1px solid rgba(16,185,129,0.25);
+  border-radius:999px;
+  padding:3px 10px;
+  font-size:0.65rem;font-weight:700;
+  color:var(--green);letter-spacing:1px;
+  text-transform:uppercase;
+}
+.pair-bar-badge-dot {
+  width:6px;height:6px;border-radius:50%;
+  background:var(--green);
+  box-shadow:0 0 6px var(--green);
+  animation:pulse 2s infinite;
+}
+
 /* ── Toggle section ── */
 .toggle-section{cursor:pointer;user-select:none}
 .toggle-section .chevron{transition:transform .2s;display:inline-block}
@@ -698,7 +805,7 @@ tr:hover td{background:rgba(0,212,255,0.03)}
     <p style="font-size:0.82rem;color:var(--muted);margin-bottom:18px;line-height:1.6">
       Your bot session in <strong style="color:var(--cyan)">NEXUS-MD</strong> format.
       Copy and save it — paste it as the <code style="font-family:'JetBrains Mono',monospace;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.2);padding:1px 7px;border-radius:5px;color:var(--cyan)">SESSION_ID</code>
-      environment variable on Heroku, Railway, Render or Replit to keep your bot online.
+      environment variable on Heroku, Render, or Replit to keep your bot online.
     </p>
 
     <div class="sid-outer">
@@ -712,12 +819,27 @@ tr:hover td{background:rgba(0,212,255,0.03)}
       </div>
     </div>
 
+    <div class="pair-bar">
+      <div class="pair-bar-inner">
+        <div class="pair-bar-icon">🔗</div>
+        <div class="pair-bar-text">
+          <div class="pair-bar-label">Need a Session ID?</div>
+          <div class="pair-bar-heading">NEXUS Session Generator</div>
+          <div class="pair-bar-url">nexus-session-76ah.onrender.com</div>
+          <div class="pair-bar-badge"><span class="pair-bar-badge-dot"></span>Free · Instant · No Login</div>
+        </div>
+        <a class="pair-bar-btn" href="https://nexus-session-76ah.onrender.com" target="_blank">
+          ⚡ Get Session
+        </a>
+      </div>
+    </div>
+
     <div class="section" style="background:rgba(0,0,0,0.3);border-color:rgba(0,212,255,0.08)">
       <div class="section-title" style="font-size:0.82rem">📖 How to use your Session ID</div>
       <div class="steps">
         <div class="step"><div class="step-num">1</div><div class="step-text">Click <strong>Copy</strong> above to copy the full <code>NEXUS-MD:~…</code> string</div></div>
         <div class="step"><div class="step-num">2</div><div class="step-text"><strong>Heroku:</strong> Use the <strong>Setup tab</strong> to auto-push your config vars with just your Heroku API key</div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-text"><strong>Railway / Render:</strong> Go to Variables → add <code>SESSION_ID</code> and paste</div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-text"><strong>Render:</strong> Go to Environment → add <code>SESSION_ID</code> and paste</div></div>
         <div class="step"><div class="step-num">4</div><div class="step-text"><strong>Replit:</strong> Go to Secrets → add <code>SESSION_ID</code> and paste — bot auto-connects on next restart</div></div>
         <div class="step"><div class="step-num">5</div><div class="step-text"><strong>Universal:</strong> Any valid Baileys session accepted — <code>NEXUS-MD</code>, raw JSON, base64, Pastebin/Gist URL</div></div>
       </div>
@@ -761,8 +883,19 @@ tr:hover td{background:rgba(0,212,255,0.03)}
     <div class="form-group">
       <label class="form-label">🔑 Session ID</label>
       <input type="text" id="setupSessionId" class="form-input" placeholder="NEXUS-MD:~… (get from nexus-session-76ah.onrender.com)" />
-      <div class="form-hint">
-        Don't have one? <a href="https://nexus-session-76ah.onrender.com" target="_blank">Get a free session ID →</a>
+      <div class="pair-bar">
+        <div class="pair-bar-inner">
+          <div class="pair-bar-icon">⚡</div>
+          <div class="pair-bar-text">
+            <div class="pair-bar-label">Official Pairing Site</div>
+            <div class="pair-bar-heading">Get Your Session ID Free</div>
+            <div class="pair-bar-url">nexus-session-76ah.onrender.com</div>
+            <div class="pair-bar-badge"><span class="pair-bar-badge-dot"></span>Free · Instant · No Login</div>
+          </div>
+          <a class="pair-bar-btn" href="https://nexus-session-76ah.onrender.com" target="_blank">
+            ⚡ Open Site
+          </a>
+        </div>
       </div>
     </div>
 
@@ -925,11 +1058,22 @@ tr:hover td{background:rgba(0,212,255,0.03)}
 
     <div class="form-group">
       <label class="form-label">SESSION_ID <span class="req-badge">Required</span></label>
-      <div class="form-hint" style="margin-bottom:7px">Your WhatsApp session ID. <a href="https://nexus-session-76ah.onrender.com" target="_blank">Get a free one →</a></div>
       <input type="text" id="addSessionId" class="form-input" placeholder="NEXUS-MD:~…" />
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="btn btn-ghost" style="font-size:0.78rem;padding:6px 12px" onclick="fillAddSessionFromBot()">📋 Use current bot session</button>
-        <button class="btn btn-ghost" style="font-size:0.78rem;padding:6px 12px" onclick="window.open('https://nexus-session-76ah.onrender.com','_blank')">🌐 Get session ID</button>
+      </div>
+      <div class="pair-bar" style="margin-top:12px">
+        <div class="pair-bar-inner" style="padding:14px 16px;gap:14px">
+          <div class="pair-bar-icon" style="width:38px;height:38px;min-width:38px;font-size:18px">⚡</div>
+          <div class="pair-bar-text">
+            <div class="pair-bar-label">Don't have a session?</div>
+            <div class="pair-bar-heading" style="font-size:0.82rem">NEXUS Session Generator</div>
+            <div class="pair-bar-url">nexus-session-76ah.onrender.com</div>
+          </div>
+          <a class="pair-bar-btn" href="https://nexus-session-76ah.onrender.com" target="_blank" style="padding:8px 16px;font-size:0.75rem">
+            ⚡ Get Free
+          </a>
+        </div>
       </div>
     </div>
 
