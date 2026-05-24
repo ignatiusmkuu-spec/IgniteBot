@@ -39,131 +39,618 @@ function getDashboardHTML(activeTab) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IgniteBot Dashboard</title>
+<title>NEXUS-MD · Control Centre</title>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root {
+  --bg:       #020510;
+  --bg2:      #060d1f;
+  --bg3:      #0a1628;
+  --border:   rgba(0,212,255,0.12);
+  --border2:  rgba(168,85,247,0.15);
+  --cyan:     #00d4ff;
+  --purple:   #a855f7;
+  --blue:     #3b82f6;
+  --green:    #10b981;
+  --red:      #ef4444;
+  --gold:     #f59e0b;
+  --text:     #e2e8f0;
+  --muted:    #64748b;
+  --glass:    rgba(6,13,31,0.7);
+  --glow-c:   0 0 20px rgba(0,212,255,0.3);
+  --glow-p:   0 0 20px rgba(168,85,247,0.3);
+  --glow-b:   0 0 20px rgba(59,130,246,0.3);
+}
+
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh}
-.header{background:#161b22;border-bottom:1px solid #30363d;padding:16px 32px;display:flex;align-items:center;gap:12px}
-.header h1{font-size:1.4rem;color:#58a6ff;flex:1}
-.header .status{font-size:0.8rem;background:#1f6feb;color:#fff;border-radius:12px;padding:3px 10px}
-.platform-badge{font-size:0.75rem;background:#21262d;border:1px solid #30363d;color:#8b949e;border-radius:12px;padding:3px 10px}
-.tabs{background:#161b22;border-bottom:1px solid #30363d;display:flex;gap:0;padding:0 32px}
-.tab{padding:12px 20px;font-size:0.9rem;color:#8b949e;cursor:pointer;border-bottom:3px solid transparent;text-decoration:none;display:inline-block;transition:color .2s}
-.tab:hover{color:#e6edf3}
-.tab.active{color:#58a6ff;border-bottom-color:#58a6ff;font-weight:600}
-.tab.setup-tab{color:#d29922}
-.tab.setup-tab.active{color:#d29922;border-bottom-color:#d29922}
-.tab.add-tab{color:#3fb950}
-.tab.add-tab.active{color:#3fb950;border-bottom-color:#3fb950}
-.container{max-width:1200px;margin:0 auto;padding:24px 32px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:24px}
-.card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:20px}
-.card h3{font-size:0.78rem;color:#8b949e;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
-.card .value{font-size:2rem;font-weight:700;color:#58a6ff}
-.card .sub{font-size:0.8rem;color:#8b949e;margin-top:4px}
-.section{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px;margin-bottom:20px}
-.section h2{font-size:1rem;color:#e6edf3;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+
+html{scroll-behavior:smooth}
+
+body {
+  font-family:'Space Grotesk',system-ui,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* ── Animated grid background ── */
+body::before {
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,212,255,0.03) 1px,transparent 1px);
+  background-size:40px 40px;
+  pointer-events:none;
+  z-index:0;
+}
+
+body::after {
+  content:'';
+  position:fixed;
+  top:-50%;left:-50%;
+  width:200%;height:200%;
+  background:radial-gradient(ellipse at 20% 50%, rgba(168,85,247,0.04) 0%, transparent 50%),
+             radial-gradient(ellipse at 80% 20%, rgba(0,212,255,0.04) 0%, transparent 50%);
+  pointer-events:none;
+  z-index:0;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:rgba(0,212,255,0.3);border-radius:2px}
+::-webkit-scrollbar-thumb:hover{background:var(--cyan)}
+
+/* ── Layout ── */
+.layout{position:relative;z-index:1;display:flex;flex-direction:column;min-height:100vh}
+
+/* ── Header ── */
+.header {
+  position:sticky;top:0;z-index:100;
+  background:rgba(2,5,16,0.85);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+  padding:0 28px;
+  height:64px;
+  display:flex;align-items:center;gap:16px;
+}
+
+.header-logo {
+  display:flex;align-items:center;gap:10px;
+  text-decoration:none;
+}
+
+.logo-icon {
+  width:36px;height:36px;
+  background:linear-gradient(135deg,var(--cyan),var(--purple));
+  border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;
+  box-shadow:var(--glow-c);
+  flex-shrink:0;
+}
+
+.logo-text {
+  font-size:1.1rem;font-weight:700;
+  background:linear-gradient(90deg,var(--cyan),var(--purple));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;
+  letter-spacing:0.5px;
+}
+
+.header-spacer{flex:1}
+
+.status-pill {
+  display:flex;align-items:center;gap:7px;
+  background:var(--bg3);
+  border:1px solid var(--border);
+  border-radius:999px;
+  padding:5px 14px;
+  font-size:0.72rem;font-weight:600;
+  letter-spacing:0.5px;
+  text-transform:uppercase;
+}
+
+.pulse {
+  width:7px;height:7px;border-radius:50%;
+  background:var(--cyan);
+  box-shadow:0 0 6px var(--cyan);
+  animation:pulse 2s infinite;
+}
+.pulse.red{background:var(--red);box-shadow:0 0 6px var(--red)}
+.pulse.gold{background:var(--gold);box-shadow:0 0 6px var(--gold)}
+
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(0.85)}}
+
+.platform-chip {
+  background:var(--bg3);
+  border:1px solid var(--border2);
+  border-radius:6px;
+  padding:4px 10px;
+  font-size:0.72rem;color:var(--muted);
+  font-family:'JetBrains Mono',monospace;
+}
+
+/* ── Nav tabs ── */
+.nav {
+  background:rgba(6,13,31,0.6);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  padding:0 28px;
+  display:flex;gap:0;
+  overflow-x:auto;
+}
+.nav::-webkit-scrollbar{height:2px}
+
+.nav-tab {
+  position:relative;
+  padding:16px 20px;
+  font-size:0.82rem;font-weight:500;
+  color:var(--muted);
+  cursor:pointer;
+  border-bottom:2px solid transparent;
+  text-decoration:none;
+  display:flex;align-items:center;gap:7px;
+  white-space:nowrap;
+  transition:color .2s;
+  letter-spacing:0.3px;
+}
+.nav-tab:hover{color:var(--text)}
+.nav-tab.active{color:var(--cyan);border-bottom-color:var(--cyan);font-weight:600}
+.nav-tab.active::after {
+  content:'';
+  position:absolute;bottom:-1px;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--cyan),transparent);
+  filter:blur(2px);
+}
+.nav-tab.t-setup{color:#f59e0b}
+.nav-tab.t-setup.active{color:#f59e0b;border-bottom-color:#f59e0b}
+.nav-tab.t-setup.active::after{background:linear-gradient(90deg,transparent,#f59e0b,transparent)}
+.nav-tab.t-add{color:var(--green)}
+.nav-tab.t-add.active{color:var(--green);border-bottom-color:var(--green)}
+.nav-tab.t-add.active::after{background:linear-gradient(90deg,transparent,var(--green),transparent)}
+
+.tab-icon{font-size:0.9rem;opacity:0.8}
+
+/* ── Container ── */
+.container{max-width:1240px;margin:0 auto;padding:28px 28px;flex:1}
+
+/* ── Glass card ── */
+.card {
+  background:var(--glass);
+  backdrop-filter:blur(16px);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:22px;
+  transition:border-color .3s,box-shadow .3s;
+  position:relative;
+  overflow:hidden;
+}
+.card::before {
+  content:'';
+  position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(0,212,255,0.03) 0%,transparent 60%);
+  pointer-events:none;
+}
+.card:hover{border-color:rgba(0,212,255,0.25);box-shadow:var(--glow-c)}
+
+.card-label {
+  font-size:0.68rem;font-weight:600;
+  color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;
+  margin-bottom:10px;display:flex;align-items:center;gap:6px;
+}
+.card-value {
+  font-size:2.2rem;font-weight:700;
+  background:linear-gradient(135deg,var(--cyan),var(--blue));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;line-height:1;
+}
+.card-sub{font-size:0.75rem;color:var(--muted);margin-top:6px}
+
+/* ── Stat grid ── */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:22px}
+
+/* ── Section ── */
+.section {
+  background:var(--glass);
+  backdrop-filter:blur(16px);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:24px;
+  margin-bottom:18px;
+}
+.section-title {
+  font-size:0.85rem;font-weight:600;
+  color:var(--text);
+  margin-bottom:18px;
+  display:flex;align-items:center;gap:8px;
+  letter-spacing:0.3px;
+}
+.section-title::after{
+  content:'';flex:1;height:1px;
+  background:linear-gradient(90deg,var(--border),transparent);
+}
+
+/* ── Table ── */
 table{width:100%;border-collapse:collapse}
-th{text-align:left;font-size:0.78rem;color:#8b949e;text-transform:uppercase;letter-spacing:0.5px;padding:8px 12px;border-bottom:1px solid #30363d}
-td{padding:10px 12px;border-bottom:1px solid #21262d;font-size:0.9rem}
+th {
+  text-align:left;font-size:0.68rem;
+  color:var(--muted);text-transform:uppercase;letter-spacing:1px;
+  padding:10px 14px;
+  border-bottom:1px solid var(--border);
+  font-family:'JetBrains Mono',monospace;
+}
+td{padding:11px 14px;border-bottom:1px solid rgba(0,212,255,0.05);font-size:0.85rem}
 tr:last-child td{border-bottom:none}
-.bar{height:8px;background:#1f6feb;border-radius:4px;margin-top:4px}
-.badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:0.75rem;font-weight:600}
-.badge.confirmed{background:#1a3a2a;color:#3fb950}
-.badge.pending{background:#3a2f0b;color:#d29922}
-.badge.cancelled{background:#3a1a1a;color:#f85149}
-.refresh{font-size:0.8rem;color:#8b949e}
-.sid-wrap{background:#0d1117;border:1px solid #30363d;border-radius:10px;padding:20px;margin-bottom:20px;position:relative}
-.sid-label{font-size:0.75rem;color:#8b949e;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
-.sid-box{background:#010409;border:1px solid #30363d;border-radius:8px;padding:16px 14px;font-family:monospace;font-size:0.78rem;color:#58a6ff;word-break:break-all;max-height:120px;overflow-y:auto;line-height:1.5;user-select:all;cursor:text}
+tr:hover td{background:rgba(0,212,255,0.03)}
+
+/* ── Progress bar ── */
+.prog-wrap{height:4px;background:rgba(0,212,255,0.08);border-radius:2px;margin-top:6px;overflow:hidden}
+.prog-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--cyan),var(--purple));box-shadow:0 0 8px var(--cyan)}
+
+/* ── Badge ── */
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:6px;font-size:0.72rem;font-weight:600;letter-spacing:0.3px}
+.badge.confirmed{background:rgba(16,185,129,0.12);color:var(--green);border:1px solid rgba(16,185,129,0.2)}
+.badge.pending{background:rgba(245,158,11,0.12);color:var(--gold);border:1px solid rgba(245,158,11,0.2)}
+.badge.cancelled{background:rgba(239,68,68,0.12);color:var(--red);border:1px solid rgba(239,68,68,0.2)}
+
+/* ── Session ID box ── */
+.sid-outer{
+  background:rgba(0,0,0,0.4);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:20px;
+  margin-bottom:18px;
+}
+.sid-label{font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;font-family:'JetBrains Mono',monospace}
+.sid-box{
+  background:rgba(0,0,0,0.5);
+  border:1px solid rgba(0,212,255,0.2);
+  border-radius:10px;
+  padding:16px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:0.76rem;
+  color:var(--cyan);
+  word-break:break-all;
+  max-height:110px;overflow-y:auto;
+  line-height:1.6;
+  cursor:text;user-select:all;
+  box-shadow:inset 0 0 20px rgba(0,212,255,0.04);
+}
 .sid-actions{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
-.btn{padding:8px 18px;border-radius:8px;border:none;cursor:pointer;font-size:0.85rem;font-weight:600;transition:opacity .2s}
-.btn:hover{opacity:.85}
-.btn-blue{background:#1f6feb;color:#fff}
-.btn-green{background:#238636;color:#fff}
-.btn-orange{background:#d29922;color:#000}
-.btn-gray{background:#21262d;color:#e6edf3;border:1px solid #30363d}
-.status-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
-.dot-green{background:#3fb950}
-.dot-red{background:#f85149}
-.dot-yellow{background:#d29922}
-.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px}
-.info-item{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px}
-.info-item .label{font-size:0.75rem;color:#8b949e;text-transform:uppercase;margin-bottom:6px}
-.info-item .val{font-size:1.1rem;font-weight:600}
-.steps{counter-reset:step}
-.step{display:flex;gap:14px;margin-bottom:16px;align-items:flex-start}
-.step-num{background:#1f6feb;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;flex-shrink:0;margin-top:2px}
-.step-text{font-size:0.9rem;color:#e6edf3;line-height:1.5}
-.step-text code{background:#21262d;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:0.82rem;color:#79c0ff}
-.toast{position:fixed;bottom:24px;right:24px;background:#238636;color:#fff;padding:10px 20px;border-radius:8px;font-size:0.85rem;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
-.toast.show{opacity:1}
-/* Setup tab */
-.setup-form{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:28px;margin-bottom:20px}
-.setup-form h2{font-size:1rem;color:#e6edf3;margin-bottom:6px}
-.setup-form p{font-size:0.85rem;color:#8b949e;margin-bottom:20px}
+
+/* ── Buttons ── */
+.btn {
+  display:inline-flex;align-items:center;gap:6px;
+  padding:9px 18px;
+  border-radius:10px;border:none;
+  cursor:pointer;font-size:0.82rem;font-weight:600;
+  font-family:'Space Grotesk',system-ui,sans-serif;
+  letter-spacing:0.3px;
+  transition:all .2s;
+  text-decoration:none;
+  white-space:nowrap;
+}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+
+.btn-cyan{
+  background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(0,212,255,0.08));
+  color:var(--cyan);
+  border:1px solid rgba(0,212,255,0.3);
+}
+.btn-cyan:hover{background:linear-gradient(135deg,rgba(0,212,255,0.25),rgba(0,212,255,0.15));box-shadow:var(--glow-c)}
+
+.btn-purple{
+  background:linear-gradient(135deg,rgba(168,85,247,0.15),rgba(168,85,247,0.08));
+  color:var(--purple);
+  border:1px solid rgba(168,85,247,0.3);
+}
+.btn-purple:hover{background:linear-gradient(135deg,rgba(168,85,247,0.25),rgba(168,85,247,0.15));box-shadow:var(--glow-p)}
+
+.btn-green{
+  background:linear-gradient(135deg,rgba(16,185,129,0.15),rgba(16,185,129,0.08));
+  color:var(--green);
+  border:1px solid rgba(16,185,129,0.3);
+}
+.btn-green:hover{background:linear-gradient(135deg,rgba(16,185,129,0.25),rgba(16,185,129,0.15));box-shadow:0 0 20px rgba(16,185,129,0.3)}
+
+.btn-gold{
+  background:linear-gradient(135deg,rgba(245,158,11,0.15),rgba(245,158,11,0.08));
+  color:var(--gold);
+  border:1px solid rgba(245,158,11,0.3);
+}
+.btn-gold:hover{box-shadow:0 0 20px rgba(245,158,11,0.3)}
+
+.btn-ghost{
+  background:rgba(255,255,255,0.04);
+  color:var(--muted);
+  border:1px solid var(--border);
+}
+.btn-ghost:hover{color:var(--text);background:rgba(255,255,255,0.08)}
+
+.btn-solid-cyan{
+  background:linear-gradient(135deg,var(--cyan),#0ea5e9);
+  color:#000;
+  border:none;
+  font-weight:700;
+}
+.btn-solid-cyan:hover{box-shadow:var(--glow-c);filter:brightness(1.1)}
+
+/* ── Info grid ── */
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:18px}
+.info-item{
+  background:rgba(0,0,0,0.3);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:16px;
+}
+.info-label{font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:7px;font-family:'JetBrains Mono',monospace}
+.info-val{font-size:1rem;font-weight:600;color:var(--text)}
+
+/* ── Status dot ── */
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:middle}
+.dot-green{background:var(--green);box-shadow:0 0 6px var(--green)}
+.dot-red{background:var(--red);box-shadow:0 0 6px var(--red)}
+.dot-gold{background:var(--gold);box-shadow:0 0 6px var(--gold)}
+
+/* ── Form ── */
+.form-section{
+  background:var(--glass);
+  backdrop-filter:blur(16px);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:26px;
+  margin-bottom:18px;
+}
+.form-section-title{
+  font-size:0.9rem;font-weight:700;
+  color:var(--text);
+  margin-bottom:5px;
+  background:linear-gradient(90deg,var(--cyan),var(--purple));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.form-section-sub{font-size:0.8rem;color:var(--muted);margin-bottom:20px;line-height:1.5}
+
 .form-group{margin-bottom:18px}
-.form-group label{display:block;font-size:0.8rem;color:#8b949e;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px}
-.form-group input,.form-group select{width:100%;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:10px 14px;color:#e6edf3;font-size:0.9rem;outline:none;transition:border .2s}
-.form-group input:focus,.form-group select:focus{border-color:#58a6ff}
-.form-group input::placeholder{color:#484f58}
+.form-label{
+  display:block;font-size:0.72rem;font-weight:600;
+  color:var(--muted);text-transform:uppercase;letter-spacing:1px;
+  margin-bottom:7px;font-family:'JetBrains Mono',monospace;
+}
+.form-input,.form-select {
+  width:100%;
+  background:rgba(0,0,0,0.4);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:11px 14px;
+  color:var(--text);
+  font-size:0.85rem;
+  outline:none;
+  transition:border .2s,box-shadow .2s;
+  font-family:'Space Grotesk',system-ui,sans-serif;
+}
+.form-input:focus,.form-select:focus{
+  border-color:rgba(0,212,255,0.4);
+  box-shadow:0 0 0 3px rgba(0,212,255,0.08);
+}
+.form-input::placeholder{color:#334155}
+.form-input:disabled{opacity:.4;cursor:not-allowed}
+.form-hint{font-size:0.72rem;color:var(--muted);margin-top:5px;line-height:1.4}
+.form-hint a{color:var(--cyan);text-decoration:none}
+.form-hint a:hover{text-decoration:underline}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.platform-section{background:#0d1117;border:1px solid #30363d;border-radius:10px;padding:18px;margin-bottom:18px}
-.platform-section h3{font-size:0.85rem;color:#e6edf3;margin-bottom:12px;display:flex;align-items:center;gap:6px}
-.alert{padding:12px 16px;border-radius:8px;font-size:0.85rem;margin-bottom:16px}
-.alert-warn{background:#3a2f0b;border:1px solid #d29922;color:#d29922}
-.alert-success{background:#1a3a2a;border:1px solid #3fb950;color:#3fb950}
-.alert-info{background:#0d2040;border:1px solid #1f6feb;color:#58a6ff}
-.setup-result{margin-top:14px;font-size:0.85rem;min-height:24px}
+@media(max-width:600px){.form-row{grid-template-columns:1fr}}
+
+/* ── Platform section ── */
+.platform-section{
+  background:rgba(0,0,0,0.3);
+  border:1px solid var(--border2);
+  border-radius:12px;
+  padding:18px;
+  margin-bottom:18px;
+}
+.platform-section-title{
+  font-size:0.82rem;font-weight:600;color:var(--text);
+  margin-bottom:14px;display:flex;align-items:center;gap:7px;
+}
+
+/* ── Alert ── */
+.alert{
+  padding:13px 16px;
+  border-radius:10px;
+  font-size:0.82rem;
+  margin-bottom:16px;
+  line-height:1.5;
+  display:flex;align-items:flex-start;gap:8px;
+}
+.alert-warn{background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);color:#fbbf24}
+.alert-success{background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);color:var(--green)}
+.alert-info{background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);color:#60a5fa}
+
+/* ── Steps ── */
+.steps{display:flex;flex-direction:column;gap:14px}
+.step{display:flex;gap:14px;align-items:flex-start}
+.step-num{
+  background:linear-gradient(135deg,var(--cyan),var(--purple));
+  color:#000;border-radius:50%;
+  width:26px;height:26px;min-width:26px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:0.75rem;font-weight:700;flex-shrink:0;margin-top:1px;
+}
+.step-text{font-size:0.85rem;color:var(--text);line-height:1.6}
+.step-text code{
+  background:rgba(0,212,255,0.1);
+  border:1px solid rgba(0,212,255,0.2);
+  padding:1px 7px;border-radius:5px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:0.78rem;color:var(--cyan);
+}
+
+/* ── Chart ── */
+.chart-wrap{display:flex;gap:3px;align-items:flex-end;height:64px;margin:12px 0 4px}
+.chart-bar{
+  flex:1;min-width:4px;border-radius:3px 3px 0 0;
+  background:linear-gradient(180deg,var(--cyan),var(--blue));
+  opacity:.7;transition:opacity .2s,box-shadow .2s;
+  box-shadow:0 0 6px rgba(0,212,255,0.2);
+}
+.chart-bar:hover{opacity:1;box-shadow:0 0 12px rgba(0,212,255,0.5)}
+.chart-labels{display:flex;gap:3px;font-size:0.65rem;color:var(--muted);font-family:'JetBrains Mono',monospace}
+
+/* ── Region radio ── */
+.region-opt{
+  display:flex;align-items:center;gap:12px;
+  background:rgba(0,0,0,0.3);
+  border:2px solid var(--border);
+  border-radius:10px;padding:14px 16px;
+  cursor:pointer;transition:border-color .2s,background .2s;
+  font-size:0.85rem;
+}
+.region-opt.selected{border-color:rgba(0,212,255,0.4);background:rgba(0,212,255,0.05)}
+.region-opt input[type=radio]{accent-color:var(--cyan);width:15px;height:15px}
+
+/* ── Resource row ── */
+.resource-row{
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(0,0,0,0.25);
+  border:1px solid var(--border);
+  border-radius:10px;padding:13px 16px;
+  margin-bottom:10px;
+}
+.resource-icon{font-size:1.2rem;margin-right:10px}
+.resource-name{font-size:0.88rem;color:var(--text)}
+.resource-sub{font-size:0.72rem;color:var(--muted);margin-top:2px;font-family:'JetBrains Mono',monospace}
+.resource-price{font-size:0.8rem;color:var(--muted);font-family:'JetBrains Mono',monospace}
+
+/* ── Badge required ── */
+.req-badge{font-size:0.65rem;background:rgba(239,68,68,0.15);color:var(--red);border:1px solid rgba(239,68,68,0.25);padding:2px 7px;border-radius:5px;margin-left:6px;vertical-align:middle}
+
+/* ── Hidden ── */
+.hidden{display:none!important}
+
+/* ── Toggle section ── */
 .toggle-section{cursor:pointer;user-select:none}
 .toggle-section .chevron{transition:transform .2s;display:inline-block}
 .toggle-section.open .chevron{transform:rotate(90deg)}
-.hidden{display:none}
+
+/* ── Toast ── */
+.toast{
+  position:fixed;bottom:24px;right:24px;z-index:9999;
+  background:rgba(6,13,31,0.95);
+  border:1px solid rgba(0,212,255,0.3);
+  border-radius:12px;
+  backdrop-filter:blur(16px);
+  padding:12px 20px;font-size:0.82rem;font-weight:600;
+  color:var(--cyan);
+  box-shadow:var(--glow-c);
+  opacity:0;transform:translateY(12px);
+  transition:opacity .3s,transform .3s;
+  pointer-events:none;
+  max-width:320px;
+}
+.toast.show{opacity:1;transform:translateY(0)}
+
+/* ── Glow divider ── */
+.glow-line{height:1px;background:linear-gradient(90deg,transparent,var(--cyan),var(--purple),transparent);margin:24px 0;opacity:.4}
+
+/* ── Two column ── */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:768px){.two-col{grid-template-columns:1fr}}
+
+/* ── Responsive ── */
+@media(max-width:640px){
+  .header{padding:0 16px;height:58px}
+  .nav{padding:0 12px}
+  .container{padding:16px}
+  .card{padding:18px}
+  .section,.form-section{padding:18px}
+}
 </style>
 </head>
 <body>
-<div class="header">
-  <span style="font-size:1.5rem">⚡</span>
-  <h1>IgniteBot Dashboard</h1>
-  <span class="platform-badge" id="platformBadge">detecting...</span>
-  <span class="status" id="connBadge">LIVE</span>
-  <span class="refresh" id="lastUpdate"></span>
-</div>
+<div class="layout">
 
-<div class="tabs">
-  <a class="tab ${activeTab === "overview" ? "active" : ""}" href="/dashboard?tab=overview">📊 Overview</a>
-  <a class="tab ${activeTab === "session" ? "active" : ""}" href="/dashboard?tab=session">🔑 Session ID</a>
-  <a class="tab setup-tab ${activeTab === "setup" ? "active" : ""}" href="/dashboard?tab=setup">⚙️ Setup</a>
-  <a class="tab add-tab ${activeTab === "add" ? "active" : ""}" href="/dashboard?tab=add">➕ Add Session</a>
-</div>
+<!-- ══ HEADER ══════════════════════════════════════════ -->
+<header class="header">
+  <a class="header-logo" href="/dashboard">
+    <div class="logo-icon">⚡</div>
+    <span class="logo-text">NEXUS-MD</span>
+  </a>
+  <div class="header-spacer"></div>
+  <span class="platform-chip" id="platformBadge">DETECTING…</span>
+  <div class="status-pill">
+    <span class="pulse" id="statusPulse"></span>
+    <span id="connBadge">LIVE</span>
+  </div>
+</header>
 
-<div class="container">
+<!-- ══ NAV ══════════════════════════════════════════════ -->
+<nav class="nav">
+  <a class="nav-tab ${activeTab==="overview"?"active":""}" href="/dashboard?tab=overview">
+    <span class="tab-icon">📊</span>Overview
+  </a>
+  <a class="nav-tab ${activeTab==="session"?"active":""}" href="/dashboard?tab=session">
+    <span class="tab-icon">🔑</span>Session ID
+  </a>
+  <a class="nav-tab t-setup ${activeTab==="setup"?"active":""}" href="/dashboard?tab=setup">
+    <span class="tab-icon">⚙️</span>Setup
+  </a>
+  <a class="nav-tab t-add ${activeTab==="add"?"active":""}" href="/dashboard?tab=add">
+    <span class="tab-icon">➕</span>Add Session
+  </a>
+</nav>
 
-<!-- OVERVIEW TAB -->
-<div id="tabOverview" style="display:${activeTab === "overview" ? "block" : "none"}">
-  <div class="grid" id="statsGrid">
-    <div class="card"><h3>📨 Total Messages</h3><div class="value" id="totalMessages">-</div><div class="sub">All time</div></div>
-    <div class="card"><h3>⚙️ Commands Used</h3><div class="value" id="totalCommands">-</div><div class="sub">All time</div></div>
-    <div class="card"><h3>👥 Unique Users</h3><div class="value" id="uniqueUsers">-</div><div class="sub">Distinct contacts</div></div>
-    <div class="card"><h3>⏱ Uptime</h3><div class="value" id="uptime">-</div><div class="sub">Minutes running</div></div>
+<!-- ══ MAIN ═════════════════════════════════════════════ -->
+<main class="container">
+
+<!-- ─── OVERVIEW TAB ──────────────────────────────────── -->
+<div id="tabOverview" style="display:${activeTab==="overview"?"block":"none"}">
+
+  <div class="stat-grid" id="statsGrid">
+    <div class="card">
+      <div class="card-label">📨 Total Messages</div>
+      <div class="card-value" id="totalMessages">—</div>
+      <div class="card-sub">All time</div>
+    </div>
+    <div class="card">
+      <div class="card-label">⚙️ Commands Used</div>
+      <div class="card-value" id="totalCommands" style="background:linear-gradient(135deg,var(--purple),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">—</div>
+      <div class="card-sub">All time</div>
+    </div>
+    <div class="card">
+      <div class="card-label">👥 Unique Users</div>
+      <div class="card-value" id="uniqueUsers" style="background:linear-gradient(135deg,var(--green),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">—</div>
+      <div class="card-sub">Distinct contacts</div>
+    </div>
+    <div class="card">
+      <div class="card-label">⏱ Uptime</div>
+      <div class="card-value" id="uptime" style="background:linear-gradient(135deg,var(--gold),#f97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">—</div>
+      <div class="card-sub">Minutes running</div>
+    </div>
   </div>
 
   <div class="section">
-    <h2>📈 Activity (Last 24 Hours)</h2>
-    <div id="chartBars" style="display:flex;gap:4px;align-items:flex-end;height:60px;margin-top:8px"></div>
-    <div id="chartLabels" style="display:flex;gap:4px;margin-top:4px;font-size:0.7rem;color:#8b949e"></div>
+    <div class="section-title">📈 Activity — Last 24 Hours</div>
+    <div class="chart-wrap" id="chartBars"></div>
+    <div class="chart-labels" id="chartLabels"></div>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+  <div class="two-col">
     <div class="section">
-      <h2>🏆 Top Commands</h2>
+      <div class="section-title">🏆 Top Commands</div>
       <table>
-        <thead><tr><th>Command</th><th>Uses</th><th>Bar</th></tr></thead>
+        <thead><tr><th>Command</th><th>Uses</th><th style="width:80px">Bar</th></tr></thead>
         <tbody id="commandTable"></tbody>
       </table>
     </div>
     <div class="section">
-      <h2>🕐 Recent Activity</h2>
+      <div class="section-title">🕐 Recent Activity</div>
       <table>
         <thead><tr><th>Time</th><th>User</th><th>Action</th></tr></thead>
         <tbody id="activityTable"></tbody>
@@ -171,16 +658,16 @@ tr:last-child td{border-bottom:none}
     </div>
   </div>
 
-  <div class="section" style="margin-top:20px">
-    <h2>📅 Recent Bookings</h2>
+  <div class="section">
+    <div class="section-title">📅 Recent Bookings</div>
     <table>
       <thead><tr><th>#</th><th>Service</th><th>Date</th><th>Time</th><th>Status</th></tr></thead>
       <tbody id="bookingsTable"></tbody>
     </table>
   </div>
 
-  <div class="section" style="margin-top:20px">
-    <h2>📢 Broadcast History</h2>
+  <div class="section">
+    <div class="section-title">📢 Broadcast History</div>
     <table>
       <thead><tr><th>Message</th><th>Sent</th><th>Failed</th><th>Time</th></tr></thead>
       <tbody id="broadcastTable"></tbody>
@@ -188,106 +675,106 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
-<!-- SESSION ID TAB -->
-<div id="tabSession" style="display:${activeTab === "session" ? "block" : "none"}">
+<!-- ─── SESSION TAB ───────────────────────────────────── -->
+<div id="tabSession" style="display:${activeTab==="session"?"block":"none"}">
+
   <div class="info-grid" id="sessionInfoGrid">
     <div class="info-item">
-      <div class="label">Status</div>
-      <div class="val" id="sConnected"><span class="status-dot dot-yellow"></span>Checking...</div>
+      <div class="info-label">Status</div>
+      <div class="info-val" id="sConnected"><span class="dot dot-gold"></span>Checking…</div>
     </div>
     <div class="info-item">
-      <div class="label">Phone Number</div>
-      <div class="val" id="sPhone">—</div>
+      <div class="info-label">Phone Number</div>
+      <div class="info-val" id="sPhone">—</div>
     </div>
     <div class="info-item">
-      <div class="label">Session Format</div>
-      <div class="val" style="color:#3fb950">Universal (any Baileys bot)</div>
+      <div class="info-label">Session Format</div>
+      <div class="info-val" style="color:var(--green)">Universal · Any Baileys</div>
     </div>
   </div>
 
   <div class="section">
-    <h2>🔑 Your Session ID</h2>
-    <p style="font-size:0.85rem;color:#8b949e;margin-bottom:16px">
-      This is your bot's session ID in <strong style="color:#58a6ff">NEXUS-MD</strong> format.
-      Copy and save it — paste it as the <code style="background:#21262d;padding:2px 6px;border-radius:4px;font-family:monospace">SESSION_ID</code>
+    <div class="section-title">🔑 Your Session ID</div>
+    <p style="font-size:0.82rem;color:var(--muted);margin-bottom:18px;line-height:1.6">
+      Your bot session in <strong style="color:var(--cyan)">NEXUS-MD</strong> format.
+      Copy and save it — paste it as the <code style="font-family:'JetBrains Mono',monospace;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.2);padding:1px 7px;border-radius:5px;color:var(--cyan)">SESSION_ID</code>
       environment variable on Heroku, Railway, Render or Replit to keep your bot online.
     </p>
 
-    <div class="sid-wrap">
-      <div class="sid-label">Session ID (NEXUS-MD format)</div>
-      <div class="sid-box" id="sessionIdBox">⏳ Loading session...</div>
+    <div class="sid-outer">
+      <div class="sid-label">Session ID · NEXUS-MD Format</div>
+      <div class="sid-box" id="sessionIdBox">⏳ Loading session…</div>
       <div class="sid-actions">
-        <button class="btn btn-blue" onclick="copySID()">📋 Copy Session ID</button>
-        <button class="btn btn-gray" onclick="refreshSID()">🔄 Refresh</button>
+        <button class="btn btn-cyan" onclick="copySID()">📋 Copy</button>
+        <button class="btn btn-ghost" onclick="refreshSID()">🔄 Refresh</button>
         <a class="btn btn-green" href="/session" target="_blank">🔗 Pairing Page</a>
-        <button class="btn btn-orange" onclick="window.location='/dashboard?tab=setup'">⚙️ Push to Heroku</button>
+        <button class="btn btn-gold" onclick="window.location='/dashboard?tab=setup'">⚙️ Push to Heroku</button>
       </div>
     </div>
 
-    <div class="section" style="background:#0d1117;border-color:#21262d">
-      <h2 style="font-size:0.9rem;margin-bottom:14px">📖 How to use your Session ID</h2>
+    <div class="section" style="background:rgba(0,0,0,0.3);border-color:rgba(0,212,255,0.08)">
+      <div class="section-title" style="font-size:0.82rem">📖 How to use your Session ID</div>
       <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-text">Click <strong>Copy Session ID</strong> above to copy the full <code>NEXUS-MD:~...</code> string</div></div>
+        <div class="step"><div class="step-num">1</div><div class="step-text">Click <strong>Copy</strong> above to copy the full <code>NEXUS-MD:~…</code> string</div></div>
         <div class="step"><div class="step-num">2</div><div class="step-text"><strong>Heroku:</strong> Use the <strong>Setup tab</strong> to auto-push your config vars with just your Heroku API key</div></div>
         <div class="step"><div class="step-num">3</div><div class="step-text"><strong>Railway / Render:</strong> Go to Variables → add <code>SESSION_ID</code> and paste</div></div>
-        <div class="step"><div class="step-num">4</div><div class="step-text"><strong>Replit:</strong> Go to Secrets → add <code>SESSION_ID</code> and paste. On the next restart the bot will auto-connect without scanning</div></div>
-        <div class="step"><div class="step-num">5</div><div class="step-text"><strong>Universal support:</strong> Any valid Baileys session is accepted — <code>NEXUS-MD</code>, raw JSON, base64, a Pastebin/GitHub Gist URL, or sessions from other Baileys-based bots</div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-text"><strong>Replit:</strong> Go to Secrets → add <code>SESSION_ID</code> and paste — bot auto-connects on next restart</div></div>
+        <div class="step"><div class="step-num">5</div><div class="step-text"><strong>Universal:</strong> Any valid Baileys session accepted — <code>NEXUS-MD</code>, raw JSON, base64, Pastebin/Gist URL</div></div>
       </div>
     </div>
 
-    <div class="section" style="background:#0d1117;border-color:#21262d;margin-top:16px">
-      <h2 style="font-size:0.9rem;margin-bottom:10px">🔌 Load session from a URL</h2>
-      <p style="font-size:0.8rem;color:#8b949e;margin-bottom:12px">Paste any public URL that returns session data (Pastebin, GitHub Gist, direct file link, API endpoint, etc.)</p>
+    <div class="section" style="background:rgba(0,0,0,0.3);border-color:rgba(0,212,255,0.08);margin-top:16px">
+      <div class="section-title" style="font-size:0.82rem">🔌 Load Session from URL</div>
+      <p style="font-size:0.78rem;color:var(--muted);margin-bottom:14px;line-height:1.5">Paste any public URL that returns session data (Pastebin, GitHub Gist, direct file link, API endpoint…)</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <input id="sessionUrlInput" type="url" placeholder="https://pastebin.com/XxXxXx  or  https://gist.github.com/..." style="flex:1;min-width:200px;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:8px 12px;color:#c9d1d9;font-size:0.85rem" />
-        <button class="btn btn-blue" onclick="loadSessionFromUrl()">📡 Load</button>
+        <input id="sessionUrlInput" type="url" class="form-input" placeholder="https://pastebin.com/XxXxXx  or  https://gist.github.com/…" style="flex:1;min-width:220px" />
+        <button class="btn btn-cyan" onclick="loadSessionFromUrl()">📡 Load</button>
       </div>
-      <div id="sessionUrlResult" style="margin-top:8px;font-size:0.8rem;color:#8b949e"></div>
+      <div id="sessionUrlResult" style="margin-top:10px;font-size:0.78rem;color:var(--muted)"></div>
     </div>
   </div>
 </div>
 
-<!-- SETUP TAB -->
-<div id="tabSetup" style="display:${activeTab === "setup" ? "block" : "none"}">
+<!-- ─── SETUP TAB ─────────────────────────────────────── -->
+<div id="tabSetup" style="display:${activeTab==="setup"?"block":"none"}">
 
   <div id="setupBanner" class="alert alert-warn" style="display:none">
     ⚠️ <strong>Bot not connected</strong> — fill in your details below to get started.
   </div>
 
-  <!-- QUICK SETUP -->
-  <div class="setup-form">
-    <h2>🚀 Quick Setup</h2>
-    <p>Fill in your details — the bot will connect and optionally push all config vars to Heroku automatically.</p>
+  <div class="form-section">
+    <div class="form-section-title">🚀 Quick Setup</div>
+    <div class="form-section-sub">Fill in your details — the bot will connect and optionally push all config vars to Heroku automatically.</div>
 
     <div class="form-row">
       <div class="form-group">
-        <label>📱 Owner Phone Number</label>
-        <input type="tel" id="setupPhone" placeholder="254706535581 (no + sign)" />
-        <div style="font-size:0.75rem;color:#484f58;margin-top:4px">Country code + number, no spaces or + symbol</div>
+        <label class="form-label">📱 Owner Phone Number</label>
+        <input type="tel" id="setupPhone" class="form-input" placeholder="254706535581 (no + sign)" />
+        <div class="form-hint">Country code + number, no spaces or + symbol</div>
       </div>
       <div class="form-group">
-        <label>🤖 Bot Name</label>
-        <input type="text" id="setupBotname" placeholder="NEXUS-MD" value="NEXUS-MD" />
+        <label class="form-label">🤖 Bot Name</label>
+        <input type="text" id="setupBotname" class="form-input" placeholder="NEXUS-MD" value="NEXUS-MD" />
       </div>
     </div>
 
     <div class="form-group">
-      <label>🔑 Session ID</label>
-      <input type="text" id="setupSessionId" placeholder="NEXUS-MD:~... (get it from nexus-session-76ah.onrender.com)" />
-      <div style="font-size:0.75rem;color:#484f58;margin-top:4px">
-        Don't have one? <a href="https://nexus-session-76ah.onrender.com" target="_blank" style="color:#58a6ff">Get a free session ID here →</a>
+      <label class="form-label">🔑 Session ID</label>
+      <input type="text" id="setupSessionId" class="form-input" placeholder="NEXUS-MD:~… (get from nexus-session-76ah.onrender.com)" />
+      <div class="form-hint">
+        Don't have one? <a href="https://nexus-session-76ah.onrender.com" target="_blank">Get a free session ID →</a>
       </div>
     </div>
 
     <div class="form-row">
       <div class="form-group">
-        <label>🚫 Bad Words (comma-separated)</label>
-        <input type="text" id="setupBadword" placeholder="fuck,pussy,slut,bitch" value="fuck,pussy,slut,bitch,cock,stupid" />
-        <div style="font-size:0.75rem;color:#484f58;margin-top:4px">Members sending these words will be kicked</div>
+        <label class="form-label">🚫 Bad Words (comma-separated)</label>
+        <input type="text" id="setupBadword" class="form-input" placeholder="fuck,pussy,slut,bitch" value="fuck,pussy,slut,bitch,cock,stupid" />
+        <div class="form-hint">Members sending these words will be kicked</div>
       </div>
       <div class="form-group">
-        <label>📋 Menu Type</label>
-        <select id="setupMenuType">
+        <label class="form-label">📋 Menu Type</label>
+        <select id="setupMenuType" class="form-select">
           <option value="VIDEO">VIDEO — animated video menu</option>
           <option value="IMAGE">IMAGE — static image menu</option>
           <option value="LINK">LINK — text link menu</option>
@@ -295,198 +782,178 @@ tr:last-child td{border-bottom:none}
       </div>
     </div>
 
-    <!-- Platform selector -->
     <div class="form-group">
-      <label>🌍 Deployment Platform</label>
-      <select id="setupPlatform" onchange="onPlatformChange()">
+      <label class="form-label">🌍 Deployment Platform</label>
+      <select id="setupPlatform" class="form-select" onchange="onPlatformChange()">
         <option value="local">Local / Replit / VPS (apply session only)</option>
         <option value="heroku">Heroku (auto-push all config vars)</option>
       </select>
     </div>
 
-    <!-- Heroku-specific fields (shown only when Heroku selected) -->
     <div id="herokuFields" class="platform-section hidden">
-      <h3>🟣 Heroku Configuration</h3>
+      <div class="platform-section-title">🟣 Heroku Configuration</div>
       <div class="alert alert-warn" style="margin-bottom:14px">
-        ⚠️ <strong>Disable GitHub auto-deploy on Heroku</strong> — Go to your Heroku app → <em>Deploy</em> tab → <em>Automatic deploys</em> → click <strong>Disable Automatic Deploys</strong>. Every code push to GitHub triggers a Heroku restart mid-connection, which can wipe the active WhatsApp session before it is saved.
+        ⚠️ <strong>Disable GitHub auto-deploy on Heroku</strong> — Go to Deploy tab → Automatic deploys → <strong>Disable Automatic Deploys</strong>.
       </div>
       <div class="form-row">
         <div class="form-group" style="margin-bottom:0">
-          <label>Heroku API Key</label>
-          <input type="password" id="herokuApiKey" placeholder="Your Heroku API key" />
-          <div style="font-size:0.75rem;color:#484f58;margin-top:4px">
-            <a href="https://dashboard.heroku.com/account" target="_blank" style="color:#58a6ff">Get it from Account Settings →</a>
-          </div>
+          <label class="form-label">Heroku API Key</label>
+          <input type="password" id="herokuApiKey" class="form-input" placeholder="Your Heroku API key" />
+          <div class="form-hint"><a href="https://dashboard.heroku.com/account" target="_blank">Get from Account Settings →</a></div>
         </div>
         <div class="form-group" style="margin-bottom:0">
-          <label>Heroku App Name</label>
+          <label class="form-label">Heroku App Name</label>
           <div style="display:flex;gap:8px">
-            <input type="text" id="herokuAppName" placeholder="your-app-name" style="flex:1" />
-            <button class="btn btn-gray" onclick="fetchHerokuApps()" title="Auto-detect apps" style="padding:8px 12px;white-space:nowrap">🔍 Find</button>
+            <input type="text" id="herokuAppName" class="form-input" placeholder="your-app-name" style="flex:1" />
+            <button class="btn btn-ghost" onclick="fetchHerokuApps()" style="padding:9px 12px;white-space:nowrap">🔍</button>
           </div>
         </div>
       </div>
-      <div id="herokuAppList" style="margin-top:10px;font-size:0.8rem;color:#8b949e"></div>
-      <div style="margin-top:12px">
+      <div id="herokuAppList" style="margin-top:10px;font-size:0.78rem;color:var(--muted)"></div>
+      <div style="margin-top:14px">
         <div class="form-row">
           <div class="form-group" style="margin-bottom:0">
-            <label style="text-transform:none;letter-spacing:0">NODE_ENV</label>
-            <input type="text" id="cfgNodeEnv" value="production" />
+            <label class="form-label" style="text-transform:none;letter-spacing:0">NODE_ENV</label>
+            <input type="text" id="cfgNodeEnv" class="form-input" value="production" />
           </div>
           <div class="form-group" style="margin-bottom:0">
-            <label style="text-transform:none;letter-spacing:0">PAIR_SITE_URL</label>
-            <input type="text" id="cfgPairSite" value="https://nexus-session-76ah.onrender.com" />
+            <label class="form-label" style="text-transform:none;letter-spacing:0">PAIR_SITE_URL</label>
+            <input type="text" id="cfgPairSite" class="form-input" value="https://nexus-session-76ah.onrender.com" />
           </div>
         </div>
       </div>
     </div>
 
-    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
       <button class="btn btn-green" onclick="applySetup()">✅ Apply Setup</button>
-      <button class="btn btn-gray" onclick="clearSetup()">🗑 Clear</button>
-      <button class="btn btn-blue" onclick="forceReconnect()" id="reconnectBtn">🔄 Force Reconnect</button>
+      <button class="btn btn-ghost" onclick="clearSetup()">🗑 Clear</button>
+      <button class="btn btn-cyan" onclick="forceReconnect()" id="reconnectBtn">🔄 Force Reconnect</button>
     </div>
-
-    <div class="setup-result" id="setupResult"></div>
+    <div class="setup-result" id="setupResult" style="margin-top:14px;font-size:0.82rem;min-height:20px;line-height:1.6"></div>
   </div>
 
-  <!-- Platform Info -->
-  <div class="setup-form">
-    <h2>🌍 Platform Detection</h2>
-    <p>Detected deployment environment and status.</p>
+  <div class="form-section">
+    <div class="form-section-title">🌍 Platform Detection</div>
+    <div class="form-section-sub">Detected deployment environment and status.</div>
     <div class="info-grid" id="platformInfoGrid">
-      <div class="info-item"><div class="label">Platform</div><div class="val" id="piPlatform">—</div></div>
-      <div class="info-item"><div class="label">Bot Status</div><div class="val" id="piBotStatus">—</div></div>
-      <div class="info-item"><div class="label">Heroku App</div><div class="val" id="piHerokuApp">—</div></div>
-      <div class="info-item"><div class="label">Mode</div><div class="val" id="piMode">—</div></div>
+      <div class="info-item"><div class="info-label">Platform</div><div class="info-val" id="piPlatform">—</div></div>
+      <div class="info-item"><div class="info-label">Bot Status</div><div class="info-val" id="piBotStatus">—</div></div>
+      <div class="info-item"><div class="info-label">Heroku App</div><div class="info-val" id="piHerokuApp">—</div></div>
+      <div class="info-item"><div class="info-label">Mode</div><div class="info-val" id="piMode">—</div></div>
     </div>
   </div>
 
-  <!-- Manual Heroku form filler -->
-  <div class="setup-form">
-    <h2>📋 Heroku Deploy Form Auto-Fill</h2>
-    <p>Generate the exact values to paste when deploying to Heroku via the deploy button form.</p>
-    <div class="alert alert-info" style="margin-bottom:16px">
-      ℹ️ Fill the Quick Setup fields above first, then click Generate to get pre-filled Heroku config var values.
-    </div>
-    <button class="btn btn-blue" onclick="generateHerokuFill()">📋 Generate Heroku Config Values</button>
-    <div id="herokuFillOutput" style="margin-top:16px"></div>
+  <div class="form-section">
+    <div class="form-section-title">📋 Heroku Deploy Form Auto-Fill</div>
+    <div class="form-section-sub">Generate exact values to paste when deploying to Heroku via the deploy button form.</div>
+    <div class="alert alert-info">ℹ️ Fill the Quick Setup fields above first, then click Generate.</div>
+    <button class="btn btn-purple" onclick="generateHerokuFill()">📋 Generate Heroku Config Values</button>
+    <div id="herokuFillOutput" style="margin-top:18px"></div>
   </div>
 
-</div><!-- /tabSetup -->
+</div>
 
-<!-- ADD SESSION TAB -->
-<div id="tabAdd" style="display:${activeTab === "add" ? "block" : "none"}">
+<!-- ─── ADD SESSION TAB ───────────────────────────────── -->
+<div id="tabAdd" style="display:${activeTab==="add"?"block":"none"}">
 
-  <div class="setup-form">
-    <h2>➕ Add Session / Deploy New App</h2>
-    <p>Create a brand-new Heroku app with your bot config, or just apply a session to this running bot. Fill in the fields below and click <strong>Deploy App</strong>.</p>
+  <div class="form-section">
+    <div class="form-section-title">➕ Add Session / Deploy New App</div>
+    <div class="form-section-sub">Create a brand-new Heroku app with your bot config, or just apply a session to this running bot.</div>
   </div>
 
-  <!-- App Name + Region -->
-  <div class="setup-form">
-    <h2 style="margin-bottom:6px">🏷 App Details</h2>
-    <p>Leave the app name blank and Heroku will auto-generate one.</p>
-
+  <div class="form-section">
+    <div class="form-section-title" style="font-size:0.85rem;margin-bottom:4px">🏷 App Details</div>
+    <div class="form-section-sub">Leave the app name blank and Heroku will auto-generate one.</div>
     <div class="form-row">
       <div class="form-group">
-        <label>App Name</label>
-        <input type="text" id="addAppName" placeholder="my-nexus-bot (optional)" />
-        <div style="font-size:0.75rem;color:#484f58;margin-top:4px">Lowercase letters, numbers, and hyphens only</div>
+        <label class="form-label">App Name</label>
+        <input type="text" id="addAppName" class="form-input" placeholder="my-nexus-bot (optional)" />
+        <div class="form-hint">Lowercase letters, numbers, hyphens only</div>
       </div>
       <div class="form-group">
-        <label>Heroku API Key <span style="color:#f85149">*</span></label>
-        <input type="password" id="addHerokuKey" placeholder="Your Heroku API key" />
-        <div style="font-size:0.75rem;color:#484f58;margin-top:4px">
-          <a href="https://dashboard.heroku.com/account" target="_blank" style="color:#58a6ff">Get it from Account Settings →</a>
-        </div>
+        <label class="form-label">Heroku API Key <span class="req-badge">Required</span></label>
+        <input type="password" id="addHerokuKey" class="form-input" placeholder="Your Heroku API key" />
+        <div class="form-hint"><a href="https://dashboard.heroku.com/account" target="_blank">Get from Account Settings →</a></div>
       </div>
     </div>
 
-    <!-- Location -->
     <div class="form-group">
-      <label>Location</label>
-      <p style="font-size:0.82rem;color:#8b949e;margin-bottom:12px">Choose a Common Runtime region for this app.</p>
+      <label class="form-label">Location</label>
       <div style="display:flex;flex-direction:column;gap:10px">
-        <label style="display:flex;align-items:center;gap:12px;background:#0d1117;border:2px solid #388bfd;border-radius:8px;padding:14px 18px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:0.9rem">
-          <input type="radio" name="addRegion" value="us" checked style="accent-color:#388bfd;width:16px;height:16px" />
-          <span style="flex:1"><strong style="color:#e6edf3">Common Runtime</strong><br><span style="font-size:0.78rem;color:#8b949e">CEDAR</span></span>
-          <span style="font-size:1.2rem">🇺🇸</span><span style="color:#8b949e">United States</span>
+        <label class="region-opt selected" id="usRegionLabel">
+          <input type="radio" name="addRegion" value="us" checked onchange="updateRegionStyle()" />
+          <span style="flex:1"><strong style="color:var(--text)">Common Runtime</strong><br><span class="resource-sub">CEDAR</span></span>
+          <span>🇺🇸</span><span style="color:var(--muted);font-size:0.82rem">United States</span>
         </label>
-        <label style="display:flex;align-items:center;gap:12px;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px 18px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:0.9rem" id="euRegionLabel">
-          <input type="radio" name="addRegion" value="eu" style="accent-color:#388bfd;width:16px;height:16px" onchange="updateRegionStyle()" />
-          <span style="flex:1"><strong style="color:#e6edf3">Common Runtime</strong><br><span style="font-size:0.78rem;color:#8b949e">CEDAR</span></span>
-          <span style="font-size:1.2rem">🇮🇪</span><span style="color:#8b949e">Europe</span>
+        <label class="region-opt" id="euRegionLabel">
+          <input type="radio" name="addRegion" value="eu" onchange="updateRegionStyle()" />
+          <span style="flex:1"><strong style="color:var(--text)">Common Runtime</strong><br><span class="resource-sub">CEDAR</span></span>
+          <span>🇮🇪</span><span style="color:var(--muted);font-size:0.82rem">Europe</span>
         </label>
       </div>
     </div>
   </div>
 
-  <!-- Resources info -->
-  <div class="setup-form">
-    <h2 style="margin-bottom:6px">📦 Resources</h2>
-    <p style="font-size:0.85rem;color:#8b949e;margin-bottom:16px">These resources will be provisioned when the app deploys. Heroku resources are prorated to the second — you only pay for the resources you use.</p>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <div style="display:flex;align-items:center;justify-content:space-between;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:12px 16px">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:1.2rem">🌐</span>
-          <div><div style="font-size:0.9rem;color:#e6edf3">web</div><div style="font-size:0.78rem;color:#8b949e">Standard-1X dyno</div></div>
-        </div>
-        <span style="color:#8b949e;font-size:0.85rem">~$0.035/hour</span>
+  <div class="form-section">
+    <div class="form-section-title" style="font-size:0.85rem;margin-bottom:4px">📦 Resources</div>
+    <div class="form-section-sub">Provisioned when the app deploys. Prorated to the second.</div>
+    <div class="resource-row">
+      <div style="display:flex;align-items:center">
+        <span class="resource-icon">🌐</span>
+        <div><div class="resource-name">web</div><div class="resource-sub">Standard-1X dyno</div></div>
       </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:12px 16px">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:1.2rem">🐘</span>
-          <div><div style="font-size:0.9rem;color:#e6edf3">Heroku Postgres</div><div style="font-size:0.78rem;color:#8b949e">Essential 0 add-on</div></div>
-        </div>
-        <span style="color:#8b949e;font-size:0.85rem">~$0.007/hour</span>
+      <span class="resource-price">~$0.035/hr</span>
+    </div>
+    <div class="resource-row">
+      <div style="display:flex;align-items:center">
+        <span class="resource-icon">🐘</span>
+        <div><div class="resource-name">Heroku Postgres</div><div class="resource-sub">Essential 0 add-on</div></div>
       </div>
+      <span class="resource-price">~$0.007/hr</span>
     </div>
   </div>
 
-  <!-- Config Vars -->
-  <div class="setup-form">
-    <h2 style="margin-bottom:6px">⚙️ Config Vars</h2>
-    <p style="font-size:0.85rem;color:#8b949e;margin-bottom:20px">These are the environment variables set on your new Heroku app. Required fields must be filled.</p>
+  <div class="form-section">
+    <div class="form-section-title" style="font-size:0.85rem;margin-bottom:4px">⚙️ Config Vars</div>
+    <div class="form-section-sub">Environment variables set on your new Heroku app. Required fields must be filled.</div>
 
     <div class="form-group">
-      <label>ADMIN_NUMBERS <span style="color:#f85149;font-size:0.75rem;background:#3a1a1a;padding:2px 6px;border-radius:4px;margin-left:4px">Required</span></label>
-      <div style="font-size:0.78rem;color:#8b949e;margin-bottom:6px">Your WhatsApp number WITHOUT the + sign. This makes you the bot owner. Example: 254706535581. Multiple owners: 254706535581,254781346242</div>
-      <input type="tel" id="addAdminNumbers" placeholder="254706535581" />
+      <label class="form-label">ADMIN_NUMBERS <span class="req-badge">Required</span></label>
+      <div class="form-hint" style="margin-bottom:7px">Your WhatsApp number WITHOUT the + sign. Multiple: 254706535581,254781346242</div>
+      <input type="tel" id="addAdminNumbers" class="form-input" placeholder="254706535581" />
     </div>
 
     <div class="form-group">
-      <label>SESSION_ID <span style="color:#f85149;font-size:0.75rem;background:#3a1a1a;padding:2px 6px;border-radius:4px;margin-left:4px">Required</span></label>
-      <div style="font-size:0.78rem;color:#8b949e;margin-bottom:6px">Your WhatsApp session ID. Don't have one? <a href="https://nexus-session-76ah.onrender.com" target="_blank" style="color:#58a6ff">Get a free session ID here →</a></div>
-      <input type="text" id="addSessionId" placeholder="NEXUS-MD:~..." />
-      <div style="display:flex;gap:8px;margin-top:8px">
-        <button class="btn btn-gray" style="font-size:0.78rem;padding:6px 12px" onclick="fillAddSessionFromBot()">📋 Use current bot session</button>
-        <button class="btn btn-gray" style="font-size:0.78rem;padding:6px 12px" onclick="window.open('https://nexus-session-76ah.onrender.com','_blank')">🌐 Get session ID</button>
+      <label class="form-label">SESSION_ID <span class="req-badge">Required</span></label>
+      <div class="form-hint" style="margin-bottom:7px">Your WhatsApp session ID. <a href="https://nexus-session-76ah.onrender.com" target="_blank">Get a free one →</a></div>
+      <input type="text" id="addSessionId" class="form-input" placeholder="NEXUS-MD:~…" />
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn btn-ghost" style="font-size:0.78rem;padding:6px 12px" onclick="fillAddSessionFromBot()">📋 Use current bot session</button>
+        <button class="btn btn-ghost" style="font-size:0.78rem;padding:6px 12px" onclick="window.open('https://nexus-session-76ah.onrender.com','_blank')">🌐 Get session ID</button>
       </div>
     </div>
 
     <div class="form-group">
-      <label>BOTNAME</label>
-      <div style="font-size:0.78rem;color:#8b949e;margin-bottom:6px">Your bot display name shown in menus and messages.</div>
-      <input type="text" id="addBotname" value="NEXUS-MD" placeholder="NEXUS-MD" />
+      <label class="form-label">BOTNAME</label>
+      <div class="form-hint" style="margin-bottom:7px">Your bot display name shown in menus and messages.</div>
+      <input type="text" id="addBotname" class="form-input" value="NEXUS-MD" placeholder="NEXUS-MD" />
     </div>
 
     <div class="form-group">
-      <label>DATABASE_URL</label>
-      <div style="font-size:0.78rem;color:#8b949e;margin-bottom:6px">PostgreSQL connection string — automatically filled in by the Heroku Postgres add-on above. Leave this blank.</div>
-      <input type="text" id="addDatabaseUrl" placeholder="(auto-filled by Heroku Postgres — leave blank)" disabled style="opacity:0.5;cursor:not-allowed" />
+      <label class="form-label">DATABASE_URL</label>
+      <div class="form-hint" style="margin-bottom:7px">Auto-filled by Heroku Postgres add-on — leave blank.</div>
+      <input type="text" id="addDatabaseUrl" class="form-input" placeholder="(auto-filled by Heroku Postgres)" disabled />
     </div>
 
     <div class="form-group">
-      <label>BAD_WORD</label>
-      <div style="font-size:0.78rem;color:#8b949e;margin-bottom:6px">Comma-separated list of words that will get a member kicked from the group.</div>
-      <input type="text" id="addBadword" value="fuck,pussy,slut,bitch,cock,stupid" placeholder="fuck,pussy,slut,bitch" />
+      <label class="form-label">BAD_WORD</label>
+      <div class="form-hint" style="margin-bottom:7px">Comma-separated — members sending these words get kicked.</div>
+      <input type="text" id="addBadword" class="form-input" value="fuck,pussy,slut,bitch,cock,stupid" />
     </div>
 
     <div class="form-group">
-      <label>MENU_TYPE</label>
-      <div style="font-size:0.78rem;color:#8b949e;margin-bottom:6px">How the bot serves the .menu command.</div>
-      <select id="addMenuType">
+      <label class="form-label">MENU_TYPE</label>
+      <select id="addMenuType" class="form-select">
         <option value="VIDEO">VIDEO — animated video menu</option>
         <option value="IMAGE">IMAGE — static image menu</option>
         <option value="LINK">LINK — text link menu</option>
@@ -494,37 +961,36 @@ tr:last-child td{border-bottom:none}
     </div>
 
     <div class="form-group">
-      <label>PAIR_SITE_URL</label>
-      <div style="font-size:0.78rem;color:#8b949e;margin-bottom:6px">External pairing site for generating Session IDs.</div>
-      <input type="text" id="addPairSite" value="https://nexus-session-76ah.onrender.com" />
+      <label class="form-label">PAIR_SITE_URL</label>
+      <input type="text" id="addPairSite" class="form-input" value="https://nexus-session-76ah.onrender.com" />
     </div>
 
-    <div style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-      <button class="btn btn-green" style="padding:12px 28px;font-size:1rem" onclick="deployHerokuApp()">🚀 Deploy App</button>
-      <button class="btn btn-blue" onclick="applyAddSessionLocal()">⚡ Apply Session to This Bot Only</button>
-      <button class="btn btn-gray" onclick="clearAddForm()">🗑 Clear</button>
+    <div style="margin-top:24px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-solid-cyan" style="padding:11px 28px;font-size:0.92rem" onclick="deployHerokuApp()">🚀 Deploy App</button>
+      <button class="btn btn-cyan" onclick="applyAddSessionLocal()">⚡ Apply Session to This Bot</button>
+      <button class="btn btn-ghost" onclick="clearAddForm()">🗑 Clear</button>
     </div>
 
-    <div id="addResult" style="margin-top:18px;font-size:0.88rem;min-height:24px;line-height:1.7"></div>
+    <div id="addResult" style="margin-top:18px;font-size:0.85rem;min-height:24px;line-height:1.7"></div>
   </div>
 
-  <!-- Success box (hidden until deploy) -->
-  <div id="addSuccessBox" style="display:none" class="setup-form">
-    <h2 style="color:#3fb950;margin-bottom:10px">✅ App Deployed!</h2>
-    <div class="info-grid">
-      <div class="info-item"><div class="label">App Name</div><div class="val" id="addSuccessName" style="color:#3fb950">—</div></div>
-      <div class="info-item"><div class="label">App URL</div><div class="val" id="addSuccessUrl" style="font-size:0.9rem">—</div></div>
+  <div id="addSuccessBox" style="display:none" class="form-section">
+    <div class="form-section-title" style="color:var(--green)">✅ App Deployed!</div>
+    <div class="info-grid" style="margin-top:14px">
+      <div class="info-item"><div class="info-label">App Name</div><div class="info-val" id="addSuccessName" style="color:var(--green)">—</div></div>
+      <div class="info-item"><div class="info-label">App URL</div><div class="info-val" id="addSuccessUrl" style="font-size:0.88rem">—</div></div>
     </div>
-    <div class="alert alert-success" style="margin-top:14px">
-      ✅ Your Heroku app is deploying. It may take 2-3 minutes to come online. Visit the URL above once it's ready.
-    </div>
+    <div class="alert alert-success" style="margin-top:14px">✅ Your Heroku app is deploying. It may take 2-3 minutes to come online.</div>
     <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
-      <button class="btn btn-blue" onclick="window.open(document.getElementById('addSuccessUrl').textContent,'_blank')">🌐 Open App</button>
-      <a class="btn btn-gray" href="https://dashboard.heroku.com" target="_blank">🟣 Heroku Dashboard</a>
+      <button class="btn btn-cyan" onclick="window.open(document.getElementById('addSuccessUrl').textContent,'_blank')">🌐 Open App</button>
+      <a class="btn btn-ghost" href="https://dashboard.heroku.com" target="_blank">🟣 Heroku Dashboard</a>
     </div>
   </div>
 
-</div><!-- /tabAdd -->
+</div>
+
+</main>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -532,9 +998,10 @@ tr:last-child td{border-bottom:none}
 function toast(msg, color) {
   const t = document.getElementById('toast');
   t.textContent = msg;
-  t.style.background = color || '#238636';
+  t.style.borderColor = color === '#b62324' ? 'rgba(239,68,68,0.4)' : color === '#d29922' ? 'rgba(245,158,11,0.4)' : 'rgba(0,212,255,0.3)';
+  t.style.color = color === '#b62324' ? '#ef4444' : color === '#d29922' ? '#f59e0b' : 'var(--cyan)';
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
+  setTimeout(() => t.classList.remove('show'), 2600);
 }
 
 // ---- PLATFORM DETECTION ----
@@ -547,13 +1014,20 @@ async function loadPlatform() {
     if (badge) badge.textContent = (d.icon||'') + ' ' + (d.platform||'Unknown');
 
     const connBadge = document.getElementById('connBadge');
+    const pulse = document.getElementById('statusPulse');
     if (connBadge) {
-      connBadge.textContent = d.botStatus === 'connected' ? 'ONLINE' : (d.waitingForSession ? 'SETUP NEEDED' : 'OFFLINE');
-      connBadge.style.background = d.botStatus === 'connected' ? '#238636' : (d.waitingForSession ? '#d29922' : '#b62324');
-      connBadge.style.color = '#fff';
+      if (d.botStatus === 'connected') {
+        connBadge.textContent = 'ONLINE';
+        if (pulse) { pulse.className = 'pulse'; }
+      } else if (d.waitingForSession) {
+        connBadge.textContent = 'SETUP NEEDED';
+        if (pulse) { pulse.className = 'pulse gold'; }
+      } else {
+        connBadge.textContent = 'OFFLINE';
+        if (pulse) { pulse.className = 'pulse red'; }
+      }
     }
 
-    // Setup tab info
     const piPlatform = document.getElementById('piPlatform');
     const piBotStatus = document.getElementById('piBotStatus');
     const piHerokuApp = document.getElementById('piHerokuApp');
@@ -561,13 +1035,12 @@ async function loadPlatform() {
     if (piPlatform) piPlatform.textContent = (d.icon||'') + ' ' + (d.platform||'Unknown');
     if (piBotStatus) {
       piBotStatus.innerHTML = d.botStatus === 'connected'
-        ? '<span class="status-dot dot-green"></span>Connected'
-        : (d.waitingForSession ? '<span class="status-dot dot-yellow"></span>Waiting for session' : '<span class="status-dot dot-red"></span>Disconnected');
+        ? '<span class="dot dot-green"></span>Connected'
+        : (d.waitingForSession ? '<span class="dot dot-gold"></span>Waiting for session' : '<span class="dot dot-red"></span>Disconnected');
     }
     if (piHerokuApp) piHerokuApp.textContent = d.herokuAppName || (d.isHeroku ? 'Unknown' : 'N/A');
     if (piMode) piMode.textContent = d.isPanel ? 'Panel Mode' : (d.isHeroku ? 'Heroku Cloud' : 'Cloud / VPS');
 
-    // Auto-select platform in dropdown
     const platSel = document.getElementById('setupPlatform');
     if (platSel && d.isHeroku) {
       platSel.value = 'heroku';
@@ -578,11 +1051,9 @@ async function loadPlatform() {
       }
     }
 
-    // Show banner if no session
     const banner = document.getElementById('setupBanner');
-    if (banner && d.waitingForSession) banner.style.display = 'block';
+    if (banner && d.waitingForSession) banner.style.display = 'flex';
 
-    // Pre-fill phone from bot if connected
     const phoneInp = document.getElementById('setupPhone');
     if (phoneInp && !phoneInp.value) {
       const sess = await fetch('/api/session').then(r=>r.json()).catch(()=>null);
@@ -602,22 +1073,21 @@ async function loadSession() {
     if (box) {
       if (d.sessionId) {
         box.textContent = d.sessionId;
-        box.style.color = '#58a6ff';
+        box.style.color = 'var(--cyan)';
       } else {
         box.textContent = '⏳ Session not ready — pair the bot first then refresh.';
-        box.style.color = '#d29922';
+        box.style.color = 'var(--gold)';
       }
     }
     const connEl = document.getElementById('sConnected');
     if (connEl) {
       connEl.innerHTML = d.connected
-        ? '<span class="status-dot dot-green"></span>Connected'
-        : '<span class="status-dot dot-red"></span>Disconnected';
+        ? '<span class="dot dot-green"></span>Connected'
+        : '<span class="dot dot-red"></span>Disconnected';
     }
     const phoneEl = document.getElementById('sPhone');
     if (phoneEl) phoneEl.textContent = d.phone ? '+' + d.phone.replace('@s.whatsapp.net','').replace(':','') : '—';
 
-    // Pre-fill session ID in setup form
     const setupSid = document.getElementById('setupSessionId');
     if (setupSid && !setupSid.value && d.sessionId) setupSid.value = d.sessionId;
   } catch(e) {
@@ -637,33 +1107,33 @@ function copySID() {
       range.selectNodeContents(box);
       sel.removeAllRanges();
       sel.addRange(range);
-      toast('Select & copy the text above manually', '#d29922');
+      toast('Select & copy the text manually', '#d29922');
     });
 }
 
-function refreshSID() { loadSession(); toast('🔄 Refreshed', '#1f6feb'); }
+function refreshSID() { loadSession(); toast('🔄 Refreshed'); }
 
 async function loadSessionFromUrl() {
   const input = document.getElementById('sessionUrlInput');
   const result = document.getElementById('sessionUrlResult');
   const url = (input.value || '').trim();
-  if (!url) { result.textContent = '⚠️ Please enter a URL first.'; result.style.color='#d29922'; return; }
-  result.textContent = '⏳ Loading...'; result.style.color='#8b949e';
+  if (!url) { result.textContent = '⚠️ Please enter a URL first.'; result.style.color='var(--gold)'; return; }
+  result.textContent = '⏳ Loading...'; result.style.color='var(--muted)';
   try {
     const r = await fetch('/session/url', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ url }) });
     const d = await r.json();
     if (d.ok) {
       result.textContent = '✅ ' + d.message;
-      result.style.color = '#3fb950';
-      toast('✅ Session loaded from URL!', '#238636');
+      result.style.color = 'var(--green)';
+      toast('✅ Session loaded from URL!');
       setTimeout(loadSession, 2000);
     } else {
       result.textContent = '❌ ' + (d.error || 'Unknown error');
-      result.style.color = '#f85149';
+      result.style.color = 'var(--red)';
     }
   } catch(e) {
     result.textContent = '❌ Network error: ' + e.message;
-    result.style.color = '#f85149';
+    result.style.color = 'var(--red)';
   }
 }
 
@@ -676,25 +1146,24 @@ function onPlatformChange() {
 async function fetchHerokuApps() {
   const apiKey = (document.getElementById('herokuApiKey').value||'').trim();
   const listEl = document.getElementById('herokuAppList');
-  if (!apiKey) { listEl.textContent = '⚠️ Enter your Heroku API key first.'; listEl.style.color='#d29922'; return; }
-  listEl.textContent = '⏳ Fetching apps...'; listEl.style.color='#8b949e';
+  if (!apiKey) { listEl.textContent = '⚠️ Enter your Heroku API key first.'; listEl.style.color='var(--gold)'; return; }
+  listEl.textContent = '⏳ Fetching apps...'; listEl.style.color='var(--muted)';
   try {
     const r = await fetch('/api/heroku/apps?apiKey=' + encodeURIComponent(apiKey));
     const d = await r.json();
     if (d.ok && d.apps.length) {
-      listEl.innerHTML = 'Found apps: ' + d.apps.map(a =>
-        \`<a href="#" style="color:#58a6ff;margin-right:8px" onclick="document.getElementById('herokuAppName').value='\${a.name}';return false">\${a.name}</a>\`
+      listEl.innerHTML = 'Found: ' + d.apps.map(a =>
+        \`<a href="#" style="color:var(--cyan);margin-right:8px" onclick="document.getElementById('herokuAppName').value='\${a.name}';return false">\${a.name}</a>\`
       ).join('');
-      listEl.style.color='#8b949e';
     } else if (d.ok) {
       listEl.textContent = 'No apps found on this account.';
     } else {
       listEl.textContent = '❌ ' + (d.error||'Unknown error');
-      listEl.style.color='#f85149';
+      listEl.style.color='var(--red)';
     }
   } catch(e) {
     listEl.textContent = '❌ Network error: ' + e.message;
-    listEl.style.color='#f85149';
+    listEl.style.color='var(--red)';
   }
 }
 
@@ -702,18 +1171,18 @@ async function forceReconnect() {
   const btn = document.getElementById('reconnectBtn');
   const resultEl = document.getElementById('setupResult');
   if (btn) btn.disabled = true;
-  resultEl.innerHTML = '<span style="color:#8b949e">⏳ Sending reconnect signal...</span>';
+  resultEl.innerHTML = '<span style="color:var(--muted)">⏳ Sending reconnect signal...</span>';
   try {
     const r = await fetch('/api/reconnect', { method: 'POST', headers: {'Content-Type':'application/json'} });
     const d = await r.json();
     if (d.ok) {
-      resultEl.innerHTML = '<span style="color:#3fb950">✅ ' + d.message + ' — watch the console logs.</span>';
-      toast('🔄 Reconnecting...', '#1f6feb');
+      resultEl.innerHTML = '<span style="color:var(--green)">✅ ' + d.message + ' — watch the console logs.</span>';
+      toast('🔄 Reconnecting...');
     } else {
-      resultEl.innerHTML = '<span style="color:#d29922">⚠️ ' + d.message + '</span>';
+      resultEl.innerHTML = '<span style="color:var(--gold)">⚠️ ' + d.message + '</span>';
     }
   } catch(e) {
-    resultEl.innerHTML = '<span style="color:#f85149">❌ Network error: ' + e.message + '</span>';
+    resultEl.innerHTML = '<span style="color:var(--red)">❌ Network error: ' + e.message + '</span>';
   } finally {
     if (btn) setTimeout(() => { btn.disabled = false; }, 3000);
   }
@@ -728,11 +1197,10 @@ async function applySetup() {
   const platform = document.getElementById('setupPlatform').value;
   const resultEl = document.getElementById('setupResult');
 
-  if (!sessionId) { resultEl.innerHTML='<span style="color:#f85149">⚠️ Session ID is required.</span>'; return; }
+  if (!sessionId) { resultEl.innerHTML='<span style="color:var(--red)">⚠️ Session ID is required.</span>'; return; }
 
-  resultEl.innerHTML = '<span style="color:#8b949e">⏳ Applying session to bot...</span>';
+  resultEl.innerHTML = '<span style="color:var(--muted)">⏳ Applying session to bot...</span>';
 
-  // Step 1: apply session to local bot
   try {
     const r = await fetch('/session', {
       method: 'POST',
@@ -741,25 +1209,24 @@ async function applySetup() {
     });
     const d = await r.json();
     if (!d.ok && d.error) {
-      resultEl.innerHTML = '<span style="color:#f85149">❌ Session error: ' + d.error + '</span>';
+      resultEl.innerHTML = '<span style="color:var(--red)">❌ Session error: ' + d.error + '</span>';
       return;
     }
-    resultEl.innerHTML = '<span style="color:#3fb950">✅ Session applied — bot reconnecting...</span>';
-    toast('✅ Session applied!', '#238636');
+    resultEl.innerHTML = '<span style="color:var(--green)">✅ Session applied — bot reconnecting...</span>';
+    toast('✅ Session applied!');
   } catch(e) {
-    resultEl.innerHTML = '<span style="color:#f85149">❌ Network error: ' + e.message + '</span>';
+    resultEl.innerHTML = '<span style="color:var(--red)">❌ Network error: ' + e.message + '</span>';
     return;
   }
 
-  // Step 2: push to Heroku if selected
   if (platform === 'heroku') {
     const apiKey = (document.getElementById('herokuApiKey').value||'').trim();
     const appName = (document.getElementById('herokuAppName').value||'').trim();
     if (!apiKey || !appName) {
-      resultEl.innerHTML += '<br><span style="color:#d29922">⚠️ Enter Heroku API key and app name to push config vars.</span>';
+      resultEl.innerHTML += '<br><span style="color:var(--gold)">⚠️ Enter Heroku API key and app name to push config vars.</span>';
       return;
     }
-    resultEl.innerHTML += '<br><span style="color:#8b949e">⏳ Pushing config vars to Heroku...</span>';
+    resultEl.innerHTML += '<br><span style="color:var(--muted)">⏳ Pushing config vars to Heroku...</span>';
     const vars = {
       SESSION: sessionId,
       SESSION_ID: sessionId,
@@ -782,13 +1249,13 @@ async function applySetup() {
       });
       const d = await r.json();
       if (d.ok) {
-        resultEl.innerHTML += '<br><span style="color:#3fb950">✅ Heroku config vars updated on <strong>' + appName + '</strong>! The dyno will restart automatically.</span>';
-        toast('✅ Heroku updated!', '#238636');
+        resultEl.innerHTML += '<br><span style="color:var(--green)">✅ Heroku config updated on <strong>' + appName + '</strong>! Dyno will restart automatically.</span>';
+        toast('✅ Heroku updated!');
       } else {
-        resultEl.innerHTML += '<br><span style="color:#f85149">❌ Heroku error: ' + (d.error||'Unknown') + '</span>';
+        resultEl.innerHTML += '<br><span style="color:var(--red)">❌ Heroku error: ' + (d.error||'Unknown') + '</span>';
       }
     } catch(e) {
-      resultEl.innerHTML += '<br><span style="color:#f85149">❌ Network error: ' + e.message + '</span>';
+      resultEl.innerHTML += '<br><span style="color:var(--red)">❌ Network error: ' + e.message + '</span>';
     }
   }
 }
@@ -812,75 +1279,61 @@ function generateHerokuFill() {
   const out = document.getElementById('herokuFillOutput');
 
   if (!phone && !apiKey) {
-    out.innerHTML = '<span style="color:#d29922">⚠️ Fill in at least your phone number above first.</span>';
+    out.innerHTML = '<span style="color:var(--gold)">⚠️ Fill in at least your phone number above first.</span>';
     return;
   }
 
   const deployRows = [
-    { key: 'HEROKU_API', val: apiKey || '(your Heroku API key from dashboard.heroku.com/account)', label: 'Heroku API Key' },
-    { key: 'ADMIN_NUMBERS', val: phone || '(your WhatsApp number without +)', label: 'Owner Phone' },
-    { key: 'SESSION_ID', val: sessionId || '(get from nexus-session-76ah.onrender.com or Session ID tab)', label: 'Session ID' },
-    { key: 'DATABASE_URL', val: '(auto-filled by Heroku Postgres add-on — leave blank)', label: 'Database URL' },
-    { key: 'BOTNAME', val: botname, label: 'Bot Name' },
+    { key: 'HEROKU_API', val: apiKey || '(your Heroku API key from dashboard.heroku.com/account)' },
+    { key: 'ADMIN_NUMBERS', val: phone || '(your WhatsApp number without +)' },
+    { key: 'SESSION_ID', val: sessionId || '(get from nexus-session-76ah.onrender.com)' },
+    { key: 'DATABASE_URL', val: '(auto-filled by Heroku Postgres — leave blank)' },
+    { key: 'BOTNAME', val: botname },
   ];
 
   const postDeploySession = sessionId
-    ? \`<span style="color:#3fb950;font-family:monospace">.setvar SESSION=\${sessionId}</span>\`
-    : \`<span style="color:#8b949e;font-family:monospace">.setvar SESSION=NEXUS-MD:~...&lt;your-session-id&gt;</span>\`;
+    ? \`<span style="color:var(--green);font-family:'JetBrains Mono',monospace">.setvar SESSION=\${sessionId}</span>\`
+    : \`<span style="color:var(--muted);font-family:'JetBrains Mono',monospace">.setvar SESSION=NEXUS-MD:~...&lt;your-session-id&gt;</span>\`;
 
   out.innerHTML = \`
-    <p style="font-size:0.82rem;color:#8b949e;margin:0 0 10px">
-      The Heroku deploy form only shows these 4 fields — everything else is pre-configured automatically.
-    </p>
-    <div style="background:#0d1117;border:1px solid #30363d;border-radius:8px;overflow:hidden;margin-bottom:14px">
+    <p style="font-size:0.78rem;color:var(--muted);margin:0 0 12px">The Heroku deploy form shows these 4 fields — everything else is pre-configured automatically.</p>
+    <div style="background:rgba(0,0,0,0.4);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:16px">
       <table style="width:100%;border-collapse:collapse">
         <thead><tr>
-          <th style="text-align:left;padding:10px 14px;font-size:0.75rem;color:#8b949e;text-transform:uppercase;border-bottom:1px solid #30363d">Field</th>
-          <th style="text-align:left;padding:10px 14px;font-size:0.75rem;color:#8b949e;text-transform:uppercase;border-bottom:1px solid #30363d">Value to paste</th>
-          <th style="padding:10px 14px;border-bottom:1px solid #30363d"></th>
+          <th>Field</th><th>Value to paste</th><th></th>
         </tr></thead>
         <tbody>
           \${deployRows.map(r => \`<tr>
-            <td style="padding:10px 14px;font-family:monospace;color:#79c0ff;font-size:0.85rem;border-bottom:1px solid #21262d;white-space:nowrap">\${r.key}</td>
-            <td style="padding:10px 14px;font-family:monospace;font-size:0.78rem;color:#e6edf3;word-break:break-all;border-bottom:1px solid #21262d">\${r.val}</td>
-            <td style="padding:10px 14px;border-bottom:1px solid #21262d;white-space:nowrap">
-              \${r.val.startsWith('(') ? '' : \`<button class="btn btn-gray" style="padding:4px 10px;font-size:0.75rem" onclick="navigator.clipboard.writeText('\${r.val.replace(/'/g,\\"\\\\'\\")}');toast('Copied!')">Copy</button>\`}
+            <td style="font-family:'JetBrains Mono',monospace;color:var(--cyan);font-size:0.8rem;white-space:nowrap">\${r.key}</td>
+            <td style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--text);word-break:break-all">\${r.val}</td>
+            <td style="white-space:nowrap">
+              \${r.val.startsWith('(') ? '' : \`<button class="btn btn-ghost" style="padding:4px 10px;font-size:0.72rem" onclick="navigator.clipboard.writeText('\${r.val.replace(/'/g,\\"\\\\'\\")}');toast('Copied!')">Copy</button>\`}
             </td>
           </tr>\`).join('')}
         </tbody>
       </table>
     </div>
-    <div style="background:#161b22;border:1px solid #388bfd44;border-radius:8px;padding:14px">
-      <p style="margin:0 0 8px;font-size:0.85rem;color:#79c0ff;font-weight:600">📱 Step 2 — Connect WhatsApp after deploy</p>
-      <p style="margin:0 0 8px;font-size:0.82rem;color:#c9d1d9">
+    <div style="background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.2);border-radius:10px;padding:16px">
+      <p style="margin:0 0 8px;font-size:0.82rem;color:var(--blue);font-weight:600">📱 Step 2 — Connect WhatsApp after deploy</p>
+      <p style="margin:0 0 10px;font-size:0.8rem;color:var(--muted)">
         Once your Heroku app is running, get a session ID from
-        <a href="https://nexus-session-76ah.onrender.com" target="_blank" style="color:#58a6ff">nexus-session-76ah.onrender.com</a>
-        then send this command to the bot (or paste via the Heroku Config Vars page):
+        <a href="https://nexus-session-76ah.onrender.com" target="_blank" style="color:var(--cyan)">nexus-session-76ah.onrender.com</a>
+        then send this command to the bot:
       </p>
-      <div style="background:#0d1117;border-radius:6px;padding:10px 14px;font-size:0.85rem">
+      <div style="background:rgba(0,0,0,0.4);border-radius:8px;padding:10px 14px;font-size:0.82rem">
         \${postDeploySession}
       </div>
-      \${sessionId ? \`<p style="margin:8px 0 0;font-size:0.78rem;color:#3fb950">✅ Your session ID is already filled in above — just copy and send it to the bot!</p>\` : ''}
+      \${sessionId ? \`<p style="margin:8px 0 0;font-size:0.75rem;color:var(--green)">✅ Your session ID is already filled in — just copy and send it!</p>\` : ''}
     </div>
   \`;
 }
 
 // ---- ADD SESSION TAB ----
 function updateRegionStyle() {
-  const radios = document.querySelectorAll('input[name="addRegion"]');
-  radios.forEach(r => {
-    const label = r.closest('label');
-    if (r.checked) {
-      label.style.border = '2px solid #388bfd';
-      label.style.background = '#0d1117';
-    } else {
-      label.style.border = '1px solid #30363d';
-      label.style.background = '#161b22';
-    }
-  });
+  document.querySelectorAll('.region-opt').forEach(el => el.classList.remove('selected'));
+  const checked = document.querySelector('input[name="addRegion"]:checked');
+  if (checked) checked.closest('.region-opt').classList.add('selected');
 }
-
-// Wire up region radios after DOM loads
 document.querySelectorAll('input[name="addRegion"]').forEach(r => r.addEventListener('change', updateRegionStyle));
 
 async function fillAddSessionFromBot() {
@@ -888,7 +1341,7 @@ async function fillAddSessionFromBot() {
     const d = await fetch('/api/session').then(r => r.json());
     if (d.sessionId) {
       document.getElementById('addSessionId').value = d.sessionId;
-      toast('✅ Session filled from bot!', '#238636');
+      toast('✅ Session filled from bot!');
     } else {
       toast('⚠️ No active session yet — pair the bot first.', '#d29922');
     }
@@ -914,11 +1367,11 @@ async function deployHerokuApp() {
   const pairSite  = (document.getElementById('addPairSite').value || '').trim();
   const resultEl  = document.getElementById('addResult');
 
-  if (!apiKey) { resultEl.innerHTML = '<span style="color:#f85149">❌ Heroku API key is required.</span>'; return; }
-  if (!admin)  { resultEl.innerHTML = '<span style="color:#f85149">❌ ADMIN_NUMBERS is required.</span>'; return; }
-  if (!sessionId) { resultEl.innerHTML = '<span style="color:#f85149">❌ SESSION_ID is required.</span>'; return; }
+  if (!apiKey) { resultEl.innerHTML = '<span style="color:var(--red)">❌ Heroku API key is required.</span>'; return; }
+  if (!admin)  { resultEl.innerHTML = '<span style="color:var(--red)">❌ ADMIN_NUMBERS is required.</span>'; return; }
+  if (!sessionId) { resultEl.innerHTML = '<span style="color:var(--red)">❌ SESSION_ID is required.</span>'; return; }
 
-  resultEl.innerHTML = '<span style="color:#8b949e">⏳ Creating Heroku app… this may take 15-30 seconds…</span>';
+  resultEl.innerHTML = '<span style="color:var(--muted)">⏳ Creating Heroku app… this may take 15-30 seconds…</span>';
   document.getElementById('addSuccessBox').style.display = 'none';
 
   const vars = {
@@ -940,126 +1393,148 @@ async function deployHerokuApp() {
     });
     const d = await r.json();
     if (d.ok) {
-      resultEl.innerHTML = \`<span style="color:#3fb950">✅ App <strong>\${d.appName}</strong> created! Config vars pushed. Dyno is starting…</span>\`;
-      toast('✅ Heroku app deployed!', '#238636');
-      document.getElementById('addSuccessName').textContent = d.appName;
-      document.getElementById('addSuccessUrl').textContent = d.webUrl;
-      document.getElementById('addSuccessBox').style.display = 'block';
+      resultEl.innerHTML = '<span style="color:var(--green)">✅ App created and deploying!</span>';
+      const box = document.getElementById('addSuccessBox');
+      box.style.display = 'block';
+      const nameEl = document.getElementById('addSuccessName');
+      const urlEl = document.getElementById('addSuccessUrl');
+      if (nameEl) nameEl.textContent = d.appName || appName || '—';
+      if (urlEl) urlEl.textContent = d.appUrl || ('https://' + (d.appName||appName) + '.herokuapp.com');
+      toast('🚀 App deployed!');
     } else {
-      resultEl.innerHTML = '<span style="color:#f85149">❌ Heroku error: ' + (d.error || 'Unknown') + '</span>';
+      resultEl.innerHTML = '<span style="color:var(--red)">❌ ' + (d.error || 'Unknown error') + '</span>';
     }
   } catch(e) {
-    resultEl.innerHTML = '<span style="color:#f85149">❌ Network error: ' + e.message + '</span>';
+    resultEl.innerHTML = '<span style="color:var(--red)">❌ Network error: ' + e.message + '</span>';
   }
 }
 
 async function applyAddSessionLocal() {
   const sessionId = (document.getElementById('addSessionId').value || '').trim();
   const resultEl  = document.getElementById('addResult');
-  if (!sessionId) { resultEl.innerHTML = '<span style="color:#f85149">❌ Enter a Session ID first.</span>'; return; }
-  resultEl.innerHTML = '<span style="color:#8b949e">⏳ Applying session to this bot…</span>';
+  if (!sessionId) { resultEl.innerHTML = '<span style="color:var(--red)">❌ SESSION_ID is required.</span>'; return; }
+  resultEl.innerHTML = '<span style="color:var(--muted)">⏳ Applying session...</span>';
   try {
-    const r = await fetch('/session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session: sessionId }),
-    });
+    const r = await fetch('/session', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ session: sessionId }) });
     const d = await r.json();
-    if (d.ok || !d.error) {
-      resultEl.innerHTML = '<span style="color:#3fb950">✅ Session applied — bot is reconnecting. Check the Overview tab for status.</span>';
-      toast('✅ Session applied!', '#238636');
+    if (d.ok) {
+      resultEl.innerHTML = '<span style="color:var(--green)">✅ Session applied — bot reconnecting...</span>';
+      toast('✅ Session applied!');
     } else {
-      resultEl.innerHTML = '<span style="color:#f85149">❌ ' + (d.error || 'Unknown error') + '</span>';
+      resultEl.innerHTML = '<span style="color:var(--red)">❌ ' + (d.error||'Unknown error') + '</span>';
     }
   } catch(e) {
-    resultEl.innerHTML = '<span style="color:#f85149">❌ Network error: ' + e.message + '</span>';
+    resultEl.innerHTML = '<span style="color:var(--red)">❌ Network error: ' + e.message + '</span>';
   }
 }
 
 function clearAddForm() {
   ['addAppName','addHerokuKey','addAdminNumbers','addSessionId','addBadword'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
+    const el = document.getElementById(id); if (el) el.value = '';
   });
-  const bn = document.getElementById('addBotname');
-  if (bn) bn.value = 'NEXUS-MD';
+  const bn = document.getElementById('addBotname'); if (bn) bn.value = 'NEXUS-MD';
+  const ps = document.getElementById('addPairSite'); if (ps) ps.value = 'https://nexus-session-76ah.onrender.com';
   document.getElementById('addResult').innerHTML = '';
   document.getElementById('addSuccessBox').style.display = 'none';
-  // reset region to US
-  const usRadio = document.querySelector('input[name="addRegion"][value="us"]');
-  if (usRadio) { usRadio.checked = true; updateRegionStyle(); }
 }
 
-// ---- OVERVIEW TAB ----
-async function loadOverview() {
+// ---- STATS CHART ----
+async function loadStats() {
   try {
-    const [stats, bookings, broadcasts] = await Promise.all([
-      fetch('/api/stats').then(r=>r.json()),
-      fetch('/api/bookings').then(r=>r.json()),
-      fetch('/api/broadcasts').then(r=>r.json()),
-    ]);
+    const d = await fetch('/api/stats').then(r=>r.json());
+    const s = d.stats || {};
+    const el = (id, v) => { const e = document.getElementById(id); if(e) e.textContent = v ?? '—'; };
+    el('totalMessages', s.totalMessages?.toLocaleString());
+    el('totalCommands', s.totalCommands?.toLocaleString());
+    el('uniqueUsers',   s.uniqueUsers?.toLocaleString());
+    el('uptime',        s.uptimeMinutes ? s.uptimeMinutes + 'm' : '—');
 
-    const s = stats.stats;
-    const uptime = Math.floor((Date.now() - new Date(s.startTime).getTime()) / 60000);
-    document.getElementById('totalMessages').textContent = s.totalMessages || 0;
-    document.getElementById('totalCommands').textContent = s.totalCommands || 0;
-    document.getElementById('uniqueUsers').textContent = (s.uniqueUsers||[]).length;
-    document.getElementById('uptime').textContent = uptime;
-    document.getElementById('lastUpdate').textContent = 'Updated: ' + new Date().toLocaleTimeString();
-
-    const topCmds = stats.topCommands;
-    const maxVal = topCmds.length ? topCmds[0][1] : 1;
-    const cmdHtml = topCmds.map(([cmd,count]) =>
-      \`<tr><td>\${cmd}</td><td><b>\${count}</b></td><td><div class="bar" style="width:\${(count/maxVal*100)}%"></div></td></tr>\`
-    ).join('');
-    document.getElementById('commandTable').innerHTML = cmdHtml || '<tr><td colspan="3" style="color:#8b949e">No commands yet</td></tr>';
-
-    const recent = (s.recentActivity||[]).slice(0,10);
-    const actHtml = recent.map(a =>
-      \`<tr><td style="color:#8b949e">\${new Date(a.time).toLocaleTimeString()}</td><td>\${a.user}</td><td>\${a.action}</td></tr>\`
-    ).join('');
-    document.getElementById('activityTable').innerHTML = actHtml || '<tr><td colspan="3" style="color:#8b949e">No activity yet</td></tr>';
-
-    const hourly = stats.hourly;
-    const maxH = hourly.length ? Math.max(...hourly.map(h=>h[1]),1) : 1;
-    const bars = document.getElementById('chartBars');
+    // Chart
+    const bars   = document.getElementById('chartBars');
     const labels = document.getElementById('chartLabels');
-    bars.innerHTML = hourly.map(([h,c]) =>
-      \`<div style="flex:1;background:#1f6feb;height:\${Math.max(4,(c/maxH)*56)}px;border-radius:4px 4px 0 0" title="\${h}: \${c} msgs"></div>\`
-    ).join('');
-    labels.innerHTML = hourly.map(([h]) =>
-      \`<div style="flex:1;text-align:center">\${h.slice(11)}h</div>\`
-    ).join('');
+    if (bars && d.hourly?.length) {
+      const max = Math.max(...d.hourly.map(h=>h.count), 1);
+      bars.innerHTML = d.hourly.map(h => {
+        const pct = Math.max(4, Math.round((h.count/max)*100));
+        return \`<div class="chart-bar" style="height:\${pct}%" title="\${h.hour}:00 — \${h.count} messages"></div>\`;
+      }).join('');
+      if (labels) labels.innerHTML = d.hourly.map(h => \`<span style="flex:1;text-align:center">\${h.hour}</span>\`).join('');
+    }
 
-    const bkHtml = bookings.slice(0,10).map(b =>
-      \`<tr><td>#\${b.id}</td><td>\${b.service}</td><td>\${b.date}</td><td>\${b.time}</td><td><span class="badge \${b.status}">\${b.status}</span></td></tr>\`
-    ).join('');
-    document.getElementById('bookingsTable').innerHTML = bkHtml || '<tr><td colspan="5" style="color:#8b949e">No bookings yet</td></tr>';
+    // Top commands
+    const ct = document.getElementById('commandTable');
+    if (ct && d.topCommands?.length) {
+      const maxC = Math.max(...d.topCommands.map(c=>c.count), 1);
+      ct.innerHTML = d.topCommands.map(c =>
+        \`<tr><td style="font-family:'JetBrains Mono',monospace;color:var(--cyan)">.\${c.command}</td>
+             <td style="color:var(--text)">\${c.count}</td>
+             <td><div class="prog-wrap"><div class="prog-fill" style="width:\${Math.round(c.count/maxC*100)}%"></div></div></td></tr>\`
+      ).join('');
+    } else if (ct) {
+      ct.innerHTML = '<tr><td colspan="3" style="color:var(--muted);text-align:center;padding:24px">No command data yet</td></tr>';
+    }
 
-    const brHtml = broadcasts.slice(0,5).map(b =>
-      \`<tr><td>\${b.message}...</td><td style="color:#3fb950">\${b.sent}</td><td style="color:#f85149">\${b.failed}</td><td style="color:#8b949e">\${new Date(b.time).toLocaleString()}</td></tr>\`
-    ).join('');
-    document.getElementById('broadcastTable').innerHTML = brHtml || '<tr><td colspan="4" style="color:#8b949e">No broadcasts yet</td></tr>';
-  } catch(e) { console.error(e); }
+    // Recent activity
+    const at = document.getElementById('activityTable');
+    if (at && s.recentActivity?.length) {
+      at.innerHTML = s.recentActivity.slice(0,8).map(a =>
+        \`<tr><td style="color:var(--muted);font-size:0.75rem;font-family:'JetBrains Mono',monospace">\${new Date(a.at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</td>
+             <td style="font-family:'JetBrains Mono',monospace;color:var(--text)">\${a.phone||'—'}</td>
+             <td style="color:var(--muted)">\${a.action||'—'}</td></tr>\`
+      ).join('');
+    } else if (at) {
+      at.innerHTML = '<tr><td colspan="3" style="color:var(--muted);text-align:center;padding:24px">No activity yet</td></tr>';
+    }
+  } catch(e) {}
 }
 
-// Init
+// ---- BOOKINGS ----
+async function loadBookings() {
+  try {
+    const data = await fetch('/api/bookings').then(r=>r.json());
+    const bt = document.getElementById('bookingsTable');
+    if (!bt) return;
+    if (!data?.length) {
+      bt.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:24px">No bookings yet</td></tr>';
+      return;
+    }
+    bt.innerHTML = data.map((b,i) =>
+      \`<tr><td style="color:var(--muted)">\${i+1}</td>
+           <td>\${b.service||'—'}</td>
+           <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem">\${b.date||'—'}</td>
+           <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem">\${b.time||'—'}</td>
+           <td><span class="badge \${b.status||'pending'}">\${b.status||'pending'}</span></td></tr>\`
+    ).join('');
+  } catch(e) {}
+}
+
+// ---- BROADCASTS ----
+async function loadBroadcasts() {
+  try {
+    const data = await fetch('/api/broadcasts').then(r=>r.json());
+    const bt = document.getElementById('broadcastTable');
+    if (!bt) return;
+    if (!data?.length) {
+      bt.innerHTML = '<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:24px">No broadcasts yet</td></tr>';
+      return;
+    }
+    bt.innerHTML = data.map(b =>
+      \`<tr><td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">\${b.message||'—'}</td>
+           <td style="color:var(--green)">\${b.sent??'—'}</td>
+           <td style="color:var(--red)">\${b.failed??'—'}</td>
+           <td style="color:var(--muted);font-size:0.78rem;font-family:'JetBrains Mono',monospace">\${b.at ? new Date(b.at).toLocaleString() : '—'}</td></tr>\`
+    ).join('');
+  } catch(e) {}
+}
+
+// ---- INIT ----
 loadPlatform();
-const activeTab = '${activeTab}';
-if (activeTab === 'session') {
-  loadSession();
-  setInterval(loadSession, 15000);
-} else if (activeTab === 'setup') {
-  loadSession();
-  setInterval(loadPlatform, 10000);
-} else if (activeTab === 'add') {
-  // Pre-fill session from bot if available
-  fillAddSessionFromBot();
-  setInterval(loadPlatform, 15000);
-} else {
-  loadOverview();
-  setInterval(loadOverview, 10000);
-}
+loadSession();
+loadStats();
+loadBookings();
+loadBroadcasts();
+setInterval(loadStats, 30000);
+setInterval(loadPlatform, 15000);
 </script>
 </body>
 </html>`;
