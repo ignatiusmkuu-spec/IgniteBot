@@ -644,6 +644,14 @@ tr:hover td{background:rgba(0,212,255,0.03)}
   display:flex;align-items:center;gap:7px;
 }
 .nexus-bar-url-arrow{color:rgba(168,85,247,0.75);font-style:normal}
+.nexus-bar-desc{
+  font-size:0.76rem;
+  color:rgba(255,255,255,0.45);
+  line-height:1.55;
+  margin-bottom:9px;
+  font-family:'Space Grotesk',sans-serif;
+  max-width:480px;
+}
 /* chips row */
 .nexus-bar-chips{display:flex;gap:6px;flex-wrap:wrap}
 .nexus-bar-chip{
@@ -663,31 +671,43 @@ tr:hover td{background:rgba(0,212,255,0.03)}
   box-shadow:0 0 5px currentColor;
   animation:pulse 2s infinite;
 }
+/* right column wrapper */
+.nexus-bar-right{
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  flex-shrink:0;
+}
+.nexus-bar-note{
+  font-size:0.62rem;
+  color:rgba(255,255,255,0.3);
+  font-family:'JetBrains Mono',monospace;
+  text-align:center;
+  letter-spacing:0.3px;
+}
 /* CTA button */
 .nexus-bar-cta{
-  display:inline-flex;flex-direction:column;align-items:center;gap:5px;
-  padding:15px 26px;
-  border-radius:15px;
-  background:linear-gradient(135deg,#00d4ff,#a855f7);
-  color:#000;
+  display:inline-flex;flex-direction:column;align-items:center;gap:4px;
+  padding:14px 28px;
+  border-radius:14px;
+  background:linear-gradient(135deg,#00d4ff 0%,#7c3aed 100%);
+  color:#fff;
   font-family:'Orbitron',monospace;
-  font-size:0.72rem;font-weight:900;
+  font-size:0.75rem;font-weight:900;
   text-decoration:none;
-  letter-spacing:1.5px;
+  letter-spacing:1px;
   text-transform:uppercase;
   white-space:nowrap;
   border:none;cursor:pointer;
-  transition:all .25s;
-  box-shadow:0 6px 28px rgba(0,212,255,0.38),0 0 0 1px rgba(255,255,255,0.08);
+  transition:all .28s cubic-bezier(.4,0,.2,1);
+  box-shadow:0 6px 28px rgba(0,212,255,0.35),0 2px 0 rgba(255,255,255,0.12) inset;
   position:relative;overflow:hidden;
-  min-width:130px;
+  min-width:148px;
   text-align:center;
 }
 .nexus-bar-cta::before{
   content:'';
   position:absolute;top:-50%;left:-60%;
-  width:60%;height:200%;
-  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.25),transparent);
+  width:55%;height:200%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.22),transparent);
   transform:skewX(-20deg);
   animation:nexus-sweep 3.5s ease-in-out infinite;
 }
@@ -696,21 +716,19 @@ tr:hover td{background:rgba(0,212,255,0.03)}
   60%,100%{left:160%}
 }
 .nexus-bar-cta:hover{
-  transform:translateY(-3px) scale(1.02);
-  box-shadow:0 14px 45px rgba(0,212,255,0.55),0 6px 24px rgba(168,85,247,0.4);
-  filter:brightness(1.1);
+  transform:translateY(-3px) scale(1.03);
+  box-shadow:0 16px 48px rgba(0,212,255,0.5),0 6px 20px rgba(124,58,237,0.4);
+  filter:brightness(1.08);
 }
-.nexus-bar-cta-label{display:block;font-size:0.72rem;font-weight:900;letter-spacing:1.5px}
+.nexus-bar-cta-icon{font-size:1.1rem;line-height:1;margin-bottom:1px}
+.nexus-bar-cta-label{display:block;font-size:0.73rem;font-weight:900;letter-spacing:1px;color:#fff}
 .nexus-bar-cta-sub{
   display:block;
   font-family:'JetBrains Mono',monospace;
-  font-size:0.52rem;font-weight:400;
-  color:rgba(0,0,0,0.55);
+  font-size:0.54rem;font-weight:400;
+  color:rgba(255,255,255,0.6);
   text-transform:none;letter-spacing:0;
   white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  max-width:140px;
 }
 /* bottom stats strip */
 .nexus-bar-stats{
@@ -924,26 +942,33 @@ tr:hover td{background:rgba(0,212,255,0.03)}
           <div class="nexus-bar-icon">⚡</div>
         </div>
         <div class="nexus-bar-center">
-          <div class="nexus-bar-eyebrow">◈ Official Pairing Portal</div>
+          <div class="nexus-bar-eyebrow">◈ Official Pairing Portal &nbsp;·&nbsp; Powered by NEXUS-MD</div>
           <div class="nexus-bar-title">NEXUS SESSION GENERATOR</div>
+          <div class="nexus-bar-desc">Connect your WhatsApp number and get a session key in seconds — no technical skills needed. Free, instant, and secure.</div>
           <div class="nexus-bar-url"><i class="nexus-bar-url-arrow">→</i> nexus-session-76ah.onrender.com</div>
           <div class="nexus-bar-chips">
-            <span class="nexus-bar-chip c-green"><span class="nexus-bar-chip-dot"></span>Live</span>
-            <span class="nexus-bar-chip c-cyan">⚡ &lt;30s Setup</span>
-            <span class="nexus-bar-chip c-purple">🔐 Encrypted</span>
-            <span class="nexus-bar-chip c-cyan">🌍 Free Forever</span>
+            <span class="nexus-bar-chip c-green"><span class="nexus-bar-chip-dot"></span>Server Live</span>
+            <span class="nexus-bar-chip c-cyan">⚡ Ready in &lt;30s</span>
+            <span class="nexus-bar-chip c-purple">🔐 End-to-End Encrypted</span>
+            <span class="nexus-bar-chip c-cyan">🌍 Always Free</span>
+            <span class="nexus-bar-chip c-purple">🚫 No Login Required</span>
           </div>
         </div>
-        <a class="nexus-bar-cta" href="https://nexus-session-76ah.onrender.com/" target="_blank">
-          <span class="nexus-bar-cta-label">⚡ LAUNCH</span>
-          <span class="nexus-bar-cta-sub">nexus-session-76ah.onrender.com</span>
-        </a>
+        <div class="nexus-bar-right">
+          <a class="nexus-bar-cta" href="https://nexus-session-76ah.onrender.com/" target="_blank">
+            <span class="nexus-bar-cta-icon">⚡</span>
+            <span class="nexus-bar-cta-label">Get Session ID</span>
+            <span class="nexus-bar-cta-sub">Open pairing site →</span>
+          </a>
+          <div class="nexus-bar-note">Scan QR or enter phone number</div>
+        </div>
       </div>
       <div class="nexus-bar-stats">
-        <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">100%</div><div class="nexus-bar-stat-lbl">Free</div></div>
+        <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">100%</div><div class="nexus-bar-stat-lbl">Free Forever</div></div>
         <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">&lt;30s</div><div class="nexus-bar-stat-lbl">Pair Time</div></div>
         <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">E2E</div><div class="nexus-bar-stat-lbl">Encrypted</div></div>
-        <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">24/7</div><div class="nexus-bar-stat-lbl">Online</div></div>
+        <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">24/7</div><div class="nexus-bar-stat-lbl">Always Online</div></div>
+        <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">0</div><div class="nexus-bar-stat-lbl">Data Stored</div></div>
       </div>
     </div>
 
@@ -1004,26 +1029,33 @@ tr:hover td{background:rgba(0,212,255,0.03)}
             <div class="nexus-bar-icon">⚡</div>
           </div>
           <div class="nexus-bar-center">
-            <div class="nexus-bar-eyebrow">◈ Official Pairing Portal</div>
+            <div class="nexus-bar-eyebrow">◈ Official Pairing Portal &nbsp;·&nbsp; Powered by NEXUS-MD</div>
             <div class="nexus-bar-title">NEXUS SESSION GENERATOR</div>
+            <div class="nexus-bar-desc">Connect your WhatsApp number and get a session key in seconds — no technical skills needed. Free, instant, and secure.</div>
             <div class="nexus-bar-url"><i class="nexus-bar-url-arrow">→</i> nexus-session-76ah.onrender.com</div>
             <div class="nexus-bar-chips">
-              <span class="nexus-bar-chip c-green"><span class="nexus-bar-chip-dot"></span>Live</span>
-              <span class="nexus-bar-chip c-cyan">⚡ &lt;30s Setup</span>
-              <span class="nexus-bar-chip c-purple">🔐 Encrypted</span>
-              <span class="nexus-bar-chip c-cyan">🌍 Free Forever</span>
+              <span class="nexus-bar-chip c-green"><span class="nexus-bar-chip-dot"></span>Server Live</span>
+              <span class="nexus-bar-chip c-cyan">⚡ Ready in &lt;30s</span>
+              <span class="nexus-bar-chip c-purple">🔐 End-to-End Encrypted</span>
+              <span class="nexus-bar-chip c-cyan">🌍 Always Free</span>
+              <span class="nexus-bar-chip c-purple">🚫 No Login Required</span>
             </div>
           </div>
-          <a class="nexus-bar-cta" href="https://nexus-session-76ah.onrender.com/" target="_blank">
-            <span class="nexus-bar-cta-label">⚡ LAUNCH</span>
-            <span class="nexus-bar-cta-sub">nexus-session-76ah.onrender.com</span>
-          </a>
+          <div class="nexus-bar-right">
+            <a class="nexus-bar-cta" href="https://nexus-session-76ah.onrender.com/" target="_blank">
+              <span class="nexus-bar-cta-icon">⚡</span>
+              <span class="nexus-bar-cta-label">Get Session ID</span>
+              <span class="nexus-bar-cta-sub">Open pairing site →</span>
+            </a>
+            <div class="nexus-bar-note">Scan QR or enter phone number</div>
+          </div>
         </div>
         <div class="nexus-bar-stats">
-          <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">100%</div><div class="nexus-bar-stat-lbl">Free</div></div>
+          <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">100%</div><div class="nexus-bar-stat-lbl">Free Forever</div></div>
           <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">&lt;30s</div><div class="nexus-bar-stat-lbl">Pair Time</div></div>
           <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">E2E</div><div class="nexus-bar-stat-lbl">Encrypted</div></div>
-          <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">24/7</div><div class="nexus-bar-stat-lbl">Online</div></div>
+          <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">24/7</div><div class="nexus-bar-stat-lbl">Always Online</div></div>
+          <div class="nexus-bar-stat"><div class="nexus-bar-stat-val">0</div><div class="nexus-bar-stat-lbl">Data Stored</div></div>
         </div>
       </div>
     </div>
