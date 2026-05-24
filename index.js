@@ -8697,6 +8697,17 @@ async function startnexus() {
         ? { ...msg, key: { ...msg.key, fromMe: true }, _publicUser: true, _isOwner: false }
         : msg;
 
+    // ── Non-command guard — silently ignore plain chat messages ──────────────
+    // Only forward to commands.handle() when the body looks like a command
+    // (starts with the prefix, or prefixless mode is on). Plain messages that
+    // aren't commands are dropped here without any reply.
+    {
+      const _guardPfx       = settings.get("prefix") || ".";
+      const _guardPfxless   = !!settings.get("prefixless");
+      const _looksLikeCmd   = body.startsWith(_guardPfx) || _guardPfxless;
+      if (!_looksLikeCmd) return;
+    }
+
     // ── Per-command 45 s hard timeout ────────────────────────────────────────
     // If commands.handle() never resolves (hung API, stalled download, etc.)
     // the promise would accumulate in memory forever. We race it against a
