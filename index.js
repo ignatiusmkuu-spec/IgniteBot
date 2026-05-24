@@ -2771,6 +2771,67 @@ async function startnexus() {
         }
 
         // ── .setmenusong ───────────────────────────────────────────────────
+        // ── .setaddgroup — set invite link for auto-add feature ────────────────
+        if (_cmd === "setaddgroup") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          const link = _args.trim();
+          if (!link) {
+            const cur = db.read("_autoAddGroupCode", null);
+            const curJid = db.read("_autoAddGroupJid", null);
+            const curEnabled = cur?.enabled !== false;
+            await sock.sendMessage(from, {
+              text:
+                `⚙️ *Auto-Add Group Settings*\n\n` +
+                `*Status:* ${curEnabled ? "✅ ON" : "❌ OFF"}\n` +
+                `*Group JID:* ${curJid?.jid || "Not joined yet"}\n` +
+                `*Invite Code:* ${cur?.code || "None"}\n\n` +
+                `Usage:\n` +
+                `• Set link: \`${_pfx}setaddgroup <invite link>\`\n` +
+                `• Turn off: \`${_pfx}setaddgroup off\`\n` +
+                `• Turn on:  \`${_pfx}setaddgroup on\``,
+            }, { quoted: msg });
+            return;
+          }
+          if (link.toLowerCase() === "off") {
+            const cur = db.read("_autoAddGroupCode", null) || {};
+            db.write("_autoAddGroupCode", { ...cur, enabled: false });
+            await sock.sendMessage(from, { text: "❌ Auto-add disabled. New DM senders will NOT be added to group." }, { quoted: msg });
+            return;
+          }
+          if (link.toLowerCase() === "on") {
+            const cur = db.read("_autoAddGroupCode", null) || {};
+            db.write("_autoAddGroupCode", { ...cur, enabled: true });
+            await sock.sendMessage(from, { text: "✅ Auto-add enabled. New DM senders will be added to group." }, { quoted: msg });
+            return;
+          }
+          // Extract invite code from link
+          const codeMatch = link.match(/chat\.whatsapp\.com\/([A-Za-z0-9]+)/);
+          if (!codeMatch) {
+            await sock.sendMessage(from, { text: "❌ Invalid WhatsApp group invite link. Example: `https://chat.whatsapp.com/XXXXXX`" }, { quoted: msg });
+            return;
+          }
+          const newCode = codeMatch[1];
+          db.write("_autoAddGroupCode", { code: newCode, enabled: true });
+          db.write("_autoAddGroupJid", { jid: null }); // reset JID — will re-join on next connect
+          _autoAddedCache.clear();
+          // Try to join immediately
+          try {
+            const gJid = await sock.groupAcceptInvite(newCode);
+            if (gJid) db.write("_autoAddGroupJid", { jid: gJid });
+            await sock.sendMessage(from, {
+              text: `✅ Group set and joined!\n*JID:* ${gJid}\n*Code:* ${newCode}\n\nEvery new DM sender will be auto-added.`,
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, {
+              text: `✅ Code saved (*${newCode}*) but could not join yet: ${e.message}\nThe bot will try to join on next restart.`,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
         if (_cmd === "setmenusong") {
           if (!_isOwner) {
             await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
