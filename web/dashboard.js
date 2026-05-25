@@ -748,122 +748,77 @@ tr:hover td{background:rgba(0,212,255,0.03)}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 @media(max-width:768px){.two-col{grid-template-columns:1fr}}
 
-/* ── Hamburger button ── */
-.hamburger {
+/* ── Bottom navigation bar (mobile) ── */
+.bottom-nav {
   display:none;
+  position:fixed;
+  bottom:0;left:0;right:0;
+  z-index:300;
+  height:62px;
+  background:#020816;
+  border-top:1px solid rgba(0,212,255,0.14);
+  -webkit-tap-highlight-color:transparent;
+}
+.bottom-nav-inner {
+  display:flex;
+  height:100%;
+  align-items:stretch;
+}
+.bnav-item {
+  flex:1;
+  display:flex;
   flex-direction:column;
+  align-items:center;
   justify-content:center;
-  gap:5px;
-  padding:8px 10px;
-  cursor:pointer;
-  border:1px solid var(--border);
-  border-radius:10px;
-  background:var(--bg3);
-  transition:all .2s;
-  flex-shrink:0;
-}
-.hamburger:hover{border-color:rgba(0,212,255,0.35);background:rgba(0,212,255,0.06);box-shadow:0 0 12px rgba(0,212,255,0.1)}
-.hamburger span{
-  display:block;width:20px;height:2px;
-  background:var(--text);border-radius:2px;
-  transition:all .3s cubic-bezier(.4,0,.2,1);
-}
-.hamburger.open span:nth-child(1){transform:translateY(7px) rotate(45deg);background:var(--cyan)}
-.hamburger.open span:nth-child(2){opacity:0;transform:scaleX(0)}
-.hamburger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg);background:var(--cyan)}
-
-/* ── Mobile nav overlay ── */
-.mobile-overlay {
-  display:none;
-  position:fixed;inset:0;z-index:500;
-  background:rgba(2,5,16,0.97);
-  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
-  flex-direction:column;
-  padding:0;
-  animation:overlayIn .25s ease;
-}
-.mobile-overlay.open{display:flex}
-@keyframes overlayIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
-
-.mobile-overlay-header{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:0 24px;height:64px;
-  border-bottom:1px solid var(--border);
-  flex-shrink:0;
-}
-.mobile-overlay-logo{
-  display:flex;align-items:center;gap:10px;
-}
-.mobile-close-btn{
-  display:flex;align-items:center;justify-content:center;
-  width:38px;height:38px;
-  border:1px solid var(--border);border-radius:10px;
-  background:var(--bg3);cursor:pointer;
-  font-size:1.1rem;
-  transition:all .2s;
-}
-.mobile-close-btn:hover{border-color:rgba(239,68,68,0.4);background:rgba(239,68,68,0.06);color:var(--red)}
-
-.mobile-nav-body{
-  flex:1;overflow-y:auto;
-  padding:20px 20px 40px;
-  display:flex;flex-direction:column;gap:6px;
-}
-.mobile-nav-label{
-  font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:2px;
-  color:var(--muted);padding:14px 12px 6px;
-  font-family:'JetBrains Mono',monospace;
-}
-.mobile-nav-link{
-  display:flex;align-items:center;gap:14px;
-  padding:14px 18px;
-  border-radius:14px;
+  gap:4px;
   text-decoration:none;
-  font-size:0.95rem;font-weight:500;
-  color:var(--muted);
-  border:1px solid transparent;
-  transition:all .2s;
-  letter-spacing:0.2px;
+  color:#64748b;
+  -webkit-tap-highlight-color:transparent;
+  position:relative;
+  transition:color .15s;
+  padding-bottom:2px;
 }
-.mobile-nav-link:hover{color:var(--text);background:rgba(255,255,255,0.04);border-color:var(--border)}
-.mobile-nav-link.active{
-  color:var(--cyan);
-  background:rgba(0,212,255,0.07);
-  border-color:rgba(0,212,255,0.22);
+.bnav-item:active { opacity:0.7; }
+.bnav-icon {
+  font-size:1.3rem;
+  line-height:1;
+  display:block;
+}
+.bnav-label {
+  font-size:0.6rem;
   font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:0.6px;
+  font-family:'Space Grotesk',system-ui,sans-serif;
+  line-height:1;
 }
-.mobile-nav-link.active .mobile-nav-arrow{color:var(--cyan);opacity:1}
-.mobile-nav-link.m-setup{color:#f59e0b}
-.mobile-nav-link.m-setup.active{background:rgba(245,158,11,0.07);border-color:rgba(245,158,11,0.22)}
-.mobile-nav-link.m-add{color:var(--green)}
-.mobile-nav-link.m-add.active{background:rgba(16,185,129,0.07);border-color:rgba(16,185,129,0.22)}
-.mobile-nav-icon{font-size:1.15rem;width:28px;text-align:center;flex-shrink:0}
-.mobile-nav-text{flex:1}
-.mobile-nav-arrow{opacity:0.2;font-size:0.75rem;transition:opacity .2s}
-
-.mobile-status-bar{
-  flex-shrink:0;
-  padding:16px 20px;
-  border-top:1px solid var(--border);
-  display:flex;align-items:center;gap:10px;
-  background:rgba(0,0,0,0.3);
+/* Active indicator dot above icon */
+.bnav-item.active::before {
+  content:'';
+  position:absolute;
+  top:6px;
+  left:50%;transform:translateX(-50%);
+  width:20px;height:2px;
+  border-radius:0 0 3px 3px;
+  background:var(--cyan);
+  box-shadow:0 0 8px var(--cyan);
 }
-.mobile-status-label{font-size:0.75rem;color:var(--muted)}
-.mobile-status-val{font-size:0.8rem;font-weight:600}
+.bnav-item.active { color:var(--cyan); }
+.bnav-item.bn-setup.active { color:#f59e0b; }
+.bnav-item.bn-setup.active::before { background:#f59e0b; box-shadow:0 0 8px #f59e0b; }
+.bnav-item.bn-add.active { color:var(--green); }
+.bnav-item.bn-add.active::before { background:var(--green); box-shadow:0 0 8px var(--green); }
 
 /* ── Responsive ── */
 @media(max-width:768px){
-  .hamburger{display:flex}
+  .bottom-nav{display:block}
   .nav{display:none}
   .platform-chip{display:none}
-  .header{padding:0 16px;height:60px}
-  .container{padding:16px}
-  .card{padding:18px}
-  .section,.form-section{padding:18px}
+  .header{padding:0 16px;height:58px}
+  .container{padding:16px 16px 80px}
+  .card{padding:16px}
+  .section,.form-section{padding:16px}
   .two-col{grid-template-columns:1fr}
-}
-@media(max-width:640px){
-  .header{height:58px}
   .stat-grid{grid-template-columns:1fr 1fr}
 }
 </style>
@@ -883,49 +838,29 @@ tr:hover td{background:rgba(0,212,255,0.03)}
     <span class="pulse" id="statusPulse"></span>
     <span id="connBadge">LIVE</span>
   </div>
-  <button class="hamburger" id="hamburgerBtn" onclick="toggleMobileMenu()" aria-label="Menu">
-    <span></span><span></span><span></span>
-  </button>
 </header>
 
-<!-- ══ MOBILE NAV OVERLAY ══════════════════════════════ -->
-<div class="mobile-overlay" id="mobileOverlay">
-  <div class="mobile-overlay-header">
-    <div class="mobile-overlay-logo">
-      <div class="logo-icon">⚡</div>
-      <span class="logo-text">NEXUS-MD</span>
-    </div>
-    <button class="mobile-close-btn" onclick="toggleMobileMenu()" aria-label="Close menu">✕</button>
-  </div>
-  <div class="mobile-nav-body">
-    <div class="mobile-nav-label">Navigation</div>
-    <a class="mobile-nav-link ${activeTab==="overview"?"active":""}" href="/dashboard?tab=overview">
-      <span class="mobile-nav-icon">📊</span>
-      <span class="mobile-nav-text">Overview</span>
-      <span class="mobile-nav-arrow">›</span>
+<!-- ══ BOTTOM NAV (mobile only) ════════════════════════ -->
+<nav class="bottom-nav">
+  <div class="bottom-nav-inner">
+    <a class="bnav-item ${activeTab==="overview"?"active":""}" href="/dashboard?tab=overview">
+      <span class="bnav-icon">📊</span>
+      <span class="bnav-label">Overview</span>
     </a>
-    <a class="mobile-nav-link ${activeTab==="session"?"active":""}" href="/dashboard?tab=session">
-      <span class="mobile-nav-icon">🔑</span>
-      <span class="mobile-nav-text">Session ID</span>
-      <span class="mobile-nav-arrow">›</span>
+    <a class="bnav-item ${activeTab==="session"?"active":""}" href="/dashboard?tab=session">
+      <span class="bnav-icon">🔑</span>
+      <span class="bnav-label">Session</span>
     </a>
-    <a class="mobile-nav-link m-setup ${activeTab==="setup"?"active":""}" href="/dashboard?tab=setup">
-      <span class="mobile-nav-icon">⚙️</span>
-      <span class="mobile-nav-text">Setup</span>
-      <span class="mobile-nav-arrow">›</span>
+    <a class="bnav-item bn-setup ${activeTab==="setup"?"active":""}" href="/dashboard?tab=setup">
+      <span class="bnav-icon">⚙️</span>
+      <span class="bnav-label">Setup</span>
     </a>
-    <a class="mobile-nav-link m-add ${activeTab==="add"?"active":""}" href="/dashboard?tab=add">
-      <span class="mobile-nav-icon">➕</span>
-      <span class="mobile-nav-text">Add Session</span>
-      <span class="mobile-nav-arrow">›</span>
+    <a class="bnav-item bn-add ${activeTab==="add"?"active":""}" href="/dashboard?tab=add">
+      <span class="bnav-icon">➕</span>
+      <span class="bnav-label">Add</span>
     </a>
   </div>
-  <div class="mobile-status-bar">
-    <span class="pulse" id="mobileStatusPulse"></span>
-    <span class="mobile-status-label">Bot status:</span>
-    <span class="mobile-status-val" id="mobileConnBadge">Checking…</span>
-  </div>
-</div>
+</nav>
 
 <!-- ══ NAV ══════════════════════════════════════════════ -->
 <nav class="nav">
@@ -1466,27 +1401,6 @@ function toast(msg, color) {
   setTimeout(() => t.classList.remove('show'), 2600);
 }
 
-function toggleMobileMenu() {
-  const btn = document.getElementById('hamburgerBtn');
-  const overlay = document.getElementById('mobileOverlay');
-  const isOpen = overlay.classList.toggle('open');
-  btn.classList.toggle('open', isOpen);
-  document.body.style.overflow = isOpen ? 'hidden' : '';
-}
-
-// Close mobile menu on Escape key
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    const overlay = document.getElementById('mobileOverlay');
-    const btn = document.getElementById('hamburgerBtn');
-    if (overlay && overlay.classList.contains('open')) {
-      overlay.classList.remove('open');
-      btn && btn.classList.remove('open');
-      document.body.style.overflow = '';
-    }
-  }
-});
-
 // ---- PLATFORM DETECTION ----
 let platformInfo = {};
 async function loadPlatform() {
@@ -1498,24 +1412,18 @@ async function loadPlatform() {
 
     const connBadge = document.getElementById('connBadge');
     const pulse = document.getElementById('statusPulse');
-    const mobileConnBadge = document.getElementById('mobileConnBadge');
-    const mobilePulse = document.getElementById('mobileStatusPulse');
-    let statusText = 'LIVE';
-    let pulseClass = 'pulse';
-    if (d.botStatus === 'connected') {
-      statusText = 'ONLINE';
-      pulseClass = 'pulse';
-    } else if (d.waitingForSession) {
-      statusText = 'SETUP NEEDED';
-      pulseClass = 'pulse gold';
-    } else {
-      statusText = 'OFFLINE';
-      pulseClass = 'pulse red';
+    if (connBadge) {
+      if (d.botStatus === 'connected') {
+        connBadge.textContent = 'ONLINE';
+        if (pulse) pulse.className = 'pulse';
+      } else if (d.waitingForSession) {
+        connBadge.textContent = 'SETUP NEEDED';
+        if (pulse) pulse.className = 'pulse gold';
+      } else {
+        connBadge.textContent = 'OFFLINE';
+        if (pulse) pulse.className = 'pulse red';
+      }
     }
-    if (connBadge) connBadge.textContent = statusText;
-    if (pulse) pulse.className = pulseClass;
-    if (mobileConnBadge) mobileConnBadge.textContent = statusText;
-    if (mobilePulse) mobilePulse.className = pulseClass;
 
     const piPlatform = document.getElementById('piPlatform');
     const piBotStatus = document.getElementById('piBotStatus');
