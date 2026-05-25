@@ -6110,16 +6110,73 @@ _⚡ Built with ❤️ by 𝗜𝗴𝗻𝗮𝘁𝗶𝘂𝘀 𝗣𝗲𝗿𝗲𝘇_
         // ── .network — ping latency + connectivity check ─────────────────────
         if (_cmd === "network" || _cmd === "ping") {
           try {
-            const _t0  = Date.now();
-            await sock.sendMessage(from, { text: "🌐 *Checking network…*" }, { quoted: msg });
-            const _lat = Date.now() - _t0;
-            const os   = require("os");
-            const _ifs = os.networkInterfaces();
-            const _ipList = Object.values(_ifs).flat().filter(i => !i.internal && i.family === "IPv4").map(i => i.address);
-            await sock.sendMessage(from, {
-              text: `╭─⌈ 🌐 *NETWORK STATUS* ⌋\n│\n├─ 📶 Status:   *🟢 ONLINE*\n├─ ⚡ Latency:  *${_lat} ms*\n├─ 🖥️ Local IP: *${_ipList[0] || "N/A"}*\n├─ 🔌 Platform: *${os.platform()}*\n╰─ 🤖 Bot is reachable!`,
+            const _t0        = Date.now();
+            const _os        = require("os");
+            const _mem       = process.memoryUsage();
+            const _totalRam  = _os.totalmem();
+            const _rssMB     = (_mem.rss / 1024 / 1024).toFixed(1);
+            const _ramPct    = Math.min(100, Math.round((_mem.rss / _totalRam) * 100));
+            const _barFilled = Math.max(1, Math.round(_ramPct / 10));
+            const _ramBar    = "▓".repeat(_barFilled) + "░".repeat(10 - _barFilled);
+            const _uptimeSec = Math.floor(process.uptime());
+            const _uh        = Math.floor(_uptimeSec / 3600);
+            const _um        = Math.floor((_uptimeSec % 3600) / 60);
+            const _us        = _uptimeSec % 60;
+            const _uptimeStr = _uh > 0 ? `${_uh}h ${_um}m ${_us}s` : `${_um}m ${_us}s`;
+            const _platInfo  = require("./lib/platform");
+            const _platDet   = (_platInfo && _platInfo.detect) ? _platInfo.detect() : null;
+            const _platName  = _platDet ? (_platDet.name || "Cloud") : (process.env.DYNO ? "Heroku" : "Replit");
+            const _platIcon  = _platDet ? (_platDet.icon || "☁️") : "☁️";
+
+            // ── Send first to measure real round-trip ──────────────────────
+            const _sentMsg   = await sock.sendMessage(from, {
+              text: "```◈ NEXUS-MD — scanning network...```",
             }, { quoted: msg });
-          } catch (e) { await sock.sendMessage(from, { text: `❌ Network check failed: ${e.message}` }, { quoted: msg }); }
+            const _lat = Date.now() - _t0;
+
+            // ── Latency rating ─────────────────────────────────────────────
+            let _sigBars, _sigLabel, _sigEmoji;
+            if (_lat < 100) {
+              _sigBars = "▁▂▃▄▅▆▇█"; _sigLabel = "EXCELLENT"; _sigEmoji = "🟢";
+            } else if (_lat < 250) {
+              _sigBars = "▁▂▃▄▅▆▇░"; _sigLabel = "GREAT";     _sigEmoji = "🟢";
+            } else if (_lat < 500) {
+              _sigBars = "▁▂▃▄▅▆░░"; _sigLabel = "GOOD";      _sigEmoji = "🟡";
+            } else if (_lat < 800) {
+              _sigBars = "▁▂▃▄▅░░░"; _sigLabel = "FAIR";      _sigEmoji = "🟠";
+            } else if (_lat < 1500) {
+              _sigBars = "▁▂▃▄░░░░"; _sigLabel = "SLOW";      _sigEmoji = "🔴";
+            } else {
+              _sigBars = "▁▂░░░░░░"; _sigLabel = "WEAK";      _sigEmoji = "🔴";
+            }
+
+            const _speedTag  = _lat < 100 ? "Ultra Fast ⚡" : _lat < 250 ? "Fast ✅" : _lat < 500 ? "Normal 🌐" : _lat < 800 ? "Lagging ⚠️" : "Slow 🐢";
+            const _sep       = "─────────────────────────";
+            const _pingText  =
+`╔══〔 📡 𝗣𝗜𝗡𝗚 𝗥𝗘𝗦𝗨𝗟𝗧𝗦 〕════════╗
+   𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 𝗡𝗲𝘁𝘄𝗼𝗿𝗸 𝗗𝗶𝗮𝗴𝗻𝗼𝘀𝘁𝗶𝗰𝘀
+╚═══════════════════════════════╝
+
+◆ 📶 𝗦𝘁𝗮𝘁𝘂𝘀    ⟫ ${_sigEmoji} ONLINE
+◆ ⚡ 𝗟𝗮𝘁𝗲𝗻𝗰𝘆   ⟫ ${_lat} ms
+◆ ${_platIcon}  𝗣𝗹𝗮𝘁𝗳𝗼𝗿𝗺  ⟫ ${_platName}
+◆ 🖥 𝗥𝗔𝗠      ⟫ ${_ramBar} ${_ramPct}%
+◆ ⏱ 𝗨𝗽𝘁𝗶𝗺𝗲   ⟫ ${_uptimeStr}
+
+┌─〔 📡 𝗦𝗜𝗚𝗡𝗔𝗟 𝗦𝗧𝗥𝗘𝗡𝗚𝗧𝗛 〕────────┐
+│
+│  ${_sigBars}  ${_sigLabel}
+│
+│  ◇ Response  ⟫ ${_lat}ms
+│  ◇ Rating    ⟫ ${_speedTag}
+│  ◇ Bot       ⟫ Alive & Responsive ✅
+│
+└${_sep}┘
+
+_⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 is online and firing!_`;
+
+            await sock.sendMessage(from, { text: _pingText }, { quoted: msg }).catch(() => {});
+          } catch (e) { await sock.sendMessage(from, { text: `❌ Ping failed: ${e.message}` }, { quoted: msg }); }
           return;
         }
 
