@@ -535,238 +535,187 @@ tr:hover td{background:rgba(0,212,255,0.03)}
 .hidden{display:none!important}
 
 /* ── Pairing Site Bar ── */
-/* ── NEXUS Repo Bar ────────────────────────────────────────────────────── */
-/* ── Nexus Pairing Card (nx-card) ── */
+/* ── Nexus Pairing Card ── */
 .nx-card{
   position:relative;
   margin-top:18px;
-  border-radius:24px;
+  border-radius:20px;
   overflow:hidden;
-  background:linear-gradient(150deg,#040e1c 0%,#060f1e 55%,#050c18 100%);
+  background:linear-gradient(160deg,#040e1c 0%,#060f1e 55%,#050c18 100%);
   box-shadow:
-    0 0 0 1px rgba(0,212,255,0.18),
-    0 0 0 2px rgba(168,85,247,0.07),
+    0 0 0 1px rgba(0,212,255,0.16),
+    0 0 0 2px rgba(168,85,247,0.06),
     0 24px 70px rgba(0,0,0,0.85),
     0 0 100px rgba(0,212,255,0.04);
 }
-/* animated rainbow top border */
+/* rainbow top border */
 .nx-card::before{
-  content:'';
-  position:absolute;top:0;left:0;right:0;height:2px;
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
   background:linear-gradient(90deg,#7c3aed,#00d4ff,#10b981,#a855f7,#00d4ff,#7c3aed);
-  background-size:400% 100%;
-  animation:nx-border-run 5s linear infinite;
-  z-index:4;
+  background-size:400% 100%;animation:nx-border-run 5s linear infinite;z-index:4;
 }
-/* diagonal scanline texture */
+/* scanline texture */
 .nx-card::after{
-  content:'';
-  position:absolute;inset:0;
-  background:repeating-linear-gradient(
-    -48deg,
-    transparent,transparent 4px,
-    rgba(0,212,255,0.013) 4px,rgba(0,212,255,0.013) 5px
-  );
+  content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(-48deg,transparent,transparent 4px,rgba(0,212,255,0.013) 4px,rgba(0,212,255,0.013) 5px);
   pointer-events:none;z-index:0;
 }
 @keyframes nx-border-run{0%{background-position:0%}100%{background-position:400%}}
-/* ambient glow orbs */
+/* glow orbs */
 .nx-glow-orb{position:absolute;pointer-events:none;border-radius:50%;filter:blur(70px);z-index:0}
-.nx-glow-orb1{width:220px;height:220px;background:rgba(0,212,255,0.07);top:-70px;left:-30px}
-.nx-glow-orb2{width:160px;height:160px;background:rgba(168,85,247,0.07);bottom:-50px;right:50px}
-/* body row */
-.nx-card-body{
+.nx-glow-orb1{width:240px;height:240px;background:rgba(0,212,255,0.07);top:-80px;left:-40px}
+.nx-glow-orb2{width:180px;height:180px;background:rgba(168,85,247,0.07);bottom:-60px;right:40px}
+
+/* ① HEADER BAR */
+.nx-hdr{
   position:relative;z-index:1;
-  padding:26px 30px;
-  display:flex;align-items:center;gap:26px;
-  flex-wrap:wrap;
+  padding:14px 22px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid rgba(0,212,255,0.09);
+  background:linear-gradient(90deg,rgba(0,212,255,0.04),rgba(168,85,247,0.03));
+  flex-wrap:wrap;gap:10px;
 }
-/* icon cluster */
-.nx-icon-cluster{
-  position:relative;
-  width:72px;height:72px;min-width:72px;
-  display:flex;align-items:center;justify-content:center;
-}
-.nx-icon-orbit1{
-  position:absolute;inset:-11px;border-radius:26px;
-  border:1.5px solid rgba(0,212,255,0.22);
-  animation:nx-orbit 4s ease-in-out infinite;
-}
-.nx-icon-orbit2{
-  position:absolute;inset:-22px;border-radius:36px;
-  border:1px dashed rgba(168,85,247,0.16);
-  animation:nx-orbit 4s ease-in-out infinite reverse;
-  animation-delay:.9s;
-}
-@keyframes nx-orbit{
-  0%,100%{opacity:.3;transform:scale(1) rotate(0deg)}
-  50%{opacity:.9;transform:scale(1.06) rotate(4deg)}
-}
-.nx-icon-core{
-  width:72px;height:72px;
-  background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(168,85,247,0.23));
-  border:1.5px solid rgba(0,212,255,0.38);
-  border-radius:22px;
-  display:flex;align-items:center;justify-content:center;
-  font-size:30px;
-  position:relative;z-index:1;
-  box-shadow:0 0 45px rgba(0,212,255,0.28),inset 0 0 28px rgba(0,212,255,0.07);
+.nx-hdr-left{display:flex;align-items:center;gap:12px}
+.nx-hdr-icon{
+  width:38px;height:38px;min-width:38px;
+  background:linear-gradient(135deg,rgba(0,212,255,0.18),rgba(168,85,247,0.25));
+  border:1.5px solid rgba(0,212,255,0.4);border-radius:12px;
+  display:flex;align-items:center;justify-content:center;font-size:18px;
+  box-shadow:0 0 22px rgba(0,212,255,0.28),inset 0 0 12px rgba(0,212,255,0.07);
   animation:nx-icon-pulse 3s ease-in-out infinite;
 }
 @keyframes nx-icon-pulse{
-  0%,100%{box-shadow:0 0 45px rgba(0,212,255,0.28),inset 0 0 28px rgba(0,212,255,0.07)}
-  50%{box-shadow:0 0 80px rgba(0,212,255,0.58),0 0 110px rgba(168,85,247,0.2),inset 0 0 40px rgba(0,212,255,0.14)}
+  0%,100%{box-shadow:0 0 22px rgba(0,212,255,0.28),inset 0 0 12px rgba(0,212,255,0.07)}
+  50%{box-shadow:0 0 50px rgba(0,212,255,0.55),0 0 70px rgba(168,85,247,0.18),inset 0 0 20px rgba(0,212,255,0.12)}
 }
-/* center text */
-.nx-card-main{flex:1;min-width:220px}
-.nx-badge{
-  display:inline-flex;align-items:center;gap:7px;
-  padding:4px 12px;
-  border-radius:999px;
-  background:rgba(16,185,129,0.1);
-  border:1px solid rgba(16,185,129,0.32);
-  font-family:'Syne',sans-serif;
-  font-size:0.58rem;font-weight:800;
-  text-transform:uppercase;letter-spacing:2.2px;
-  color:#10b981;
-  margin-bottom:9px;
-}
-.nx-badge-dot{
-  width:6px;height:6px;border-radius:50%;
-  background:#10b981;
-  box-shadow:0 0 7px #10b981;
-  animation:pulse 1.5s infinite;
-}
-.nx-title{
-  font-family:'Orbitron',monospace;
-  font-size:1.12rem;font-weight:900;
-  background:linear-gradient(90deg,#00d4ff 0%,#a855f7 40%,#00d4ff 80%);
-  background-size:200%;
+.nx-hdr-title{
+  font-family:'Orbitron',monospace;font-size:0.82rem;font-weight:900;
+  background:linear-gradient(90deg,#00d4ff 0%,#a855f7 50%,#00d4ff 100%);background-size:200%;
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-  animation:nx-shine 4s linear infinite;
-  margin-bottom:9px;
-  letter-spacing:2px;line-height:1.2;
+  animation:nx-shine 4s linear infinite;letter-spacing:1.8px;line-height:1.2;
 }
 @keyframes nx-shine{0%{background-position:0%}100%{background-position:200%}}
-.nx-url-pill{
-  display:inline-flex;align-items:center;gap:7px;
-  padding:5px 13px;
-  border-radius:999px;
-  background:rgba(0,212,255,0.07);
-  border:1px solid rgba(0,212,255,0.22);
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.7rem;
-  color:rgba(0,212,255,0.85);
-  text-decoration:none;
-  margin-bottom:11px;
-  transition:all .22s;
-  width:fit-content;
+.nx-hdr-sub{
+  font-family:'JetBrains Mono',monospace;font-size:0.58rem;
+  color:rgba(255,255,255,0.28);letter-spacing:0.2px;margin-top:2px;
 }
-.nx-url-pill:hover{
-  background:rgba(0,212,255,0.14);
-  border-color:rgba(0,212,255,0.45);
-  color:#00d4ff;
-  box-shadow:0 0 22px rgba(0,212,255,0.22);
+.nx-hdr-badges{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.nx-live-dot{
+  width:7px;height:7px;border-radius:50%;
+  background:#10b981;box-shadow:0 0 8px #10b981;
+  animation:pulse 1.5s infinite;display:inline-block;
 }
-.nx-url-arrow{
-  color:rgba(168,85,247,0.85);
-  transition:transform .2s;font-style:normal;
-}
-.nx-url-pill:hover .nx-url-arrow{transform:translate(2px,-2px)}
-.nx-desc{
-  font-size:0.75rem;color:rgba(255,255,255,0.42);
-  line-height:1.6;margin-bottom:11px;
-  font-family:'Space Grotesk',sans-serif;max-width:460px;
-}
-.nx-chips{display:flex;gap:5px;flex-wrap:wrap}
-.nx-chip{
-  display:inline-flex;align-items:center;gap:4px;
+.nx-hdr-badge{
   padding:3px 10px;border-radius:999px;
-  font-size:0.6rem;font-weight:700;
-  text-transform:uppercase;letter-spacing:0.8px;
-  font-family:'Syne',sans-serif;
+  font-family:'Syne',sans-serif;font-size:0.57rem;font-weight:800;
+  text-transform:uppercase;letter-spacing:1.8px;
 }
-.nx-chip-green{background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);color:#10b981}
-.nx-chip-cyan{background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.22);color:#00d4ff}
-.nx-chip-purple{background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.26);color:#a855f7}
-.nx-chip-dot{
-  width:5px;height:5px;border-radius:50%;
-  background:currentColor;box-shadow:0 0 5px currentColor;
-  animation:pulse 2s infinite;
+.nx-hdr-badge-green{background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);color:#10b981}
+.nx-hdr-badge-cyan{background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.22);color:#00d4ff}
+
+/* ② URL HERO */
+.nx-url-hero{
+  position:relative;z-index:1;
+  padding:28px 22px 18px;text-align:center;
 }
-/* right CTA column */
-.nx-card-action{
-  display:flex;flex-direction:column;align-items:center;gap:10px;
-  flex-shrink:0;
+.nx-url-label{
+  font-family:'Syne',sans-serif;font-size:0.58rem;font-weight:800;
+  text-transform:uppercase;letter-spacing:3px;
+  color:rgba(0,212,255,0.4);margin-bottom:12px;
 }
-.nx-scan-hint{
-  font-size:0.6rem;color:rgba(255,255,255,0.28);
-  font-family:'JetBrains Mono',monospace;
-  text-align:center;letter-spacing:0.3px;
+.nx-url-link{
+  display:inline-flex;align-items:center;gap:10px;
+  padding:11px 28px;border-radius:999px;
+  background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.22);
+  font-family:'JetBrains Mono',monospace;font-size:0.95rem;font-weight:700;
+  color:rgba(0,212,255,0.9);text-decoration:none;letter-spacing:0.4px;
+  transition:all .25s;
 }
-/* CTA button */
-.nx-cta{
-  display:inline-flex;flex-direction:column;align-items:center;gap:5px;
-  padding:16px 34px;border-radius:18px;
-  background:linear-gradient(135deg,#00afd4 0%,#7c3aed 100%);
+.nx-url-link:hover{
+  background:rgba(0,212,255,0.12);border-color:rgba(0,212,255,0.5);color:#00d4ff;
+  box-shadow:0 0 50px rgba(0,212,255,0.18),0 0 80px rgba(0,212,255,0.06) inset;
+}
+.nx-url-arr{color:rgba(168,85,247,0.85);transition:transform .2s}
+.nx-url-link:hover .nx-url-arr{transform:translate(3px,-3px)}
+.nx-url-hint{
+  margin-top:10px;font-family:'JetBrains Mono',monospace;
+  font-size:0.62rem;color:rgba(255,255,255,0.25);letter-spacing:0.3px;
+}
+
+/* ③ FEATURE GRID */
+.nx-feat-grid{
+  position:relative;z-index:1;
+  display:grid;grid-template-columns:repeat(3,1fr);
+  margin:0 22px 20px;
+  border-radius:14px;overflow:hidden;
+  border:1px solid rgba(0,212,255,0.09);
+  background:rgba(255,255,255,0.02);
+}
+.nx-feat{padding:18px 12px;text-align:center;transition:background .22s}
+.nx-feat:hover{background:rgba(0,212,255,0.05)}
+.nx-feat-mid{
+  border-left:1px solid rgba(0,212,255,0.09);
+  border-right:1px solid rgba(0,212,255,0.09);
+}
+.nx-feat-icon{font-size:1.5rem;margin-bottom:7px}
+.nx-feat-val{
+  font-family:'Orbitron',monospace;font-size:1rem;font-weight:900;
+  color:var(--cyan);margin-bottom:3px;
+}
+.nx-feat-lbl{
+  font-family:'Syne',sans-serif;font-size:0.58rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:1.2px;color:rgba(255,255,255,0.35);
+}
+
+/* ④ CTA */
+.nx-cta-wrap{position:relative;z-index:1;padding:0 22px 22px}
+.nx-cta-btn{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  width:100%;padding:17px 24px;border-radius:14px;
+  background:linear-gradient(135deg,#0095b8 0%,#7c3aed 100%);
   color:#fff;font-family:'Orbitron',monospace;
-  font-size:0.75rem;font-weight:900;
+  font-size:0.8rem;font-weight:900;
   text-decoration:none;letter-spacing:1.5px;text-transform:uppercase;
-  white-space:nowrap;border:none;cursor:pointer;
+  border:none;cursor:pointer;
   transition:all .3s cubic-bezier(.4,0,.2,1);
-  box-shadow:
-    0 8px 34px rgba(0,175,212,0.42),
-    0 2px 0 rgba(255,255,255,0.15) inset,
-    0 0 0 1px rgba(255,255,255,0.07) inset;
+  box-shadow:0 8px 34px rgba(0,149,184,0.38),0 2px 0 rgba(255,255,255,0.14) inset;
   position:relative;overflow:hidden;
-  min-width:164px;text-align:center;
 }
-.nx-cta-sweep{
-  position:absolute;top:-50%;left:-60%;
-  width:55%;height:200%;
-  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.18),transparent);
-  transform:skewX(-20deg);
-  animation:nx-sweep 3.5s ease-in-out infinite;
-  pointer-events:none;
+.nx-cta-shine{
+  position:absolute;top:-50%;left:-60%;width:45%;height:200%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.17),transparent);
+  transform:skewX(-20deg);animation:nx-sweep 3.5s ease-in-out infinite;pointer-events:none;
 }
 @keyframes nx-sweep{0%{left:-60%}60%,100%{left:160%}}
-.nx-cta:hover{
-  transform:translateY(-4px) scale(1.04);
-  box-shadow:
-    0 22px 65px rgba(0,175,212,0.58),
-    0 8px 26px rgba(124,58,237,0.42),
-    0 2px 0 rgba(255,255,255,0.15) inset;
-  filter:brightness(1.1);
+.nx-cta-btn:hover{
+  transform:translateY(-3px);
+  box-shadow:0 18px 55px rgba(0,149,184,0.52),0 8px 24px rgba(124,58,237,0.38),0 2px 0 rgba(255,255,255,0.14) inset;
+  filter:brightness(1.08);
 }
-.nx-cta-icon{font-size:1.2rem;line-height:1}
-.nx-cta-label{display:block;font-size:0.72rem;font-weight:900;letter-spacing:1.5px;color:#fff}
-.nx-cta-sub{
-  display:block;font-family:'JetBrains Mono',monospace;
-  font-size:0.52rem;font-weight:400;
-  color:rgba(255,255,255,0.52);
-  text-transform:none;letter-spacing:0;white-space:nowrap;
+.nx-cta-ico{font-size:1.15rem;line-height:1}
+.nx-cta-txt{font-size:0.8rem;font-weight:900;letter-spacing:1.5px}
+.nx-cta-url{
+  font-family:'JetBrains Mono',monospace;font-size:0.54rem;font-weight:400;
+  color:rgba(255,255,255,0.52);text-transform:none;letter-spacing:0;
+  border-left:1px solid rgba(255,255,255,0.18);padding-left:10px;margin-left:2px;
 }
-/* stats strip */
+
+/* ⑤ STATS */
 .nx-stats{
-  position:relative;z-index:1;
-  display:flex;
-  border-top:1px solid rgba(0,212,255,0.09);
-  background:rgba(0,0,0,0.22);
+  position:relative;z-index:1;display:flex;
+  border-top:1px solid rgba(0,212,255,0.09);background:rgba(0,0,0,0.22);
 }
 .nx-stat{
   flex:1;padding:11px 8px;
-  border-right:1px solid rgba(0,212,255,0.07);
-  text-align:center;
+  border-right:1px solid rgba(0,212,255,0.07);text-align:center;
 }
 .nx-stat:last-child{border-right:none}
 .nx-stat-val{
-  font-family:'Orbitron',monospace;
-  font-size:0.8rem;font-weight:800;
+  font-family:'Orbitron',monospace;font-size:0.8rem;font-weight:800;
   color:var(--cyan);margin-bottom:2px;
 }
 .nx-stat-lbl{
-  font-size:0.56rem;font-weight:700;
-  text-transform:uppercase;letter-spacing:1px;
+  font-size:0.56rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;
   color:var(--muted);font-family:'Syne',sans-serif;
 }
 
@@ -951,35 +900,52 @@ tr:hover td{background:rgba(0,212,255,0.03)}
     <div class="nx-card">
       <div class="nx-glow-orb nx-glow-orb1"></div>
       <div class="nx-glow-orb nx-glow-orb2"></div>
-      <div class="nx-card-body">
-        <div class="nx-icon-cluster">
-          <div class="nx-icon-orbit2"></div>
-          <div class="nx-icon-orbit1"></div>
-          <div class="nx-icon-core">⚡</div>
-        </div>
-        <div class="nx-card-main">
-          <div class="nx-badge"><span class="nx-badge-dot"></span>Server Live &nbsp;·&nbsp; Official Pairing Portal</div>
-          <div class="nx-title">NEXUS SESSION GENERATOR</div>
-          <a class="nx-url-pill" href="https://nexus-session-76ah.onrender.com/" target="_blank">
-            <span>🔗</span><span>nexus-session-76ah.onrender.com</span><i class="nx-url-arrow">↗</i>
-          </a>
-          <div class="nx-desc">Scan a QR code or enter your phone number — get a session key in under 30 seconds. Completely free, end-to-end encrypted, no account needed.</div>
-          <div class="nx-chips">
-            <span class="nx-chip nx-chip-cyan">⚡ Ready in &lt;30s</span>
-            <span class="nx-chip nx-chip-purple">🔐 E2E Encrypted</span>
-            <span class="nx-chip nx-chip-cyan">🌍 Always Free</span>
-            <span class="nx-chip nx-chip-purple">🚫 No Login Required</span>
+      <div class="nx-hdr">
+        <div class="nx-hdr-left">
+          <div class="nx-hdr-icon">⚡</div>
+          <div>
+            <div class="nx-hdr-title">NEXUS SESSION GENERATOR</div>
+            <div class="nx-hdr-sub">Official WhatsApp Pairing Portal · Powered by NEXUS-MD</div>
           </div>
         </div>
-        <div class="nx-card-action">
-          <a class="nx-cta" href="https://nexus-session-76ah.onrender.com/" target="_blank">
-            <span class="nx-cta-sweep"></span>
-            <span class="nx-cta-icon">⚡</span>
-            <span class="nx-cta-label">Get Session ID</span>
-            <span class="nx-cta-sub">nexus-session-76ah.onrender.com →</span>
-          </a>
-          <div class="nx-scan-hint">Scan QR · Enter phone · Copy key</div>
+        <div class="nx-hdr-badges">
+          <span class="nx-live-dot"></span>
+          <span class="nx-hdr-badge nx-hdr-badge-green">Server Live</span>
+          <span class="nx-hdr-badge nx-hdr-badge-cyan">◈ Pairing Portal</span>
         </div>
+      </div>
+      <div class="nx-url-hero">
+        <div class="nx-url-label">🔗 Pairing Site</div>
+        <a class="nx-url-link" href="https://nexus-session-76ah.onrender.com/" target="_blank">
+          <span class="nx-url-text">nexus-session-76ah.onrender.com</span>
+          <span class="nx-url-arr">↗</span>
+        </a>
+        <div class="nx-url-hint">Scan QR code &nbsp;·&nbsp; Enter phone number &nbsp;·&nbsp; Copy session key</div>
+      </div>
+      <div class="nx-feat-grid">
+        <div class="nx-feat">
+          <div class="nx-feat-icon">⚡</div>
+          <div class="nx-feat-val">&lt;30s</div>
+          <div class="nx-feat-lbl">Instant Pair</div>
+        </div>
+        <div class="nx-feat nx-feat-mid">
+          <div class="nx-feat-icon">🔐</div>
+          <div class="nx-feat-val">E2E</div>
+          <div class="nx-feat-lbl">Encrypted</div>
+        </div>
+        <div class="nx-feat">
+          <div class="nx-feat-icon">🌍</div>
+          <div class="nx-feat-val">Free</div>
+          <div class="nx-feat-lbl">Forever</div>
+        </div>
+      </div>
+      <div class="nx-cta-wrap">
+        <a class="nx-cta-btn" href="https://nexus-session-76ah.onrender.com/" target="_blank">
+          <span class="nx-cta-shine"></span>
+          <span class="nx-cta-ico">⚡</span>
+          <span class="nx-cta-txt">Get Session ID</span>
+          <span class="nx-cta-url">nexus-session-76ah.onrender.com →</span>
+        </a>
       </div>
       <div class="nx-stats">
         <div class="nx-stat"><div class="nx-stat-val">100%</div><div class="nx-stat-lbl">Free Forever</div></div>
@@ -1042,35 +1008,52 @@ tr:hover td{background:rgba(0,212,255,0.03)}
       <div class="nx-card">
         <div class="nx-glow-orb nx-glow-orb1"></div>
         <div class="nx-glow-orb nx-glow-orb2"></div>
-        <div class="nx-card-body">
-          <div class="nx-icon-cluster">
-            <div class="nx-icon-orbit2"></div>
-            <div class="nx-icon-orbit1"></div>
-            <div class="nx-icon-core">⚡</div>
-          </div>
-          <div class="nx-card-main">
-            <div class="nx-badge"><span class="nx-badge-dot"></span>Server Live &nbsp;·&nbsp; Official Pairing Portal</div>
-            <div class="nx-title">NEXUS SESSION GENERATOR</div>
-            <a class="nx-url-pill" href="https://nexus-session-76ah.onrender.com/" target="_blank">
-              <span>🔗</span><span>nexus-session-76ah.onrender.com</span><i class="nx-url-arrow">↗</i>
-            </a>
-            <div class="nx-desc">Scan a QR code or enter your phone number — get a session key in under 30 seconds. Completely free, end-to-end encrypted, no account needed.</div>
-            <div class="nx-chips">
-              <span class="nx-chip nx-chip-cyan">⚡ Ready in &lt;30s</span>
-              <span class="nx-chip nx-chip-purple">🔐 E2E Encrypted</span>
-              <span class="nx-chip nx-chip-cyan">🌍 Always Free</span>
-              <span class="nx-chip nx-chip-purple">🚫 No Login Required</span>
+        <div class="nx-hdr">
+          <div class="nx-hdr-left">
+            <div class="nx-hdr-icon">⚡</div>
+            <div>
+              <div class="nx-hdr-title">NEXUS SESSION GENERATOR</div>
+              <div class="nx-hdr-sub">Official WhatsApp Pairing Portal · Powered by NEXUS-MD</div>
             </div>
           </div>
-          <div class="nx-card-action">
-            <a class="nx-cta" href="https://nexus-session-76ah.onrender.com/" target="_blank">
-              <span class="nx-cta-sweep"></span>
-              <span class="nx-cta-icon">⚡</span>
-              <span class="nx-cta-label">Get Session ID</span>
-              <span class="nx-cta-sub">nexus-session-76ah.onrender.com →</span>
-            </a>
-            <div class="nx-scan-hint">Scan QR · Enter phone · Copy key</div>
+          <div class="nx-hdr-badges">
+            <span class="nx-live-dot"></span>
+            <span class="nx-hdr-badge nx-hdr-badge-green">Server Live</span>
+            <span class="nx-hdr-badge nx-hdr-badge-cyan">◈ Pairing Portal</span>
           </div>
+        </div>
+        <div class="nx-url-hero">
+          <div class="nx-url-label">🔗 Pairing Site</div>
+          <a class="nx-url-link" href="https://nexus-session-76ah.onrender.com/" target="_blank">
+            <span class="nx-url-text">nexus-session-76ah.onrender.com</span>
+            <span class="nx-url-arr">↗</span>
+          </a>
+          <div class="nx-url-hint">Scan QR code &nbsp;·&nbsp; Enter phone number &nbsp;·&nbsp; Copy session key</div>
+        </div>
+        <div class="nx-feat-grid">
+          <div class="nx-feat">
+            <div class="nx-feat-icon">⚡</div>
+            <div class="nx-feat-val">&lt;30s</div>
+            <div class="nx-feat-lbl">Instant Pair</div>
+          </div>
+          <div class="nx-feat nx-feat-mid">
+            <div class="nx-feat-icon">🔐</div>
+            <div class="nx-feat-val">E2E</div>
+            <div class="nx-feat-lbl">Encrypted</div>
+          </div>
+          <div class="nx-feat">
+            <div class="nx-feat-icon">🌍</div>
+            <div class="nx-feat-val">Free</div>
+            <div class="nx-feat-lbl">Forever</div>
+          </div>
+        </div>
+        <div class="nx-cta-wrap">
+          <a class="nx-cta-btn" href="https://nexus-session-76ah.onrender.com/" target="_blank">
+            <span class="nx-cta-shine"></span>
+            <span class="nx-cta-ico">⚡</span>
+            <span class="nx-cta-txt">Get Session ID</span>
+            <span class="nx-cta-url">nexus-session-76ah.onrender.com →</span>
+          </a>
         </div>
         <div class="nx-stats">
           <div class="nx-stat"><div class="nx-stat-val">100%</div><div class="nx-stat-lbl">Free Forever</div></div>
