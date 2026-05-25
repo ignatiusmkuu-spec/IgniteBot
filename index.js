@@ -1265,13 +1265,13 @@ async function startnexus() {
     },
     generateHighQualityLinkPreview: false,
     shouldIgnoreJid: () => false,   // accept messages from ALL JIDs — filters removed by startup patch
-    markOnlineOnConnect: false,         // don't mark online immediately — prevents WA from pushing app-state sync to other linked devices
-    retryRequestDelayMs: 250,           // reduced from 2000 for instant retries
+    markOnlineOnConnect: false,
+    retryRequestDelayMs: 2000,          // default — avoid rate-limit kicks from WA
     connectTimeoutMs: 20000,            // fail-fast on slow connections
     keepAliveIntervalMs: 15000,         // WA WebSocket keepalive every 15s
     maxMsgRetryCount: 3,                // limit retry storms
     syncFullHistory: false,             // don't sync old message history on connect
-    fireInitQueries: false,             // prevent initial WA protocol queries that disconnect other linked devices
+    defaultQueryTimeoutMs: undefined,   // never let a query timeout kill the socket
     getMessage: async (key) => {
       return _msgCache.get(key.id) || undefined;
     },
@@ -1546,6 +1546,16 @@ async function startnexus() {
       }
     }, 5000);
   });
+
+  // ── App-state / history sync ACK handlers ────────────────────────────────
+  // WhatsApp pushes these on every connect. Without handlers that consume and
+  // ACK them, WA keeps retrying → eventually revokes the session (unpair).
+  // Empty handlers are sufficient — Baileys sends the ACK automatically when
+  // the event is consumed.
+  sock.ev.on("messaging-history.set", () => {});
+  sock.ev.on("chats.set",             () => {});
+  sock.ev.on("contacts.set",          () => {});
+  sock.ev.on("messages.set",          () => {});
 
   // ── Active message processor — runs independently per message ──────────────
   // Spawned as a fire-and-forget Promise so multiple messages/commands never
