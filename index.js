@@ -8347,19 +8347,9 @@ async function startnexus() {
             const _ownerRaw   = (process.env.ADMIN_NUMBERS || "").split(",")[0].trim();
             const _ownerDisp  = _ownerRaw ? `+${_ownerRaw}` : "Owner";
             const _platInfo   = require("./lib/platform");
-            const _platName   = (_platInfo && _platInfo.detect) ? (_platInfo.detect().platform || "Cloud") : (process.env.DYNO ? "Heroku" : "Replit");
-
-            // ── Media caption (short — fits in caption limit) ──────────────
-            const _menuText =
-              `⚡ *${_botName} V2 CORE* ⚡\n` +
-              `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
-              `◈ 𝗨𝘀𝗲𝗿  ⟫  *${_senderName}*\n` +
-              `◆ 📶 𝗦𝘁𝗮𝘁𝘂𝘀  ⟫ ${_statusStr}\n` +
-              `◆ 🌐 𝗠𝗼𝗱𝗲    ⟫ ${_modeStr}\n` +
-              `◆ ⚡ 𝗣𝗿𝗲𝗳𝗶𝘅  ⟫ [${_pfx}]\n` +
-              `◆ ⏱ 𝗨𝗽𝘁𝗶𝗺𝗲 ⟫ ${_uptimeStr}\n` +
-              `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
-              `_⚡ Powered by 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗_`;
+            const _platDet    = (_platInfo && _platInfo.detect) ? _platInfo.detect() : null;
+            const _platName   = _platDet ? (_platDet.name || "Cloud") : (process.env.DYNO ? "Heroku" : "Replit");
+            const _platIcon   = _platDet ? (_platDet.icon || "☁️") : "☁️";
 
             // ── Full techy menu text ──────────────────────────────────────
             const _sep = "─────────────────────────";
@@ -8375,7 +8365,7 @@ async function startnexus() {
 ◆ 🌐 𝗠𝗼𝗱𝗲      ⟫ ${_modeStr}
 ◆ ⚡ 𝗣𝗿𝗲𝗳𝗶𝘅    ⟫ [${_pfx}]
 ◆ 🔢 𝗩𝗲𝗿𝘀𝗶𝗼𝗻   ⟫ 2.0
-◆ ☁️  𝗣𝗹𝗮𝘁𝗳𝗼𝗿𝗺  ⟫ ${_platName}
+◆ ${_platIcon}  𝗣𝗹𝗮𝘁𝗳𝗼𝗿𝗺  ⟫ ${_platName}
 ◆ 📶 𝗦𝘁𝗮𝘁𝘂𝘀   ⟫ ${_statusStr}
 ◆ ⏱ 𝗨𝗽𝘁𝗶𝗺𝗲   ⟫ ${_uptimeStr}
 ◆ 🖥 𝗥𝗔𝗠      ⟫ ${_ramBar} ${_ramPct}%
@@ -8448,21 +8438,19 @@ _⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 v2.0  •  Prefix: [${_pfx}]  •  ${_modeStr
               }, { quoted: msg }).catch(() => {});
             }
 
-            // ── 2. Media header with short caption (or plain fallback) ─────
+            // ── 2. Media header — no caption (full info is in _fullMenu below) ─
             const _menuVidBuf    = settings.getMenuVideo();
             const _menuMp4Path   = path.join(process.cwd(), "assets", "menu.mp4");
             const _bannerGifPath = path.join(process.cwd(), "assets", "banner.gif");
             if (_menuVidBuf) {
-              await sock.sendMessage(from, { video: _menuVidBuf, caption: _menuText, gifPlayback: true, mimetype: "video/mp4" }, { quoted: msg }).catch(() => {});
+              await sock.sendMessage(from, { video: _menuVidBuf, gifPlayback: true, mimetype: "video/mp4" }, { quoted: msg }).catch(() => {});
             } else if (fs.existsSync(_menuMp4Path)) {
-              await sock.sendMessage(from, { video: fs.readFileSync(_menuMp4Path), caption: _menuText, gifPlayback: true, mimetype: "video/mp4" }, { quoted: msg }).catch(() => {});
+              await sock.sendMessage(from, { video: fs.readFileSync(_menuMp4Path), gifPlayback: true, mimetype: "video/mp4" }, { quoted: msg }).catch(() => {});
             } else if (fs.existsSync(_bannerGifPath)) {
-              await sock.sendMessage(from, { video: fs.readFileSync(_bannerGifPath), caption: _menuText, gifPlayback: true }, { quoted: msg }).catch(() => {});
-            } else {
-              await sock.sendMessage(from, { text: _menuText }, { quoted: msg }).catch(() => {});
+              await sock.sendMessage(from, { video: fs.readFileSync(_bannerGifPath), gifPlayback: true }, { quoted: msg }).catch(() => {});
             }
 
-            // ── 3. Full techy command menu as text message ─────────────────
+            // ── 3. Single combined techy menu text ────────────────────────
             await sock.sendMessage(from, { text: _fullMenu }, { quoted: msg }).catch(() => {});
 
           } catch (_menuErr) {
