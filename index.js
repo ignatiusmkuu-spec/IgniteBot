@@ -8323,33 +8323,122 @@ async function startnexus() {
           return;
         }
 
-        // ── .menu / .menuv / .help — compact list-style menu ──────────────
+        // ── .menu / .menuv / .help — full techy text menu ──────────────
         if (_cmd === "menu" || _cmd === "menuv" || _cmd === "help") {
           try {
-            const _os        = require("os");
-            const _mem       = process.memoryUsage();
-            const _totalRam  = _os.totalmem();
-            const _rssMB     = (_mem.rss / 1024 / 1024).toFixed(1);
-            const _ramPct    = Math.min(100, Math.round((_mem.rss / _totalRam) * 100));
-            const _uptimeSec = Math.floor(process.uptime());
-            const _uh        = Math.floor(_uptimeSec / 3600);
-            const _um        = Math.floor((_uptimeSec % 3600) / 60);
-            const _uptimeStr = _uh > 0 ? `${_uh}h ${_um}m` : `${_um}m`;
-            const _botMode   = settings.get("mode") || "public";
-            const _modeStr   = _botMode.charAt(0).toUpperCase() + _botMode.slice(1);
-            const _botName   = settings.get("botName") || "NEXUS-MD";
-            const _senderName= msg.pushName || (phone ? `+${phone}` : senderJid.split("@")[0]);
-            const _statusStr = botStatus === "connected" ? "✅ Online" : "❌ Offline";
+            const _os         = require("os");
+            const _mem        = process.memoryUsage();
+            const _totalRam   = _os.totalmem();
+            const _rssMB      = (_mem.rss / 1024 / 1024).toFixed(1);
+            const _totalRamMB = (_totalRam / 1024 / 1024).toFixed(0);
+            const _ramPct     = Math.min(100, Math.round((_mem.rss / _totalRam) * 100));
+            const _barFilled  = Math.max(1, Math.round(_ramPct / 10));
+            const _ramBar     = "▓".repeat(_barFilled) + "░".repeat(10 - _barFilled);
+            const _uptimeSec  = Math.floor(process.uptime());
+            const _uh         = Math.floor(_uptimeSec / 3600);
+            const _um         = Math.floor((_uptimeSec % 3600) / 60);
+            const _us         = _uptimeSec % 60;
+            const _uptimeStr  = _uh > 0 ? `${_uh}h ${_um}m ${_us}s` : `${_um}m ${_us}s`;
+            const _botMode    = settings.get("mode") || "public";
+            const _modeStr    = _botMode.charAt(0).toUpperCase() + _botMode.slice(1);
+            const _botName    = settings.get("botName") || "NEXUS-MD";
+            const _senderName = msg.pushName || (phone ? `+${phone}` : senderJid.split("@")[0]);
+            const _statusStr  = botStatus === "connected" ? "Online ✅" : "Offline ❌";
+            const _ownerRaw   = (process.env.ADMIN_NUMBERS || "").split(",")[0].trim();
+            const _ownerDisp  = _ownerRaw ? `+${_ownerRaw}` : "Owner";
+            const _platInfo   = require("./lib/platform");
+            const _platName   = (_platInfo && _platInfo.detect) ? (_platInfo.detect().platform || "Cloud") : (process.env.DYNO ? "Heroku" : "Replit");
 
-            // ── Short header shown as video/image caption ──────────────────
+            // ── Media caption (short — fits in caption limit) ──────────────
             const _menuText =
-              `⚡ *${_botName}* — ${_statusStr}\n` +
-              `━━━━━━━━━━━━━━━━━━\n` +
-              `👤 *${_senderName}*\n` +
-              `🌐 Mode: *${_modeStr}*  •  ⚡ Prefix: *${_pfx}*\n` +
-              `⏱ Uptime: *${_uptimeStr}*  •  💾 RAM: *${_rssMB} MB*\n` +
-              `━━━━━━━━━━━━━━━━━━\n` +
-              `_Tap *Browse Categories* below to explore commands_ 👇`;
+              `⚡ *${_botName} V2 CORE* ⚡\n` +
+              `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+              `◈ 𝗨𝘀𝗲𝗿  ⟫  *${_senderName}*\n` +
+              `◆ 📶 𝗦𝘁𝗮𝘁𝘂𝘀  ⟫ ${_statusStr}\n` +
+              `◆ 🌐 𝗠𝗼𝗱𝗲    ⟫ ${_modeStr}\n` +
+              `◆ ⚡ 𝗣𝗿𝗲𝗳𝗶𝘅  ⟫ [${_pfx}]\n` +
+              `◆ ⏱ 𝗨𝗽𝘁𝗶𝗺𝗲 ⟫ ${_uptimeStr}\n` +
+              `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+              `_⚡ Powered by 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗_`;
+
+            // ── Full techy menu text ──────────────────────────────────────
+            const _sep = "─────────────────────────";
+            const _fullMenu =
+`╔══〔 ⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 𝗩𝟮 𝗖𝗢𝗥𝗘 ⚡ 〕══╗
+   𝗔𝗱𝘃𝗮𝗻𝗰𝗲𝗱 𝗪𝗵𝗮𝘁𝘀𝗔𝗽𝗽 𝗔𝘂𝘁𝗼𝗺𝗮𝘁𝗶𝗼𝗻 𝗕𝗼𝘁
+╚══════════════════════════════╝
+
+◈ 𝗨𝗦𝗘𝗥  ⟫  ${_senderName}
+◈ 𝗥𝗔𝗡𝗞  ⟫  𝗧𝗲𝗰𝗵 ★★☆
+
+◆ 👑 𝗢𝘄𝗻𝗲𝗿     ⟫ ${_ownerDisp}
+◆ 🌐 𝗠𝗼𝗱𝗲      ⟫ ${_modeStr}
+◆ ⚡ 𝗣𝗿𝗲𝗳𝗶𝘅    ⟫ [${_pfx}]
+◆ 🔢 𝗩𝗲𝗿𝘀𝗶𝗼𝗻   ⟫ 2.0
+◆ ☁️  𝗣𝗹𝗮𝘁𝗳𝗼𝗿𝗺  ⟫ ${_platName}
+◆ 📶 𝗦𝘁𝗮𝘁𝘂𝘀   ⟫ ${_statusStr}
+◆ ⏱ 𝗨𝗽𝘁𝗶𝗺𝗲   ⟫ ${_uptimeStr}
+◆ 🖥 𝗥𝗔𝗠      ⟫ ${_ramBar} ${_ramPct}%
+              (${_rssMB}MB / ${_totalRamMB}MB)
+
+┌─〔 ⚙️ 𝗦𝗬𝗦𝗧𝗘𝗠 𝗖𝗢𝗥𝗘 〕──────────┐
+│ ◇ ${_pfx}menu      ◇ ${_pfx}menuv
+│ ◇ ${_pfx}help      ◇ ${_pfx}ping
+│ ◇ ${_pfx}alive     ◇ ${_pfx}stats
+│ ◇ ${_pfx}uptime    ◇ ${_pfx}time
+│ ◇ ${_pfx}date      ◇ ${_pfx}info
+└${_sep}┘
+
+┌─〔 🧠 𝗔𝗜 𝗘𝗡𝗚𝗜𝗡𝗘 〕────────────┐
+│ ◇ ${_pfx}ai        ◇ ${_pfx}chat
+│ ◇ ${_pfx}ask       ◇ ${_pfx}imagine
+│ ◇ ${_pfx}image     ◇ ${_pfx}tts
+│ ◇ ${_pfx}summarize ◇ ${_pfx}clearchat
+└${_sep}┘
+
+┌─〔 🔎 𝗦𝗘𝗔𝗥𝗖𝗛 & 𝗜𝗡𝗙𝗢 〕──────────┐
+│ ◇ ${_pfx}weather   ◇ ${_pfx}wiki
+│ ◇ ${_pfx}translate ◇ ${_pfx}define
+│ ◇ ${_pfx}country   ◇ ${_pfx}whois
+│ ◇ ${_pfx}news      ◇ ${_pfx}crypto
+└${_sep}┘
+
+┌─〔 🎧 𝗠𝗘𝗗𝗜𝗔 & 𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗦 〕──────┐
+│ ◇ ${_pfx}play      ◇ ${_pfx}song
+│ ◇ ${_pfx}video     ◇ ${_pfx}ytdl
+│ ◇ ${_pfx}tiktok    ◇ ${_pfx}ig
+│ ◇ ${_pfx}sticker   ◇ ${_pfx}apk
+└${_sep}┘
+
+┌─〔 🎮 𝗙𝗨𝗡 & 𝗚𝗔𝗠𝗘𝗦 〕──────────┐
+│ ◇ ${_pfx}joke      ◇ ${_pfx}8ball
+│ ◇ ${_pfx}truth     ◇ ${_pfx}dare
+│ ◇ ${_pfx}trivia    ◇ ${_pfx}ship
+│ ◇ ${_pfx}rps       ◇ ${_pfx}quote
+└${_sep}┘
+
+┌─〔 ✍️ 𝗧𝗘𝗫𝗧 & 𝗨𝗧𝗜𝗟𝗜𝗧𝗜𝗘𝗦 〕──────┐
+│ ◇ ${_pfx}bold      ◇ ${_pfx}italic
+│ ◇ ${_pfx}morse     ◇ ${_pfx}binary
+│ ◇ ${_pfx}qr        ◇ ${_pfx}short
+│ ◇ ${_pfx}currency  ◇ ${_pfx}ocr
+└${_sep}┘
+
+┌─〔 👥 𝗚𝗥𝗢𝗨𝗣𝗦 & 𝗠𝗢𝗗𝗘𝗥𝗔𝗧𝗜𝗢𝗡 〕──┐
+│ ◇ ${_pfx}add       ◇ ${_pfx}kick
+│ ◇ ${_pfx}promote   ◇ ${_pfx}demote
+│ ◇ ${_pfx}warn      ◇ ${_pfx}antilink
+│ ◇ ${_pfx}tagall    ◇ ${_pfx}welcome
+└${_sep}┘
+
+┌─〔 🛡 𝗢𝗪𝗡𝗘𝗥 & 𝗦𝗘𝗧𝗧𝗜𝗡𝗚𝗦 〕──────┐
+│ ◇ ${_pfx}mode      ◇ ${_pfx}setprefix
+│ ◇ ${_pfx}feature   ◇ ${_pfx}broadcast
+│ ◇ ${_pfx}setvar    ◇ ${_pfx}getvar
+│ ◇ ${_pfx}sudo      ◇ ${_pfx}restart
+└${_sep}┘
+
+_⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 v2.0  •  Prefix: [${_pfx}]  •  ${_modeStr} Mode_`;
 
             // ── 1. Optional menu song ─────────────────────────────────────
             const _menuSongBuf = settings.getMenuSong();
@@ -8359,7 +8448,7 @@ async function startnexus() {
               }, { quoted: msg }).catch(() => {});
             }
 
-            // ── 2. Short header on media (or plain text fallback) ──────────
+            // ── 2. Media header with short caption (or plain fallback) ─────
             const _menuVidBuf    = settings.getMenuVideo();
             const _menuMp4Path   = path.join(process.cwd(), "assets", "menu.mp4");
             const _bannerGifPath = path.join(process.cwd(), "assets", "banner.gif");
@@ -8373,90 +8462,8 @@ async function startnexus() {
               await sock.sendMessage(from, { text: _menuText }, { quoted: msg }).catch(() => {});
             }
 
-            // ── 3. Interactive list message — category browser ─────────────
-            await sock.sendMessage(from, {
-              text:       `*${_botName} — Command Categories*\nTap the button to browse all commands by category.`,
-              footer:     `⚡ NEXUS-MD  •  Prefix: ${_pfx}  •  ${_modeStr} Mode`,
-              title:      "📋 Command Menu",
-              buttonText: "📋 Browse Categories",
-              sections: [
-                {
-                  title: "🧠 AI & Chat",
-                  rows: [
-                    { title: `${_pfx}ai / ${_pfx}chat / ${_pfx}ask`,    rowId: "a1", description: "Chat with AI — ask anything" },
-                    { title: `${_pfx}imagine / ${_pfx}image`,            rowId: "a2", description: "AI image generation" },
-                    { title: `${_pfx}tts <text>`,                        rowId: "a3", description: "Convert text to voice note" },
-                    { title: `${_pfx}summarize / ${_pfx}summary`,        rowId: "a4", description: "Summarize long text or URL" },
-                  ],
-                },
-                {
-                  title: "🔎 Search & Info",
-                  rows: [
-                    { title: `${_pfx}weather <city>`,                    rowId: "s1", description: "Live weather report" },
-                    { title: `${_pfx}wiki / ${_pfx}wikipedia <topic>`,   rowId: "s2", description: "Wikipedia search" },
-                    { title: `${_pfx}translate / ${_pfx}tr <lang> <text>`, rowId: "s3", description: "Translate to any language" },
-                    { title: `${_pfx}define / ${_pfx}dict <word>`,       rowId: "s4", description: "Dictionary definition" },
-                    { title: `${_pfx}country <name>`,                    rowId: "s5", description: "Country facts & info" },
-                    { title: `${_pfx}whois / ${_pfx}pp / ${_pfx}pfp`,   rowId: "s6", description: "User info & profile photo" },
-                  ],
-                },
-                {
-                  title: "🎧 Media & Downloads",
-                  rows: [
-                    { title: `${_pfx}play / ${_pfx}yt / ${_pfx}song`,   rowId: "m1", description: "Download YouTube audio" },
-                    { title: `${_pfx}video / ${_pfx}ytdl`,               rowId: "m2", description: "Download YouTube video" },
-                    { title: `${_pfx}tiktok / ${_pfx}tt`,                rowId: "m3", description: "Download TikTok video" },
-                    { title: `${_pfx}instagram / ${_pfx}ig`,             rowId: "m4", description: "Download Instagram media" },
-                    { title: `${_pfx}sticker / ${_pfx}s`,                rowId: "m5", description: "Image or video → sticker" },
-                    { title: `${_pfx}apk / ${_pfx}app <name>`,           rowId: "m6", description: "Download Android APK" },
-                  ],
-                },
-                {
-                  title: "🎮 Fun & Games",
-                  rows: [
-                    { title: `${_pfx}joke / ${_pfx}dadjoke`,             rowId: "f1", description: "Random joke" },
-                    { title: `${_pfx}8ball <question>`,                  rowId: "f2", description: "Magic 8-ball answer" },
-                    { title: `${_pfx}truth / ${_pfx}dare / ${_pfx}wyr`, rowId: "f3", description: "Truth, dare, would you rather" },
-                    { title: `${_pfx}trivia / ${_pfx}quiz`,              rowId: "f4", description: "Random trivia question" },
-                    { title: `${_pfx}rps rock/paper/scissors`,           rowId: "f5", description: "Play rock paper scissors" },
-                    { title: `${_pfx}ship Name1 and Name2`,              rowId: "f6", description: "Love compatibility meter 💘" },
-                  ],
-                },
-                {
-                  title: "✍️ Text & Utilities",
-                  rows: [
-                    { title: `${_pfx}bold / ${_pfx}italic / ${_pfx}mock`, rowId: "t1", description: "Text style transformers" },
-                    { title: `${_pfx}morse / ${_pfx}binary`,             rowId: "t2", description: "Encode or decode" },
-                    { title: `${_pfx}qr <text>`,                         rowId: "t3", description: "Generate a QR code" },
-                    { title: `${_pfx}short <url>`,                       rowId: "t4", description: "Shorten a URL" },
-                    { title: `${_pfx}currency 100 USD KES`,              rowId: "t5", description: "Currency converter" },
-                    { title: `${_pfx}crypto / ${_pfx}coin <name>`,       rowId: "t6", description: "Live crypto price" },
-                  ],
-                },
-                {
-                  title: "👥 Groups & Moderation",
-                  rows: [
-                    { title: `${_pfx}add / ${_pfx}kick / ${_pfx}ban`,   rowId: "g1", description: "Manage group members" },
-                    { title: `${_pfx}promote / ${_pfx}demote`,          rowId: "g2", description: "Manage admin roles" },
-                    { title: `${_pfx}warn / ${_pfx}resetwarn`,          rowId: "g3", description: "Warning system" },
-                    { title: `${_pfx}antilink / ${_pfx}antispam`,       rowId: "g4", description: "Auto-moderation toggles" },
-                    { title: `${_pfx}welcome / ${_pfx}goodbye`,         rowId: "g5", description: "Welcome & goodbye messages" },
-                    { title: `${_pfx}tagall / ${_pfx}poll / ${_pfx}everyone`, rowId: "g6", description: "Tag members & create polls" },
-                  ],
-                },
-                {
-                  title: "⚙️ Settings & Owner",
-                  rows: [
-                    { title: `${_pfx}mode public/private`,               rowId: "o1", description: "Change bot access mode" },
-                    { title: `${_pfx}setprefix <char>`,                  rowId: "o2", description: "Change command prefix" },
-                    { title: `${_pfx}feature <name> on/off`,             rowId: "o3", description: "Toggle bot features" },
-                    { title: `${_pfx}botsettings / ${_pfx}features`,    rowId: "o4", description: "View all current settings" },
-                    { title: `${_pfx}broadcast <msg>`,                   rowId: "o5", description: "Send message to all chats" },
-                    { title: `${_pfx}sudo / ${_pfx}takeover`,           rowId: "o6", description: "Owner & admin commands" },
-                  ],
-                },
-              ],
-            }, { quoted: msg }).catch(() => {});
+            // ── 3. Full techy command menu as text message ─────────────────
+            await sock.sendMessage(from, { text: _fullMenu }, { quoted: msg }).catch(() => {});
 
           } catch (_menuErr) {
             console.error("[menu] error:", _menuErr.message);
