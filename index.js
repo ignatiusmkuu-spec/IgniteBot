@@ -8313,362 +8313,141 @@ async function startnexus() {
           return;
         }
 
-        // ── .menu / .menuv / .help — redesigned NEXUS V2 CORE menu ──────────
+        // ── .menu / .menuv / .help — compact list-style menu ──────────────
         if (_cmd === "menu" || _cmd === "menuv" || _cmd === "help") {
           try {
-            const _os       = require("os");
-            const _mem      = process.memoryUsage();
-            const _totalRam = _os.totalmem();
-            const _rssMB    = (_mem.rss / 1024 / 1024).toFixed(1);
-            const _totalRamMB = Math.round(_totalRam / 1024 / 1024);
-            const _ramPct   = Math.min(100, Math.round((_mem.rss / _totalRam) * 100));
-            const _barLen   = 10;
-            const _filled   = Math.round((_ramPct / 100) * _barLen);
-            const _ramBar   = "█".repeat(_filled) + "░".repeat(_barLen - _filled);
-            const _uptimeSec= Math.floor(process.uptime());
-            const _uh       = Math.floor(_uptimeSec / 3600);
-            const _um       = Math.floor((_uptimeSec % 3600) / 60);
-            const _us       = _uptimeSec % 60;
-            const _uptimeStr= `${_uh}h ${_um}m ${_us}s`;
-            const _botMode  = settings.get("mode") || "public";
-            const _modeStr  = _botMode.charAt(0).toUpperCase() + _botMode.slice(1);
-            const _pfxDisp  = `[${_pfx}]`;
-            const _platInfo = platform.get();
-            const _platName = _platInfo.name || "Replit";
-            const _botName  = settings.get("botName") || "NEXUS-MD";
-            const _senderNum= msg.pushName || (phone ? `+${phone}` : senderJid.split("@")[0]);
-            const _ownerNums= (require("./config").admins || []);
-            const _ownerStr = _ownerNums.length ? `+${_ownerNums[0]}` : "Nexus Tech";
-            const _statusStr= botStatus === "connected" ? "Online ✅" : "Offline ❌";
+            const _os        = require("os");
+            const _mem       = process.memoryUsage();
+            const _totalRam  = _os.totalmem();
+            const _rssMB     = (_mem.rss / 1024 / 1024).toFixed(1);
+            const _ramPct    = Math.min(100, Math.round((_mem.rss / _totalRam) * 100));
+            const _uptimeSec = Math.floor(process.uptime());
+            const _uh        = Math.floor(_uptimeSec / 3600);
+            const _um        = Math.floor((_uptimeSec % 3600) / 60);
+            const _uptimeStr = _uh > 0 ? `${_uh}h ${_um}m` : `${_um}m`;
+            const _botMode   = settings.get("mode") || "public";
+            const _modeStr   = _botMode.charAt(0).toUpperCase() + _botMode.slice(1);
+            const _botName   = settings.get("botName") || "NEXUS-MD";
+            const _senderName= msg.pushName || (phone ? `+${phone}` : senderJid.split("@")[0]);
+            const _statusStr = botStatus === "connected" ? "✅ Online" : "❌ Offline";
 
+            // ── Short header shown as video/image caption ──────────────────
             const _menuText =
-              `╔══════════════════════════════╗\n` +
-              `        🤖 *${_botName} V2 CORE*\n` +
-              `╚══════════════════════════════╝\n\n` +
-              `⟡ 👤 *User*     :: ~•~ ༺〄 ${_senderNum}★༻\n` +
-              `⟡ 👑 *Owner*    :: ${_ownerStr}\n` +
-              `⟡ 🌐 *Mode*     :: ${_modeStr}\n` +
-              `⟡ ⚡ *Prefix*   :: ${_pfxDisp}\n` +
-              `⟡ 🧠 *Version*  :: 2.0\n` +
-              `⟡ ☁ *Platform* :: ${_platName}\n` +
-              `⟡ 📡 *Status*   :: ${_statusStr}\n` +
-              `⟡ ⏱ *Uptime*   :: ${_uptimeStr}\n` +
-              `⟡ 💾 *RAM*      :: ${_ramBar} ${_ramPct}% (${_rssMB}MB)\n` +
-              `⟡ 🧬 *Memory*   :: ${_rssMB}MB / ${_totalRamMB}MB\n\n` +
-              `╭━━━〔 ⚙️ *SYSTEM CORE* 〕━━━⬣\n` +
-              `┃ ⌬ ${_pfx}menu\n` +
-              `┃ ⌬ ${_pfx}help\n` +
-              `┃ ⌬ ${_pfx}menuv\n` +
-              `┃ ⌬ ${_pfx}ping\n` +
-              `┃ ⌬ ${_pfx}alive\n` +
-              `┃ ⌬ ${_pfx}stats\n` +
-              `┃ ⌬ ${_pfx}uptime\n` +
-              `┃ ⌬ ${_pfx}time\n` +
-              `┃ ⌬ ${_pfx}date\n` +
-              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `╭━━━〔 🧠 *AI ENGINE* 〕━━━⬣\n` +
-              `┃ ◈ ${_pfx}ai\n` +
-              `┃ ◈ ${_pfx}chat\n` +
-              `┃ ◈ ${_pfx}ask\n` +
-              `┃ ◈ ${_pfx}imagine\n` +
-              `┃ ◈ ${_pfx}image\n` +
-              `┃ ◈ ${_pfx}tts\n` +
-              `┃ ◈ ${_pfx}summarize\n` +
-              `┃ ◈ ${_pfx}summary\n` +
-              `┃ ◈ ${_pfx}clearchat\n` +
-              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `╭━━━〔 🔎 *SEARCH HUB* 〕━━━⬣\n` +
-              `┃ ⧉ ${_pfx}weather\n` +
-              `┃ ⧉ ${_pfx}wiki\n` +
-              `┃ ⧉ ${_pfx}wikipedia\n` +
-              `┃ ⧉ ${_pfx}define\n` +
-              `┃ ⧉ ${_pfx}dict\n` +
-              `┃ ⧉ ${_pfx}tr\n` +
-              `┃ ⧉ ${_pfx}translate\n` +
-              `┃ ⧉ ${_pfx}country\n` +
-              `┃ ⧉ ${_pfx}countryinfo\n` +
-              `┃ ⧉ ${_pfx}qr\n` +
-              `┃ ⧉ ${_pfx}qrcode\n` +
-              `┃ ⧉ ${_pfx}langs\n` +
-              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `╭━━━〔 ⚽ *SPORTS CENTER* 〕━━━⬣\n` +
-              `┃ ⚡ ${_pfx}epl\n` +
-              `┃ ⚡ ${_pfx}eplscores\n` +
-              `┃ ⚡ ${_pfx}premierleague\n` +
-              `┃ ⚡ ${_pfx}pl\n` +
-              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `╭━━━〔 🎮 *FUN ZONE* 〕━━━⬣\n` +
-              `┃ ✦ ${_pfx}8ball\n` +
-              `┃ ✦ ${_pfx}fact\n` +
-              `┃ ✦ ${_pfx}flip\n` +
-              `┃ ✦ ${_pfx}coinflip\n` +
-              `┃ ✦ ${_pfx}joke\n` +
-              `┃ ✦ ${_pfx}dadjoke\n` +
-              `┃ ✦ ${_pfx}dice\n` +
-              `┃ ✦ ${_pfx}roll\n` +
-              `┃ ✦ ${_pfx}quote\n` +
-              `┃ ✦ ${_pfx}inspire\n` +
-              `┃ ✦ ${_pfx}anime\n` +
-              `┃ ✦ ${_pfx}random-anime\n` +
-              `┃ 🎯 ${_pfx}truth — random truth question\n` +
-              `┃ 🔥 ${_pfx}dare — random dare challenge\n` +
-              `┃ 🤔 ${_pfx}wyr — would you rather\n` +
-              `┃ 💘 ${_pfx}ship Name1 and Name2 — love meter\n` +
-              `┃ 💐 ${_pfx}compliment — give a compliment\n` +
-              `┃ 🔥 ${_pfx}roast — playful roast\n` +
-              `┃ 🐱 ${_pfx}catfact — random cat fact\n` +
-              `┃ 🐶 ${_pfx}dogfact — random dog fact\n` +
-              `┃ 🔢 ${_pfx}numberfact <number> — fun number fact\n` +
-              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `╭━━━〔 ✍️ *TEXT LAB* 〕━━━⬣\n` +
-              `┃ ⌘ ${_pfx}aesthetic\n` +
-              `┃ ⌘ ${_pfx}ae\n` +
-              `┃ ⌘ ${_pfx}bold\n` +
-              `┃ ⌘ ${_pfx}italic\n` +
-              `┃ ⌘ ${_pfx}mock\n` +
-              `┃ ⌘ ${_pfx}reverse\n` +
-              `┃ ⌘ ${_pfx}emojify\n` +
-              `┃ ⌘ ${_pfx}emoji\n` +
-              `┃ ⌘ ${_pfx}upper\n` +
-              `┃ ⌘ ${_pfx}lower\n` +
-              `┃ ⌘ ${_pfx}repeat\n` +
-              `┃ ⌘ ${_pfx}calc\n` +
-              `┃ ⌘ ${_pfx}calculate\n` +
-              `┃ ⌘ ${_pfx}morse — encode/decode morse code\n` +
-              `┃ ⌘ ${_pfx}binary — encode/decode binary\n` +
-              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `╭━━━〔 🎧 *MEDIA STATION* 〕━━━⬣\n` +
-              `┃ ▶ ${_pfx}play\n` +
-              `┃ ▶ ${_pfx}song\n` +
-              `┃ ▶ ${_pfx}p\n` +
-              `┃ ▶ ${_pfx}yt\n` +
-              `┃ ▶ ${_pfx}ytdl\n` +
-              `┃ ▶ ${_pfx}audio\n` +
-              `┃ ▶ ${_pfx}music\n` +
-              `┃ ▶ ${_pfx}dl\n` +
-              `┃ ▶ ${_pfx}download\n` +
-              `┃ ▶ ${_pfx}video\n` +
-              `┃ ▶ ${_pfx}fbdl\n` +
-              `┃ ▶ ${_pfx}facebook\n` +
-              `┃ ▶ ${_pfx}fb\n` +
-              `┃ ▶ ${_pfx}instagram\n` +
-              `┃ ▶ ${_pfx}igdl\n` +
-              `┃ ▶ ${_pfx}ig\n` +
-              `┃ ▶ ${_pfx}apk\n` +
-              `┃ ▶ ${_pfx}app\n` +
-              `┃ ▶ ${_pfx}pindl\n` +
-              `┃ ▶ ${_pfx}pinterest\n` +
-              `┃ ▶ ${_pfx}sticker\n` +
-              `┃ ▶ ${_pfx}toimg — sticker → image\n` +
-              `┃ ▶ ${_pfx}remini — AI image enhancer\n` +
-              `┃ ▶ ${_pfx}enhance — alias of ${_pfx}remini\n` +
-              `┃ ▶ ${_pfx}convert\n` +
-              `┃ ▶ ${_pfx}v\n` +
-              `┃ ▶ ${_pfx}vo\n` +
-              `┃ ▶ ${_pfx}vv — reveal a quoted view-once\n` +
-              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `╭━━━〔 💰 *CRYPTO & FINANCE* 〕━━━⬣\n` +
-              `┃ 🪙 ${_pfx}crypto <coin> — live price (BTC, ETH...)\n` +
-              `┃ 🪙 ${_pfx}coin — alias of ${_pfx}crypto\n` +
-              `┃ 🪙 ${_pfx}price — alias of ${_pfx}crypto\n` +
-              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `╭━━━〔 🎮 *GAMES & QUIZZES* 〕━━━⬣\n` +
-              `┃ 🎮 ${_pfx}rps rock/paper/scissors\n` +
-              `┃ 🧠 ${_pfx}trivia — random trivia question\n` +
-              `┃ 🎯 ${_pfx}quiz — alias of ${_pfx}trivia\n` +
-              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `╭━━━〔 🧮 *CALCULATORS* 〕━━━⬣\n` +
-              `┃ ⚖️ ${_pfx}bmi <weight_kg> <height_cm>\n` +
-              `┃ 🎂 ${_pfx}age DD/MM/YYYY — birthday & age\n` +
-              `┃ 🔐 ${_pfx}gpass — secure password generator\n` +
-              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `╭━━━〔 🛠️ *EXTRA TOOLS* 〕━━━⬣\n` +
-              `┃ 🎨 ${_pfx}color #HEXCODE — color inspector\n` +
-              `┃ 🔗 ${_pfx}short <url> — URL shortener\n` +
-              `┃ 📇 ${_pfx}vcard Name | Number — contact card\n` +
-              `┃ 📖 ${_pfx}urban <word> — Urban Dictionary\n` +
-              `┃ 💱 ${_pfx}currency 100 USD KES — converter\n` +
-              `┃ 🔢 ${_pfx}percentage 25 of 200 — % calc\n` +
-              `┃ 🔑 ${_pfx}base64 encode/decode <text>\n` +
-              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `╭━━━〔 📸 *STATUS TOOLS* 〕━━━⬣\n` +
-              `┃ 💾 ${_pfx}s — save quoted status/media to DM\n` +
-              `┃ 💾 ${_pfx}save — alias of ${_pfx}s\n` +
-              `┃ 💾 ${_pfx}savestatus — alias of ${_pfx}s\n` +
-              `┃ 👁 ${_pfx}autoview on/off — auto-view statuses\n` +
-              `┃ ❤️ ${_pfx}autolike on/off — auto-react to statuses\n` +
-              `┃ 🔍 ${_pfx}viewonce on/off — auto-reveal view-once msgs\n` +
-              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `╭━━━〔 🧰 *UTILITIES* 〕━━━⬣\n` +
-              `┃ ◉ ${_pfx}pp\n` +
-              `┃ ◉ ${_pfx}pfp\n` +
-              `┃ ◉ ${_pfx}getpp\n` +
-              `┃ ◉ ${_pfx}qr\n` +
-              `┃ ◉ ${_pfx}short\n` +
-              `┃ ◉ ${_pfx}shorten\n` +
-              `┃ ◉ ${_pfx}whois\n` +
-              `┃ ◉ ${_pfx}profile\n` +
-              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `╭━━━〔 👥 *GROUP CONTROL* 〕━━━⬣\n` +
-              `┃ ⛨ ${_pfx}add\n` +
-              `┃ ⛨ ${_pfx}kick\n` +
-              `┃ ⛨ ${_pfx}kickall\n` +
-              `┃ ⛨ ${_pfx}promote\n` +
-              `┃ ⛨ ${_pfx}promoteall\n` +
-              `┃ ⛨ ${_pfx}demote\n` +
-              `┃ ⛨ ${_pfx}demoteall\n` +
-              `┃ ⛨ ${_pfx}ban\n` +
-              `┃ ⛨ ${_pfx}unban\n` +
-              `┃ ⛨ ${_pfx}clearbanlist\n` +
-              `┃ ⛨ ${_pfx}mute\n` +
-              `┃ ⛨ ${_pfx}unmute\n` +
-              `┃ ⛨ ${_pfx}open\n` +
-              `┃ ⛨ ${_pfx}close\n` +
-              `┃ ⛨ ${_pfx}warn\n` +
-              `┃ ⛨ ${_pfx}resetwarn\n` +
-              `┃ ⛨ ${_pfx}setwarn\n` +
-              `┃ ⛨ ${_pfx}warnings\n` +
-              `┃ ⛨ ${_pfx}delete\n` +
-              `┃ ⛨ ${_pfx}leave\n` +
-              `┃ ⛨ ${_pfx}creategroup\n` +
-              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `╭━━━〔 📊 *GROUP INFO* 〕━━━⬣\n` +
-              `┃ ⧗ ${_pfx}admins\n` +
-              `┃ ⧗ ${_pfx}members\n` +
-              `┃ ⧗ ${_pfx}count\n` +
-              `┃ ⧗ ${_pfx}groupinfo\n` +
-              `┃ ⧗ ${_pfx}link\n` +
-              `┃ ⧗ ${_pfx}invitelink\n` +
-              `┃ ⧗ ${_pfx}revoke\n` +
-              `┃ ⧗ ${_pfx}resetlink\n` +
-              `┃ ⧗ ${_pfx}glink\n` +
-              `┃ ⧗ ${_pfx}grouplink\n` +
-              `┃ ⧗ ${_pfx}setname\n` +
-              `┃ ⧗ ${_pfx}rename\n` +
-              `┃ ⧗ ${_pfx}setdesc\n` +
-              `┃ ⧗ ${_pfx}desc\n` +
-              `┃ ⧗ ${_pfx}seticon\n` +
-              `┃ ⧗ ${_pfx}setgrouppp\n` +
-              `┃ ⧗ ${_pfx}everyone\n` +
-              `┃ ⧗ ${_pfx}tagall\n` +
-              `┃ ⧗ ${_pfx}hidetag\n` +
-              `┃ ⧗ ${_pfx}htag\n` +
-              `┃ ⧗ ${_pfx}stag\n` +
-              `┃ ⧗ ${_pfx}poll\n` +
-              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `╭━━━〔 🤖 *AUTO MODERATION* 〕━━━⬣\n` +
-              `┃ ⛔ ${_pfx}antilink on/off\n` +
-              `┃ ⛔ ${_pfx}antispam on/off\n` +
-              `┃ ⛔ ${_pfx}antiflood on/off\n` +
-              `┃ ⛔ ${_pfx}antimention on/off\n` +
-              `┃ ⛔ ${_pfx}antitag on/off\n` +
-              `┃ ⛔ ${_pfx}welcome on/off — welcome messages\n` +
-              `┃ ⛔ ${_pfx}goodbye on/off — goodbye messages\n` +
-              `┃ ⛔ ${_pfx}antisticker on/off\n` +
-              `┃ ⛔ ${_pfx}antidelete on/off\n` +
-              `┃ ⛔ ${_pfx}anticall on/off\n` +
-              `┃ ⛔ ${_pfx}alwaysonline on/off\n` +
-              `┃ 👻 ${_pfx}ghost on/off — hide blue ticks\n` +
-              `┃ 🕵️ ${_pfx}ghoststatus on/off — stealth status view\n` +
-              `┃ 🚫 ${_pfx}antimentiongroup on/off — prevent group tagging in status\n` +
-              `┃ 🚫 ${_pfx}amg on/off — alias of ${_pfx}antimentiongroup\n` +
-              `┃ 🚫 ${_pfx}antistatusmention warn/delete/kick/off — advanced mode\n` +
-              `┃ 🚫 ${_pfx}gsm / ${_pfx}asm — aliases of ${_pfx}antistatusmention\n` +
-              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `╭━━━〔 ⚙ *BOT SETTINGS* 〕━━━⬣\n` +
-              `┃ ⚙ ${_pfx}botsettings\n` +
-              `┃ ⚙ ${_pfx}features\n` +
-              `┃ ⚙ ${_pfx}featurelist\n` +
-              `┃ ⚙ ${_pfx}feature\n` +
-              `┃ ⚙ ${_pfx}toggle\n` +
-              `┃ ⚙ ${_pfx}setmode\n` +
-              `┃ ⚙ ${_pfx}mode\n` +
-              `┃ ⚙ ${_pfx}lang\n` +
-              `┃ ⚙ ${_pfx}setprefix\n` +
-              `┃ ⚙ ${_pfx}prefixless\n` +
-              `┃ ⚙ ${_pfx}setowner\n` +
-              `┃ ⚙ ${_pfx}setownername\n` +
-              `┃ ⚙ ${_pfx}setbotname\n` +
-              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `╭━━━〔 🛒 *STORE SYSTEM* 〕━━━⬣\n` +
-              `┃ 🧾 ${_pfx}shop\n` +
-              `┃ 🧾 ${_pfx}catalog\n` +
-              `┃ 🧾 ${_pfx}order\n` +
-              `┃ 🧾 ${_pfx}myorders\n` +
-              `┃ 🧾 ${_pfx}services\n` +
-              `┃ 🧾 ${_pfx}book\n` +
-              `┃ 🧾 ${_pfx}mybookings\n` +
-              `┃ 🧾 ${_pfx}cancel\n` +
-              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `╭━━━〔 👑 *SUPER ADMIN* 〕━━━⬣\n` +
-              `┃ ☣ ${_pfx}sudo\n` +
-              `┃ ☣ ${_pfx}removesudo\n` +
-              `┃ ☣ ${_pfx}unsudo\n` +
-              `┃ ☣ ${_pfx}sudolist\n` +
-              `┃ 👑 ${_pfx}takeover — demote group creator & promote owner\n` +
-              `┃ 🛡️ ${_pfx}selfadmin / ${_pfx}getadmin — self-promote to admin\n` +
-              `┃ 🚫 ${_pfx}antistatusmention / ${_pfx}gsm / ${_pfx}asm\n` +
-              `┃ ☣ ${_pfx}broadcast\n` +
-              `┃ ☣ ${_pfx}pairing\n` +
-              `┃ ☣ ${_pfx}setmenuimage\n` +
-              `┃ ☣ ${_pfx}clearmenuimage\n` +
-              `┃ ☣ ${_pfx}setmenuvideo\n` +
-              `┃ ☣ ${_pfx}clearmenuvideo\n` +
-              `┃ ☣ ${_pfx}setmenusong\n` +
-              `┃ ☣ ${_pfx}clearmenusong\n` +
-              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
-              `┏━━━━━━━━━━━━━━━━━━━━━━┓\n` +
-              `  ⚡ *NEXUS TECH SYSTEM*\n` +
-              `  🔹 Powered by Ignatius Perez\n` +
-              `┗━━━━━━━━━━━━━━━━━━━━━━┛`;
+              `⚡ *${_botName}* — ${_statusStr}\n` +
+              `━━━━━━━━━━━━━━━━━━\n` +
+              `👤 *${_senderName}*\n` +
+              `🌐 Mode: *${_modeStr}*  •  ⚡ Prefix: *${_pfx}*\n` +
+              `⏱ Uptime: *${_uptimeStr}*  •  💾 RAM: *${_rssMB} MB*\n` +
+              `━━━━━━━━━━━━━━━━━━\n` +
+              `_Tap *Browse Categories* below to explore commands_ 👇`;
 
-            // Send menu song FIRST, then gif/video + menu text caption
+            // ── 1. Optional menu song ─────────────────────────────────────
             const _menuSongBuf = settings.getMenuSong();
             if (_menuSongBuf) {
               await sock.sendMessage(from, {
-                audio:    _menuSongBuf,
-                mimetype: "audio/mpeg",
-                ptt:      false,
+                audio: _menuSongBuf, mimetype: "audio/mpeg", ptt: false,
               }, { quoted: msg }).catch(() => {});
-            } else {
-              // Fallback: bundled Rick Astley mp3 as menu song
-              const _rickPath = path.join(process.cwd(), "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster) [dQw4w9WgXcQ].mp3");
-              if (fs.existsSync(_rickPath)) {
-                await sock.sendMessage(from, {
-                  audio:    fs.readFileSync(_rickPath),
-                  mimetype: "audio/mpeg",
-                  ptt:      false,
-                }, { quoted: msg }).catch(() => {});
-              }
             }
 
-            // Send gif/video + menu text
+            // ── 2. Short header on media (or plain text fallback) ──────────
             const _menuVidBuf    = settings.getMenuVideo();
-            const _bannerGifPath = path.join(process.cwd(), "assets", "banner.gif");
             const _menuMp4Path   = path.join(process.cwd(), "assets", "menu.mp4");
+            const _bannerGifPath = path.join(process.cwd(), "assets", "banner.gif");
             if (_menuVidBuf) {
-              await sock.sendMessage(from, {
-                video:       _menuVidBuf,
-                caption:     _menuText,
-                gifPlayback: true,
-                mimetype:    "video/mp4",
-              }, { quoted: msg });
+              await sock.sendMessage(from, { video: _menuVidBuf, caption: _menuText, gifPlayback: true, mimetype: "video/mp4" }, { quoted: msg }).catch(() => {});
             } else if (fs.existsSync(_menuMp4Path)) {
-              await sock.sendMessage(from, {
-                video:       fs.readFileSync(_menuMp4Path),
-                caption:     _menuText,
-                gifPlayback: true,
-                mimetype:    "video/mp4",
-              }, { quoted: msg });
+              await sock.sendMessage(from, { video: fs.readFileSync(_menuMp4Path), caption: _menuText, gifPlayback: true, mimetype: "video/mp4" }, { quoted: msg }).catch(() => {});
             } else if (fs.existsSync(_bannerGifPath)) {
-              await sock.sendMessage(from, {
-                video:       fs.readFileSync(_bannerGifPath),
-                caption:     _menuText,
-                gifPlayback: true,
-              }, { quoted: msg });
+              await sock.sendMessage(from, { video: fs.readFileSync(_bannerGifPath), caption: _menuText, gifPlayback: true }, { quoted: msg }).catch(() => {});
             } else {
-              await sock.sendMessage(from, { text: _menuText }, { quoted: msg });
+              await sock.sendMessage(from, { text: _menuText }, { quoted: msg }).catch(() => {});
             }
+
+            // ── 3. Interactive list message — category browser ─────────────
+            await sock.sendMessage(from, {
+              text:       `*${_botName} — Command Categories*\nTap the button to browse all commands by category.`,
+              footer:     `⚡ NEXUS-MD  •  Prefix: ${_pfx}  •  ${_modeStr} Mode`,
+              title:      "📋 Command Menu",
+              buttonText: "📋 Browse Categories",
+              sections: [
+                {
+                  title: "🧠 AI & Chat",
+                  rows: [
+                    { title: `${_pfx}ai / ${_pfx}chat / ${_pfx}ask`,    rowId: "a1", description: "Chat with AI — ask anything" },
+                    { title: `${_pfx}imagine / ${_pfx}image`,            rowId: "a2", description: "AI image generation" },
+                    { title: `${_pfx}tts <text>`,                        rowId: "a3", description: "Convert text to voice note" },
+                    { title: `${_pfx}summarize / ${_pfx}summary`,        rowId: "a4", description: "Summarize long text or URL" },
+                  ],
+                },
+                {
+                  title: "🔎 Search & Info",
+                  rows: [
+                    { title: `${_pfx}weather <city>`,                    rowId: "s1", description: "Live weather report" },
+                    { title: `${_pfx}wiki / ${_pfx}wikipedia <topic>`,   rowId: "s2", description: "Wikipedia search" },
+                    { title: `${_pfx}translate / ${_pfx}tr <lang> <text>`, rowId: "s3", description: "Translate to any language" },
+                    { title: `${_pfx}define / ${_pfx}dict <word>`,       rowId: "s4", description: "Dictionary definition" },
+                    { title: `${_pfx}country <name>`,                    rowId: "s5", description: "Country facts & info" },
+                    { title: `${_pfx}whois / ${_pfx}pp / ${_pfx}pfp`,   rowId: "s6", description: "User info & profile photo" },
+                  ],
+                },
+                {
+                  title: "🎧 Media & Downloads",
+                  rows: [
+                    { title: `${_pfx}play / ${_pfx}yt / ${_pfx}song`,   rowId: "m1", description: "Download YouTube audio" },
+                    { title: `${_pfx}video / ${_pfx}ytdl`,               rowId: "m2", description: "Download YouTube video" },
+                    { title: `${_pfx}tiktok / ${_pfx}tt`,                rowId: "m3", description: "Download TikTok video" },
+                    { title: `${_pfx}instagram / ${_pfx}ig`,             rowId: "m4", description: "Download Instagram media" },
+                    { title: `${_pfx}sticker / ${_pfx}s`,                rowId: "m5", description: "Image or video → sticker" },
+                    { title: `${_pfx}apk / ${_pfx}app <name>`,           rowId: "m6", description: "Download Android APK" },
+                  ],
+                },
+                {
+                  title: "🎮 Fun & Games",
+                  rows: [
+                    { title: `${_pfx}joke / ${_pfx}dadjoke`,             rowId: "f1", description: "Random joke" },
+                    { title: `${_pfx}8ball <question>`,                  rowId: "f2", description: "Magic 8-ball answer" },
+                    { title: `${_pfx}truth / ${_pfx}dare / ${_pfx}wyr`, rowId: "f3", description: "Truth, dare, would you rather" },
+                    { title: `${_pfx}trivia / ${_pfx}quiz`,              rowId: "f4", description: "Random trivia question" },
+                    { title: `${_pfx}rps rock/paper/scissors`,           rowId: "f5", description: "Play rock paper scissors" },
+                    { title: `${_pfx}ship Name1 and Name2`,              rowId: "f6", description: "Love compatibility meter 💘" },
+                  ],
+                },
+                {
+                  title: "✍️ Text & Utilities",
+                  rows: [
+                    { title: `${_pfx}bold / ${_pfx}italic / ${_pfx}mock`, rowId: "t1", description: "Text style transformers" },
+                    { title: `${_pfx}morse / ${_pfx}binary`,             rowId: "t2", description: "Encode or decode" },
+                    { title: `${_pfx}qr <text>`,                         rowId: "t3", description: "Generate a QR code" },
+                    { title: `${_pfx}short <url>`,                       rowId: "t4", description: "Shorten a URL" },
+                    { title: `${_pfx}currency 100 USD KES`,              rowId: "t5", description: "Currency converter" },
+                    { title: `${_pfx}crypto / ${_pfx}coin <name>`,       rowId: "t6", description: "Live crypto price" },
+                  ],
+                },
+                {
+                  title: "👥 Groups & Moderation",
+                  rows: [
+                    { title: `${_pfx}add / ${_pfx}kick / ${_pfx}ban`,   rowId: "g1", description: "Manage group members" },
+                    { title: `${_pfx}promote / ${_pfx}demote`,          rowId: "g2", description: "Manage admin roles" },
+                    { title: `${_pfx}warn / ${_pfx}resetwarn`,          rowId: "g3", description: "Warning system" },
+                    { title: `${_pfx}antilink / ${_pfx}antispam`,       rowId: "g4", description: "Auto-moderation toggles" },
+                    { title: `${_pfx}welcome / ${_pfx}goodbye`,         rowId: "g5", description: "Welcome & goodbye messages" },
+                    { title: `${_pfx}tagall / ${_pfx}poll / ${_pfx}everyone`, rowId: "g6", description: "Tag members & create polls" },
+                  ],
+                },
+                {
+                  title: "⚙️ Settings & Owner",
+                  rows: [
+                    { title: `${_pfx}mode public/private`,               rowId: "o1", description: "Change bot access mode" },
+                    { title: `${_pfx}setprefix <char>`,                  rowId: "o2", description: "Change command prefix" },
+                    { title: `${_pfx}feature <name> on/off`,             rowId: "o3", description: "Toggle bot features" },
+                    { title: `${_pfx}botsettings / ${_pfx}features`,    rowId: "o4", description: "View all current settings" },
+                    { title: `${_pfx}broadcast <msg>`,                   rowId: "o5", description: "Send message to all chats" },
+                    { title: `${_pfx}sudo / ${_pfx}takeover`,           rowId: "o6", description: "Owner & admin commands" },
+                  ],
+                },
+              ],
+            }, { quoted: msg }).catch(() => {});
+
           } catch (_menuErr) {
             console.error("[menu] error:", _menuErr.message);
           }
