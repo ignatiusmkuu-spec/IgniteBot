@@ -2858,6 +2858,56 @@ async function startnexus() {
           return;
         }
 
+        // ── .repo — GitHub repository card ────────────────────────────────
+        if (_cmd === "repo" || _cmd === "github-repo" || _cmd === "source") {
+          try {
+            const _repoUrl   = "https://github.com/ignatiusmkuu-spec/IgniteBot";
+            const _pairUrl   = process.env.PAIR_SITE_URL || "https://nexus-session-76ah.onrender.com";
+            const _botName   = settings.get("botName") || "NEXUS-MD";
+            const _sep2      = "━━━━━━━━━━━━━━━━━━━━━━━━━";
+            const _repoText  =
+`╔══〔 🐙 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 𝗥𝗘𝗣𝗢 〕══════╗
+   𝗢𝗽𝗲𝗻-𝗦𝗼𝘂𝗿𝗰𝗲 𝗪𝗵𝗮𝘁𝘀𝗔𝗽𝗽 𝗔𝘂𝘁𝗼𝗺𝗮𝘁𝗶𝗼𝗻 𝗕𝗼𝘁
+╚══════════════════════════════╝
+
+◆ 🤖 𝗕𝗼𝘁      ⟫ ${_botName} v2.0
+◆ 👨‍💻 𝗔𝘂𝘁𝗵𝗼𝗿   ⟫ Ignatius Perez
+◆ ☁️  𝗣𝗹𝗮𝘁𝗳𝗼𝗿𝗺  ⟫ Heroku / Render / Replit
+◆ 📦 𝗦𝘁𝗮𝗰𝗸    ⟫ Node.js · Baileys · Express
+◆ 📄 𝗟𝗶𝗰𝗲𝗻𝘀𝗲  ⟫ MIT — Free & Open Source
+
+${_sep2}
+🔗 𝗚𝗶𝘁𝗛𝘂𝗯 𝗥𝗲𝗽𝗼𝘀𝗶𝘁𝗼𝗿𝘆
+${_repoUrl}
+
+⚡ 𝗦𝗲𝘀𝘀𝗶𝗼𝗻 𝗣𝗮𝗶𝗿𝗶𝗻𝗴 𝗦𝗶𝘁𝗲
+${_pairUrl}
+${_sep2}
+
+┌─〔 🌟 𝗦𝘂𝗽𝗽𝗼𝗿𝘁 𝘁𝗵𝗲 𝗽𝗿𝗼𝗷𝗲𝗰𝘁 〕─┐
+│  ⭐ Star the repo on GitHub
+│  🍴 Fork it & deploy your own
+│  📢 Share with your friends
+│  🐛 Report bugs via Issues
+└─────────────────────────┘
+
+_⚡ Built with ❤️ by 𝗜𝗴𝗻𝗮𝘁𝗶𝘂𝘀 𝗣𝗲𝗿𝗲𝘇_`;
+
+            const _bannerPath = path.join(process.cwd(), "assets", "repo-banner.jpg");
+            if (fs.existsSync(_bannerPath)) {
+              await sock.sendMessage(from, {
+                image:   fs.readFileSync(_bannerPath),
+                caption: _repoText,
+              }, { quoted: msg }).catch(() => {});
+            } else {
+              await sock.sendMessage(from, { text: _repoText }, { quoted: msg }).catch(() => {});
+            }
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Repo card error: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .crt — creator card ────────────────────────────────────────────
         if (_cmd === "crt" || _cmd === "creator") {
           try {

@@ -744,6 +744,54 @@ tr:hover td{background:rgba(0,212,255,0.03)}
 /* ── Glow divider ── */
 .glow-line{height:1px;background:linear-gradient(90deg,transparent,var(--cyan),var(--purple),transparent);margin:24px 0;opacity:.4}
 
+/* ── Pair bar (session site promo strip) ── */
+.pair-bar{
+  position:relative;border-radius:16px;overflow:hidden;margin-top:14px;
+  background:linear-gradient(135deg,#040e1c 0%,#060f1e 60%,#050c18 100%);
+  border:1px solid rgba(0,212,255,0.22);
+  box-shadow:0 0 0 1px rgba(168,85,247,0.06),0 12px 40px rgba(0,0,0,0.7),0 0 60px rgba(0,212,255,0.04);
+}
+.pair-bar::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,#7c3aed,#00d4ff,#10b981,#a855f7,#00d4ff,#7c3aed);
+  background-size:400% 100%;animation:nx-border-run 5s linear infinite;z-index:4;
+}
+.pair-bar-inner{
+  position:relative;z-index:1;
+  display:flex;align-items:center;gap:16px;padding:18px 20px;flex-wrap:wrap;
+}
+.pair-bar-icon{
+  width:44px;height:44px;min-width:44px;border-radius:14px;font-size:20px;
+  background:linear-gradient(135deg,rgba(0,212,255,0.18),rgba(168,85,247,0.25));
+  border:1.5px solid rgba(0,212,255,0.4);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 22px rgba(0,212,255,0.28),inset 0 0 12px rgba(0,212,255,0.07);
+  animation:nx-icon-pulse 3s ease-in-out infinite;flex-shrink:0;
+}
+.pair-bar-text{flex:1;min-width:0}
+.pair-bar-label{font-size:0.64rem;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:3px;font-family:'Syne',sans-serif}
+.pair-bar-heading{font-size:0.88rem;font-weight:800;color:#fff;letter-spacing:0.3px;font-family:'Syne',sans-serif;margin-bottom:4px}
+.pair-bar-url{
+  font-family:'JetBrains Mono',monospace;font-size:0.72rem;font-weight:600;
+  color:var(--cyan);letter-spacing:0.3px;
+  padding:3px 10px;border-radius:6px;display:inline-block;
+  background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.2);
+}
+.pair-bar-btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:10px 20px;border-radius:10px;text-decoration:none;font-size:0.78rem;font-weight:800;
+  letter-spacing:0.8px;white-space:nowrap;flex-shrink:0;
+  background:linear-gradient(135deg,rgba(0,212,255,0.18),rgba(168,85,247,0.22));
+  border:1.5px solid rgba(0,212,255,0.4);color:var(--cyan);
+  box-shadow:0 0 18px rgba(0,212,255,0.18);transition:all .2s;
+  font-family:'Syne',sans-serif;
+}
+.pair-bar-btn:hover{background:linear-gradient(135deg,rgba(0,212,255,0.28),rgba(168,85,247,0.32));box-shadow:0 0 30px rgba(0,212,255,0.35);transform:translateY(-1px)}
+@keyframes pb-scan{0%,100%{opacity:.03}50%{opacity:.07}}
+.pair-bar-scan{position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(-48deg,transparent,transparent 4px,rgba(0,212,255,0.015) 4px,rgba(0,212,255,0.015) 5px);
+  animation:pb-scan 4s ease-in-out infinite;}
+
 /* ── Two column ── */
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 @media(max-width:768px){.two-col{grid-template-columns:1fr}}
@@ -1315,16 +1363,17 @@ tr:hover td{background:rgba(0,212,255,0.03)}
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="btn btn-ghost" style="font-size:0.78rem;padding:6px 12px" onclick="fillAddSessionFromBot()">📋 Use current bot session</button>
       </div>
-      <div class="pair-bar" style="margin-top:12px">
-        <div class="pair-bar-inner" style="padding:14px 16px;gap:14px">
-          <div class="pair-bar-icon" style="width:38px;height:38px;min-width:38px;font-size:18px">⚡</div>
+      <div class="pair-bar">
+        <div class="pair-bar-scan"></div>
+        <div class="pair-bar-inner">
+          <div class="pair-bar-icon">⚡</div>
           <div class="pair-bar-text">
-            <div class="pair-bar-label">Don't have a session?</div>
-            <div class="pair-bar-heading" style="font-size:0.82rem">NEXUS Session Generator</div>
+            <div class="pair-bar-label">◈ No session yet? Get one free</div>
+            <div class="pair-bar-heading">NEXUS Session Generator</div>
             <div class="pair-bar-url">nexus-session-76ah.onrender.com</div>
           </div>
-          <a class="pair-bar-btn" href="https://nexus-session-76ah.onrender.com" target="_blank" style="padding:8px 16px;font-size:0.75rem">
-            ⚡ Get Free
+          <a class="pair-bar-btn" href="https://nexus-session-76ah.onrender.com/" target="_blank">
+            ⚡ Open Site
           </a>
         </div>
       </div>
