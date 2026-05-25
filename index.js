@@ -8545,20 +8545,33 @@ _⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 v2.0  •  Prefix: [${_pfx}]  •  ${_modeStr
               }, { quoted: msg }).catch(() => {});
             }
 
-            // ── 2. Media header — no caption (full info is in _fullMenu below) ─
+            // ── 2. Single combined message — video with full menu as caption
+            //       or plain text if no video available (WhatsApp caps captions
+            //       at ~1024 chars, so we split only if needed).
             const _menuVidBuf    = settings.getMenuVideo();
             const _menuMp4Path   = path.join(process.cwd(), "assets", "menu.mp4");
             const _bannerGifPath = path.join(process.cwd(), "assets", "banner.gif");
-            if (_menuVidBuf) {
-              await sock.sendMessage(from, { video: _menuVidBuf, gifPlayback: true, mimetype: "video/mp4" }, { quoted: msg }).catch(() => {});
-            } else if (fs.existsSync(_menuMp4Path)) {
-              await sock.sendMessage(from, { video: fs.readFileSync(_menuMp4Path), gifPlayback: true, mimetype: "video/mp4" }, { quoted: msg }).catch(() => {});
-            } else if (fs.existsSync(_bannerGifPath)) {
-              await sock.sendMessage(from, { video: fs.readFileSync(_bannerGifPath), gifPlayback: true }, { quoted: msg }).catch(() => {});
-            }
+            // WhatsApp caption limit is 1024 chars; build a short caption for media
+            // and send the rest as text if the full menu exceeds it.
+            const _captionLimit  = 1024;
+            const _menuCaption   = _fullMenu.length <= _captionLimit
+              ? _fullMenu
+              : _fullMenu.slice(0, _captionLimit - 3) + "…";
+            const _needsOverflow = _fullMenu.length > _captionLimit;
 
-            // ── 3. Single combined techy menu text ────────────────────────
-            await sock.sendMessage(from, { text: _fullMenu }, { quoted: msg }).catch(() => {});
+            if (_menuVidBuf) {
+              await sock.sendMessage(from, { video: _menuVidBuf, caption: _menuCaption, gifPlayback: true, mimetype: "video/mp4" }, { quoted: msg }).catch(() => {});
+              if (_needsOverflow) await sock.sendMessage(from, { text: _fullMenu.slice(_captionLimit - 3) }, { quoted: msg }).catch(() => {});
+            } else if (fs.existsSync(_menuMp4Path)) {
+              await sock.sendMessage(from, { video: fs.readFileSync(_menuMp4Path), caption: _menuCaption, gifPlayback: true, mimetype: "video/mp4" }, { quoted: msg }).catch(() => {});
+              if (_needsOverflow) await sock.sendMessage(from, { text: _fullMenu.slice(_captionLimit - 3) }, { quoted: msg }).catch(() => {});
+            } else if (fs.existsSync(_bannerGifPath)) {
+              await sock.sendMessage(from, { video: fs.readFileSync(_bannerGifPath), caption: _menuCaption, gifPlayback: true }, { quoted: msg }).catch(() => {});
+              if (_needsOverflow) await sock.sendMessage(from, { text: _fullMenu.slice(_captionLimit - 3) }, { quoted: msg }).catch(() => {});
+            } else {
+              // No media at all — single clean text bubble
+              await sock.sendMessage(from, { text: _fullMenu }, { quoted: msg }).catch(() => {});
+            }
 
           } catch (_menuErr) {
             console.error("[menu] error:", _menuErr.message);
