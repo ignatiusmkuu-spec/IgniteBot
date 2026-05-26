@@ -2170,7 +2170,15 @@ async function startnexus() {
         const _args = _rest.slice(_cmd.length).trim();
 
         // Owner check: fromMe (bot's own WhatsApp account) OR listed in ADMIN_NUMBERS
-        const _isOwner = msg.key.fromMe === true || admin.isSuperAdmin(senderJid);
+        // Also compare raw phone numbers — in Baileys v7 with linked devices,
+        // group messages from the bot's own account arrive with fromMe=false
+        // even though msg.key.participant IS the bot's own JID. Matching by
+        // phone covers that case without requiring ADMIN_NUMBERS to be set.
+        const _botSelfPhone = botPhoneNumber || (sock.user?.id || "").split(":")[0].split("@")[0];
+        const _senderRawPhone = senderJid.split("@")[0].split(":")[0];
+        const _isOwner = msg.key.fromMe === true ||
+          admin.isSuperAdmin(senderJid) ||
+          (_botSelfPhone && _senderRawPhone === _botSelfPhone);
 
         // ── Already-on/off guard — call before every settings.set() ──────────
         // Returns true (and sends a message) when the setting is already at the
@@ -9027,7 +9035,13 @@ _⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 Hacker Mode_`,
     // handler can process their commands, but mark _groupMember=true so
     // owner-only built-in guards know they are not the actual owner.
     const _publicMode = (settings.get("mode") || "public") === "public";
-    const _isActualOwner = msg.key.fromMe === true || admin.isSuperAdmin(senderJid);
+    // Same phone-number comparison used in _isOwner above — covers the Baileys
+    // v7 linked-device group-message bug where fromMe is false for own messages.
+    const _cmdBotPhone   = botPhoneNumber || (sock.user?.id || "").split(":")[0].split("@")[0];
+    const _cmdSenderPhone = senderJid.split("@")[0].split(":")[0];
+    const _isActualOwner = msg.key.fromMe === true ||
+      admin.isSuperAdmin(senderJid) ||
+      (_cmdBotPhone && _cmdSenderPhone === _cmdBotPhone);
     // In public mode ALL senders (groups AND DMs) must get fromMe:true so
     // commands.handle() processes their commands. Without this patch, the
     // obfuscated handler silently ignores non-owner messages in DMs.
@@ -9068,7 +9082,10 @@ _⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 Hacker Mode_`,
       if (body.startsWith(_mPfx))  _mRest = body.slice(_mPfx.length).trim();
       else if (_mPrefixless)        _mRest = body.trim();
       const _mCmd = (_mRest || "").split(/\s+/)[0]?.toLowerCase() || "";
-      const _mIsOwner = msg.key.fromMe === true || admin.isSuperAdmin(senderJid);
+      const _mBotPhone    = botPhoneNumber || (sock.user?.id || "").split(":")[0].split("@")[0];
+      const _mSenderPhone = senderJid.split("@")[0].split(":")[0];
+      const _mIsOwner = msg.key.fromMe === true || admin.isSuperAdmin(senderJid) ||
+        (_mBotPhone && _mSenderPhone === _mBotPhone);
       if (_mCmd === "menu" && _mIsOwner) {
         await sock.sendMessage(from, {
           text:
