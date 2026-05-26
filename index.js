@@ -2157,7 +2157,7 @@ async function startnexus() {
 
     // ── .ping — instant latency check, bypasses ALL other processing ──────────
     // Responds in < 50 ms. Useful to confirm the bot is receiving messages.
-    if (body.toLowerCase() === `${_pfxFast}ping` || body.toLowerCase() === `${_pfxFast}alive`) {
+    if (body.toLowerCase() === `${_pfxFast}ping`) {
       const _t1 = Date.now();
       const _ts = Number(msg.messageTimestamp || 0) * 1000;
       const _latency = _t1 - _ts;
@@ -6478,6 +6478,80 @@ _⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 is online and firing!_`;
 
             await sock.sendMessage(from, { text: _pingText }, { quoted: msg }).catch(() => {});
           } catch (e) { await sock.sendMessage(from, { text: `❌ Ping failed: ${e.message}` }, { quoted: msg }); }
+          return;
+        }
+
+        // ── .alive — bot health card ──────────────────────────────────────────
+        if (_cmd === "alive") {
+          try {
+            const _os          = require("os");
+            const _mem         = process.memoryUsage();
+            const _totalRam    = _os.totalmem();
+            const _usedMB      = (_mem.rss / 1024 / 1024).toFixed(1);
+            const _totalMB     = (_totalRam / 1024 / 1024).toFixed(0);
+            const _ramPct      = Math.min(100, Math.round((_mem.rss / _totalRam) * 100));
+            const _barFilled   = Math.max(1, Math.round(_ramPct / 10));
+            const _ramBar      = "▓".repeat(_barFilled) + "░".repeat(10 - _barFilled);
+
+            const _uptimeSec   = Math.floor(process.uptime());
+            const _uh          = Math.floor(_uptimeSec / 3600);
+            const _um          = Math.floor((_uptimeSec % 3600) / 60);
+            const _us          = _uptimeSec % 60;
+            const _uptimeStr   = _uh > 0 ? `${_uh}h ${_um}m ${_us}s` : `${_um}m ${_us}s`;
+
+            const _platInfo    = require("./lib/platform");
+            const _platDet     = (_platInfo && _platInfo.detect) ? _platInfo.detect() : null;
+            const _platName    = _platDet ? (_platDet.name || "Cloud") : "Cloud";
+            const _platIcon    = _platDet ? (_platDet.icon || "☁️") : "☁️";
+
+            const _mode        = settings.get("mode") || "public";
+            const _pfxChar     = settings.get("prefix") || ".";
+            const _modeIcon    = _mode === "private" ? "🔒" : "🌐";
+
+            // Heartbeat pulse bar — cycles through 8 states
+            const _beat        = ["▮▯▯▯▯▯▯▯","▮▮▯▯▯▯▯▯","▮▮▮▯▯▯▯▯","▮▮▮▮▯▯▯▯",
+                                  "▮▮▮▮▮▯▯▯","▮▮▮▮▮▮▯▯","▮▮▮▮▮▮▮▯","▮▮▮▮▮▮▮▮"];
+            const _pulse       = _beat[Math.floor(Date.now() / 500) % 8];
+
+            // CPU load
+            const _load        = _os.loadavg()[0].toFixed(2);
+
+            const _sep         = "─────────────────────────";
+            const _aliveText   =
+`╔══〔 💓 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 𝗔𝗟𝗜𝗩𝗘 〕══╗
+   𝗕𝗼𝘁 𝗛𝗲𝗮𝗹𝘁𝗵 𝗠𝗼𝗻𝗶𝘁𝗼𝗿 𝗩2.𝟬
+╚══════════════════════════╝
+
+┌─〔 ❤️ 𝗛𝗘𝗔𝗥𝗧𝗕𝗘𝗔𝗧 〕──────────┐
+│
+│  ${_pulse}  𝗣𝗨𝗟𝗦𝗜𝗡𝗚
+│  ◈ 𝗦𝘁𝗮𝘁𝘂𝘀  ⟫  🟢 ONLINE
+│  ◈ 𝗥𝗲𝘀𝗽𝗼𝗻𝘀𝗲 ⟫  Active ✅
+│
+└${_sep}┘
+
+┌─〔 🖥 𝗦𝗬𝗦𝗧𝗘𝗠 𝗩𝗜𝗧𝗔𝗟𝗦 〕────────┐
+│
+│  ◆ ${_platIcon}  𝗣𝗹𝗮𝘁𝗳𝗼𝗿𝗺  ⟫ ${_platName}
+│  ◆ 🧠  𝗥𝗔𝗠      ⟫ ${_ramBar} ${_ramPct}%
+│       (${_usedMB}MB / ${_totalMB}MB)
+│  ◆ ⚙️  𝗖𝗣𝗨 𝗟𝗼𝗮𝗱 ⟫ ${_load}
+│  ◆ ⏱  𝗨𝗽𝘁𝗶𝗺𝗲   ⟫ ${_uptimeStr}
+│
+└${_sep}┘
+
+┌─〔 ⚙️ 𝗕𝗢𝗧 𝗖𝗢𝗡𝗙𝗜𝗚 〕───────────┐
+│
+│  ◆ 🔖  𝗣𝗿𝗲𝗳𝗶𝘅   ⟫ [ ${_pfxChar} ]
+│  ◆ ${_modeIcon}  𝗠𝗼𝗱𝗲    ⟫ ${_mode.charAt(0).toUpperCase() + _mode.slice(1)}
+│  ◆ 🔢  𝗩𝗲𝗿𝘀𝗶𝗼𝗻  ⟫ 2.0
+│
+└${_sep}┘
+
+_⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 is fully operational!_`;
+
+            await sock.sendMessage(from, { text: _aliveText }, { quoted: msg }).catch(() => {});
+          } catch (e) { await sock.sendMessage(from, { text: `❌ Alive check failed: ${e.message}` }, { quoted: msg }); }
           return;
         }
 
