@@ -1566,39 +1566,49 @@ async function startnexus() {
 
     // Keep the shallow-unwrapped inner for viewOnce/media checks (only strips ephemeral)
     const _inner = msg.message?.ephemeralMessage?.message || msg.message || {};
+    // Linked-device messages arrive wrapped in deviceSentMessage — unwrap explicitly
+    // because normalizeMessageContent (Baileys v7-rc13) does NOT strip this wrapper.
+    const _deviceInner = msg.message?.deviceSentMessage?.message ||
+      msg.message?.ephemeralMessage?.message?.deviceSentMessage?.message || {};
     // Use Baileys v7 normalizeMessageContent to fully unwrap ALL wrapper types
-    // (ephemeral, viewOnce, deviceSent, documentWithCaption, etc.) for body extraction
+    // (ephemeral, viewOnce, documentWithCaption, etc.) for body extraction
     const _normalized = normalizeMessageContent(msg.message) || {};
     // For group messages, WhatsApp may wrap content alongside messageContextInfo.
     // Build a direct unwrap fallback by looking at all non-context keys in msg.message.
+    // Skip deviceSentMessage here — we unwrap it explicitly via _deviceInner above.
     const _directMsg = (() => {
       const m = msg.message || {};
-      const skip = new Set(["messageContextInfo","senderKeyDistributionMessage","protocolMessage"]);
+      const skip = new Set(["messageContextInfo","senderKeyDistributionMessage","protocolMessage","deviceSentMessage"]);
       for (const k of Object.keys(m)) {
         if (!skip.has(k) && m[k] && typeof m[k] === "object") return m[k];
       }
       return {};
     })();
     const body    =
+      _deviceInner.conversation ||
+      _deviceInner.extendedTextMessage?.text ||
       _normalized.conversation ||
       _normalized.extendedTextMessage?.text ||
       _inner.conversation ||
       _inner.extendedTextMessage?.text ||
       _directMsg.conversation ||
       _directMsg.extendedTextMessage?.text ||
+      _deviceInner.imageMessage?.caption ||
       _normalized.imageMessage?.caption ||
       _inner.imageMessage?.caption ||
       _directMsg.imageMessage?.caption ||
+      _deviceInner.videoMessage?.caption ||
       _normalized.videoMessage?.caption ||
       _inner.videoMessage?.caption ||
       _directMsg.videoMessage?.caption ||
       _inner.buttonsResponseMessage?.selectedDisplayText ||
       _inner.listResponseMessage?.title ||
       _inner.templateButtonReplyMessage?.selectedDisplayText ||
+      _deviceInner.documentMessage?.caption ||
       _normalized.documentMessage?.caption ||
       _directMsg.documentMessage?.caption ||
       "";
-    const msgType = getContentType(_normalized) || getContentType(_inner) || Object.keys(msg.message || {})[0] || "unknown";
+    const msgType = getContentType(_deviceInner) || getContentType(_normalized) || getContentType(_inner) || Object.keys(msg.message || {})[0] || "unknown";
 
     // ── protocolMessage: antidelete / antiedit intercept ─────────────────────
     if (msgType === "protocolMessage") {
@@ -9051,16 +9061,24 @@ _⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 v2.0  •  Prefix: [${_pfx}]  •  ${_modeStr
       // DB log — use normalizeMessageContent for accurate body extraction
       const _dbNorm    = normalizeMessageContent(msg.message) || {};
       const _dbInner   = msg.message?.ephemeralMessage?.message || msg.message || {};
-      const msgTypeKey = getContentType(_dbNorm) || Object.keys(msg.message || {})[0] || "text";
+      // Unwrap linked-device messages (deviceSentMessage) for correct DB logging
+      const _dbDevice  = msg.message?.deviceSentMessage?.message ||
+        msg.message?.ephemeralMessage?.message?.deviceSentMessage?.message || {};
+      const msgTypeKey = getContentType(_dbDevice) || getContentType(_dbNorm) || Object.keys(msg.message || {})[0] || "text";
       const msgBody    =
+        _dbDevice.conversation ||
+        _dbDevice.extendedTextMessage?.text ||
         _dbNorm.conversation ||
         _dbNorm.extendedTextMessage?.text ||
         _dbInner.conversation ||
         _dbInner.extendedTextMessage?.text ||
+        _dbDevice.imageMessage?.caption ||
         _dbNorm.imageMessage?.caption ||
         _dbInner.imageMessage?.caption ||
+        _dbDevice.videoMessage?.caption ||
         _dbNorm.videoMessage?.caption ||
         _dbInner.videoMessage?.caption ||
+        _dbDevice.documentMessage?.caption ||
         _dbNorm.documentMessage?.caption || null;
       const dbPrefix   = settings.get("prefix") || ".";
       db.logMessage(
