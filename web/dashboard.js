@@ -531,6 +531,38 @@ tr:hover td{background:rgba(0,212,255,0.03)}
 /* ── Badge required ── */
 .req-badge{font-size:0.65rem;background:rgba(239,68,68,0.15);color:var(--red);border:1px solid rgba(239,68,68,0.25);padding:2px 7px;border-radius:5px;margin-left:6px;vertical-align:middle}
 
+/* ── Deploy link ── */
+.deploy-link {
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 14px;border-radius:999px;
+  background:linear-gradient(135deg,rgba(168,85,247,0.15),rgba(0,212,255,0.12));
+  border:1px solid rgba(168,85,247,0.45);
+  color:var(--purple);
+  font-size:0.75rem;font-weight:700;
+  text-decoration:none;letter-spacing:0.6px;
+  white-space:nowrap;
+  transition:all .25s;
+  position:relative;overflow:hidden;
+}
+.deploy-link::before {
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(168,85,247,0.08),transparent);
+  transform:translateX(-100%);
+  transition:transform .5s;
+}
+.deploy-link:hover::before{transform:translateX(100%)}
+.deploy-link:hover {
+  background:linear-gradient(135deg,rgba(168,85,247,0.28),rgba(0,212,255,0.2));
+  border-color:rgba(168,85,247,0.8);
+  color:#c084fc;
+  box-shadow:0 0 18px rgba(168,85,247,0.35),0 0 6px rgba(0,212,255,0.15);
+  transform:translateY(-1px);
+}
+.deploy-link-icon{font-size:0.85rem}
+.deploy-link-text{background:linear-gradient(90deg,#c084fc,#00d4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.deploy-link-arr{font-size:0.75rem;opacity:.7;transition:transform .2s}
+.deploy-link:hover .deploy-link-arr{transform:translate(2px,-2px);opacity:1}
+
 /* ── Hidden ── */
 .hidden{display:none!important}
 
@@ -881,6 +913,11 @@ tr:hover td{background:rgba(0,212,255,0.03)}
     <span class="logo-text">NEXUS-MD</span>
   </a>
   <div class="header-spacer"></div>
+  <a class="deploy-link" href="https://necus-website.vercel.app/#deploy" target="_blank" rel="noopener">
+    <span class="deploy-link-icon">🚀</span>
+    <span class="deploy-link-text">⚡ Deploy · Go Live</span>
+    <span class="deploy-link-arr">↗</span>
+  </a>
   <span class="platform-chip" id="platformBadge">DETECTING…</span>
   <div class="status-pill">
     <span class="pulse" id="statusPulse"></span>
