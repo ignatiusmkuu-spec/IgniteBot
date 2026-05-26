@@ -5429,6 +5429,17 @@ _⚡ Built with ❤️ by 𝗜𝗴𝗻𝗮𝘁𝗶𝘂𝘀 𝗣𝗲𝗿𝗲𝘇_
             `║  𝟒𝟏 Play2 ➣ Download audio as file + audio\n` +
             `║  𝟒𝟐 Lyrics ➣ Fetch song lyrics with art\n` +
             `║  𝟒𝟑 Enc ➣ Obfuscate/encrypt JavaScript code\n` +
+            `║\n` +
+            `║  ── 🔬 𝗧𝗘𝗖𝗛 𝗧𝗢𝗢𝗟𝗦 ──\n` +
+            `║  𝟒𝟒 Sysinfo ➣ Full system diagnostic (RAM·CPU·uptime)\n` +
+            `║  𝟒𝟓 Ipinfo ➣ IP geolocation & ISP lookup\n` +
+            `║  𝟒𝟔 Hash ➣ MD5/SHA1/SHA256/SHA512 hash generator\n` +
+            `║  𝟒𝟕 Joke ➣ Random programming / dev joke\n` +
+            `║  𝟒𝟖 Crypto ➣ Live crypto price (Bitcoin, ETH, etc.)\n` +
+            `║  𝟒𝟗 Time ➣ Current time in any world timezone\n` +
+            `║  𝟓𝟎 Tempconv ➣ Temperature converter (C·F·K)\n` +
+            `║  𝟓𝟏 Uuid ➣ Generate 5 cryptographic UUIDs\n` +
+            `║  𝟓𝟐 Binary ➣ Text ↔ binary encoder/decoder\n` +
             `║\n╚════════════════════════════════╝`;
           await sock.sendMessage(from, { text: listText }, { quoted: msg });
           return;
@@ -8619,6 +8630,390 @@ _⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 v2.0  •  Prefix: [${_pfx}]  •  ${_modeStr
           }
           return;
         }
+
+        // ── .sysinfo — full system diagnostic ─────────────────────────────────
+        if (_cmd === "sysinfo" || _cmd === "sys" || _cmd === "system") {
+          try {
+            const _os    = require("os");
+            const _cpu   = _os.cpus()[0];
+            const _cores = _os.cpus().length;
+            const _totMB = Math.round(_os.totalmem()  / 1024 / 1024);
+            const _freMB = Math.round(_os.freemem()   / 1024 / 1024);
+            const _useMB = _totMB - _freMB;
+            const _usePct= Math.round((_useMB / _totMB) * 100);
+            const _ramBar= "█".repeat(Math.round(_usePct / 10)) + "░".repeat(10 - Math.round(_usePct / 10));
+            const _load  = _os.loadavg();
+            const _uptS  = Math.floor(process.uptime());
+            const _uptH  = Math.floor(_uptS / 3600);
+            const _uptM  = Math.floor((_uptS % 3600) / 60);
+            const _uptSc = _uptS % 60;
+            const _uptStr= `${_uptH}h ${_uptM}m ${_uptSc}s`;
+            const _pRss  = Math.round(process.memoryUsage().rss / 1024 / 1024);
+            const _pHeap = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
+            const _platStr = `${_os.type()} ${_os.release()}`;
+            const _archStr = _os.arch();
+            const _sysText =
+`╔══〔 🖥️ 𝗦𝗬𝗦𝗧𝗘𝗠 𝗗𝗜𝗔𝗚𝗡𝗢𝗦𝗧𝗜𝗖𝗦 〕══╗
+   ⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 𝗦𝘆𝘀𝘁𝗲𝗺 𝗦𝗻𝗮𝗽𝘀𝗵𝗼𝘁
+╚═══════════════════════════════╝
+
+◆ 💻 𝗢𝗦        ⟫ ${_platStr}
+◆ 🏗️ 𝗔𝗿𝗰𝗵      ⟫ ${_archStr}
+◆ 🔷 𝗡𝗼𝗱𝗲.𝗷𝘀   ⟫ ${process.version}
+◆ 🧠 𝗖𝗣𝗨       ⟫ ${_cpu?.model?.trim() || "Unknown"} (${_cores} cores)
+
+┌─〔 📊 𝗥𝗘𝗦𝗢𝗨𝗥𝗖𝗘𝗦 〕──────────────┐
+│
+│  🗄️ RAM   ${_ramBar} ${_usePct}%
+│     Used: ${_useMB} MB / ${_totMB} MB
+│
+│  ⚙️ Load  ${_load[0].toFixed(2)} (1m) · ${_load[1].toFixed(2)} (5m) · ${_load[2].toFixed(2)} (15m)
+│
+│  📦 Bot Heap   : ${_pHeap} MB
+│  📦 Bot RSS    : ${_pRss} MB
+│  ⏱️ Bot Uptime : ${_uptStr}
+│
+└───────────────────────────────┘
+
+_⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 is wired and running hot._`;
+            await sock.sendMessage(from, { text: _sysText }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ sysinfo error: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .ipinfo <ip> — IP address geolocation ─────────────────────────────
+        if (_cmd === "ipinfo" || _cmd === "ip" || _cmd === "geoip") {
+          try {
+            const _ipTarget = (_args || "").trim() || "check";
+            let _ipRes;
+            if (_ipTarget === "check" || _ipTarget === "me") {
+              _ipRes = await axios.get("http://ip-api.com/json/?fields=status,message,country,countryCode,regionName,city,zip,lat,lon,timezone,isp,org,as,query", { timeout: 10000 });
+            } else {
+              const _cleanIp = _ipTarget.replace(/[^0-9a-fA-F.:]/g, "");
+              _ipRes = await axios.get(`http://ip-api.com/json/${_cleanIp}?fields=status,message,country,countryCode,regionName,city,zip,lat,lon,timezone,isp,org,as,query`, { timeout: 10000 });
+            }
+            const _ip = _ipRes.data;
+            if (_ip.status !== "success") throw new Error(_ip.message || "Lookup failed");
+            const _flags = { AF:"🇦🇫",AL:"🇦🇱",DZ:"🇩🇿",AO:"🇦🇴",AR:"🇦🇷",AU:"🇦🇺",AT:"🇦🇹",BE:"🇧🇪",BR:"🇧🇷",CA:"🇨🇦",CL:"🇨🇱",CN:"🇨🇳",CO:"🇨🇴",CD:"🇨🇩",CG:"🇨🇬",HR:"🇭🇷",CU:"🇨🇺",CZ:"🇨🇿",DK:"🇩🇰",DO:"🇩🇴",EG:"🇪🇬",ET:"🇪🇹",FI:"🇫🇮",FR:"🇫🇷",DE:"🇩🇪",GH:"🇬🇭",GR:"🇬🇷",HU:"🇭🇺",IN:"🇮🇳",ID:"🇮🇩",IR:"🇮🇷",IQ:"🇮🇶",IE:"🇮🇪",IL:"🇮🇱",IT:"🇮🇹",JP:"🇯🇵",JO:"🇯🇴",KE:"🇰🇪",KR:"🇰🇷",LB:"🇱🇧",LY:"🇱🇾",MX:"🇲🇽",MA:"🇲🇦",MZ:"🇲🇿",MM:"🇲🇲",NL:"🇳🇱",NZ:"🇳🇿",NG:"🇳🇬",NO:"🇳🇴",PK:"🇵🇰",PH:"🇵🇭",PL:"🇵🇱",PT:"🇵🇹",QA:"🇶🇦",RO:"🇷🇴",RU:"🇷🇺",SA:"🇸🇦",SN:"🇸🇳",RS:"🇷🇸",ZA:"🇿🇦",ES:"🇪🇸",SD:"🇸🇩",SE:"🇸🇪",CH:"🇨🇭",SY:"🇸🇾",TZ:"🇹🇿",TH:"🇹🇭",TN:"🇹🇳",TR:"🇹🇷",UG:"🇺🇬",UA:"🇺🇦",AE:"🇦🇪",GB:"🇬🇧",US:"🇺🇸",VE:"🇻🇪",VN:"🇻🇳",YE:"🇾🇪",ZM:"🇿🇲",ZW:"🇿🇼" };
+            const _flag = _flags[_ip.countryCode] || "🌐";
+            await sock.sendMessage(from, {
+              text:
+`╭━━━〔 🌐 *IP INTEL* 〕━━━━━━⬣
+┃
+┃ 🔌 *IP Address:*  ${_ip.query}
+┃ ${_flag} *Country:*    ${_ip.country} (${_ip.countryCode})
+┃ 📌 *Region:*      ${_ip.regionName}
+┃ 🏙️ *City:*        ${_ip.city}
+┃ 🗺️ *Coords:*      ${_ip.lat}, ${_ip.lon}
+┃ 🕐 *Timezone:*    ${_ip.timezone}
+┃ 📡 *ISP:*         ${_ip.isp}
+┃ 🏢 *Org:*         ${_ip.org || "—"}
+┃ 🔢 *AS:*          ${_ip.as || "—"}
+┃
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⬣
+
+_⚠️ Results based on IP registration, not real-time GPS._`,
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ IP lookup failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .hash <algo> <text> — cryptographic hash generator ────────────────
+        if (_cmd === "hash") {
+          const _hashParts = (_args || "").trim().split(/\s+/);
+          const _hashAlgos = ["md5","sha1","sha256","sha512"];
+          let _hashAlgo, _hashInput;
+          if (_hashAlgos.includes(_hashParts[0]?.toLowerCase())) {
+            _hashAlgo  = _hashParts[0].toLowerCase();
+            _hashInput = _hashParts.slice(1).join(" ").trim();
+          } else {
+            _hashAlgo  = "sha256";
+            _hashInput = _hashParts.join(" ").trim();
+          }
+          if (!_hashInput) {
+            await sock.sendMessage(from, {
+              text: `🔐 *Hash Generator*\n\nUsage: \`${_pfx}hash [algo] <text>\`\nAlgorithms: md5 · sha1 · sha256 · sha512\n\nExample: \`${_pfx}hash sha256 hello world\``,
+            }, { quoted: msg });
+            return;
+          }
+          try {
+            const _crypto3 = require("crypto");
+            const _md5  = _crypto3.createHash("md5").update(_hashInput).digest("hex");
+            const _sha1 = _crypto3.createHash("sha1").update(_hashInput).digest("hex");
+            const _s256 = _crypto3.createHash("sha256").update(_hashInput).digest("hex");
+            const _s512 = _crypto3.createHash("sha512").update(_hashInput).digest("hex");
+            await sock.sendMessage(from, {
+              text:
+`╔══〔 🔐 𝗛𝗔𝗦𝗛 𝗚𝗘𝗡𝗘𝗥𝗔𝗧𝗢𝗥 〕══════╗
+   Input: _"${_hashInput.slice(0, 40)}${_hashInput.length > 40 ? "…" : ""}"_
+╚═══════════════════════════════╝
+
+📦 *MD5*
+\`${_md5}\`
+
+🔑 *SHA-1*
+\`${_sha1}\`
+
+🛡️ *SHA-256*
+\`${_s256}\`
+
+🔒 *SHA-512*
+\`${_s512.slice(0, 64)}\`
+\`${_s512.slice(64)}\`
+
+_⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 Crypto Engine_`,
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Hash error: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .joke — random programming / tech joke ─────────────────────────────
+        if (_cmd === "joke" || _cmd === "techjoke" || _cmd === "devjoke") {
+          try {
+            const _jokeRes = await axios.get(
+              "https://v2.jokeapi.dev/joke/Programming,Miscellaneous?blacklistFlags=nsfw,racist,sexist&type=twopart,single",
+              { timeout: 10000 }
+            );
+            const _j = _jokeRes.data;
+            let _jokeText;
+            if (_j.type === "twopart") {
+              _jokeText =
+`╔══〔 😂 𝗗𝗘𝗩 𝗝𝗢𝗞𝗘𝗦 〕════════════╗
+╚═══════════════════════════════╝
+
+❓ ${_j.setup}
+
+💡 ${_j.delivery}
+
+_⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 Humour Module_`;
+            } else {
+              _jokeText =
+`╔══〔 😂 𝗗𝗘𝗩 𝗝𝗢𝗞𝗘𝗦 〕════════════╗
+╚═══════════════════════════════╝
+
+💡 ${_j.joke}
+
+_⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 Humour Module_`;
+            }
+            await sock.sendMessage(from, { text: _jokeText }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Joke fetch failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .crypto <coin> — live cryptocurrency price ─────────────────────────
+        if (_cmd === "crypto" || _cmd === "coin" || _cmd === "price") {
+          const _coinRaw = (_args || "bitcoin").trim().toLowerCase().replace(/\s+/g, "-");
+          const _coinId  = _coinRaw || "bitcoin";
+          try {
+            await sock.sendMessage(from, { text: `🔍 _Fetching ${_coinId} price..._` }, { quoted: msg });
+            const _cgRes = await axios.get(
+              `https://api.coingecko.com/api/v3/coins/${encodeURIComponent(_coinId)}?localization=false&tickers=false&community_data=false&developer_data=false`,
+              { timeout: 15000 }
+            );
+            const _cg    = _cgRes.data;
+            const _cgMkt = _cg.market_data;
+            const _usd   = _cgMkt.current_price.usd;
+            const _chg1h = _cgMkt.price_change_percentage_1h_in_currency?.usd ?? 0;
+            const _chg24 = _cgMkt.price_change_percentage_24h ?? 0;
+            const _chg7d = _cgMkt.price_change_percentage_7d ?? 0;
+            const _cap   = _cgMkt.market_cap.usd;
+            const _vol   = _cgMkt.total_volume.usd;
+            const _hi24  = _cgMkt.high_24h.usd;
+            const _lo24  = _cgMkt.low_24h.usd;
+            const _rank  = _cg.market_cap_rank;
+            const _fmt   = (n) => n >= 1e9 ? `$${(n/1e9).toFixed(2)}B` : n >= 1e6 ? `$${(n/1e6).toFixed(2)}M` : `$${n.toLocaleString()}`;
+            const _arrow = (p) => p >= 0 ? `📈 +${p.toFixed(2)}%` : `📉 ${p.toFixed(2)}%`;
+            await sock.sendMessage(from, {
+              text:
+`╔══〔 💰 𝗖𝗥𝗬𝗣𝗧𝗢 𝗟𝗜𝗩𝗘 〕══════════╗
+   ${_cg.name} (${_cg.symbol?.toUpperCase()}) — Rank #${_rank}
+╚═══════════════════════════════╝
+
+◆ 💵 𝗣𝗿𝗶𝗰𝗲      ⟫ $${_usd.toLocaleString()}
+◆ ⏱ 𝟭𝗵 𝗖𝗵𝗮𝗻𝗴𝗲  ⟫ ${_arrow(_chg1h)}
+◆ 📅 𝟮𝟰𝗵 𝗖𝗵𝗮𝗻𝗴𝗲 ⟫ ${_arrow(_chg24)}
+◆ 🗓 𝟳𝗱 𝗖𝗵𝗮𝗻𝗴𝗲  ⟫ ${_arrow(_chg7d)}
+
+┌─〔 📊 𝗠𝗔𝗥𝗞𝗘𝗧 〕───────────────┐
+│  📈 24h High  : $${_hi24.toLocaleString()}
+│  📉 24h Low   : $${_lo24.toLocaleString()}
+│  🏦 Market Cap: ${_fmt(_cap)}
+│  🔁 Volume 24h: ${_fmt(_vol)}
+└───────────────────────────────┘
+
+_⚡ Live data via CoinGecko_`,
+            }, { quoted: msg });
+          } catch (e) {
+            const _hint = e.response?.status === 404
+              ? `\n💡 _Try: bitcoin, ethereum, solana, dogecoin, bnb, xrp_`
+              : "";
+            await sock.sendMessage(from, { text: `❌ Crypto lookup failed: ${e.message}${_hint}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .time <timezone> — current time in any timezone ────────────────────
+        if (_cmd === "time" || _cmd === "tz" || _cmd === "timezone") {
+          const _tzInput = (_args || "").trim();
+          // Map common short names to full IANA timezone IDs
+          const _tzAliases = {
+            "nairobi":"Africa/Nairobi","lagos":"Africa/Lagos","accra":"Africa/Accra","cairo":"Africa/Cairo",
+            "johannesburg":"Africa/Johannesburg","kampala":"Africa/Kampala","dar":"Africa/Dar_es_Salaam",
+            "london":"Europe/London","paris":"Europe/Paris","berlin":"Europe/Berlin","rome":"Europe/Rome",
+            "moscow":"Europe/Moscow","dubai":"Asia/Dubai","riyadh":"Asia/Riyadh",
+            "karachi":"Asia/Karachi","delhi":"Asia/Kolkata","kolkata":"Asia/Kolkata","india":"Asia/Kolkata",
+            "dhaka":"Asia/Dhaka","bangkok":"Asia/Bangkok","jakarta":"Asia/Jakarta",
+            "singapore":"Asia/Singapore","manila":"Asia/Manila","tokyo":"Asia/Tokyo","seoul":"Asia/Seoul",
+            "beijing":"Asia/Shanghai","shanghai":"Asia/Shanghai","china":"Asia/Shanghai",
+            "sydney":"Australia/Sydney","auckland":"Pacific/Auckland",
+            "nyc":"America/New_York","newyork":"America/New_York","new_york":"America/New_York",
+            "chicago":"America/Chicago","denver":"America/Denver","la":"America/Los_Angeles",
+            "los_angeles":"America/Los_Angeles","toronto":"America/Toronto","sao_paulo":"America/Sao_Paulo",
+            "utc":"UTC","gmt":"GMT",
+          };
+          const _tzId  = _tzAliases[_tzInput.toLowerCase().replace(/\s+/g,"_")] || (_tzInput || "UTC");
+          try {
+            const _now   = new Date();
+            const _fmtOpts = { timeZone: _tzId, weekday:"long", year:"numeric", month:"long", day:"numeric" };
+            const _timOpts = { timeZone: _tzId, hour:"2-digit", minute:"2-digit", second:"2-digit", hour12: true };
+            const _dateStr = new Intl.DateTimeFormat("en-US", _fmtOpts).format(_now);
+            const _timeStr = new Intl.DateTimeFormat("en-US", _timOpts).format(_now);
+            // Offset
+            const _tzFmt   = new Intl.DateTimeFormat("en-US", { timeZone: _tzId, timeZoneName:"shortOffset" });
+            const _tzParts = _tzFmt.formatToParts(_now);
+            const _offset  = _tzParts.find(p => p.type === "timeZoneName")?.value || _tzId;
+            await sock.sendMessage(from, {
+              text:
+`╔══〔 🕐 𝗪𝗢𝗥𝗟𝗗 𝗖𝗟𝗢𝗖𝗞 〕══════════╗
+╚═══════════════════════════════╝
+
+🌍 *Timezone:*  ${_tzId}
+⏰ *Time:*      *${_timeStr}*
+📅 *Date:*      ${_dateStr}
+🌐 *Offset:*    ${_offset}
+
+_⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 World Clock_`,
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, {
+              text: `❌ Invalid timezone: *${_tzInput}*\n\nExamples: \`${_pfx}time nairobi\`, \`${_pfx}time tokyo\`, \`${_pfx}time UTC\``,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .tempconv <value> <unit> — temperature converter ──────────────────
+        if (_cmd === "tempconv" || _cmd === "temp" || _cmd === "celsius" || _cmd === "fahrenheit") {
+          const _tParts = (_args || "").trim().split(/\s+/);
+          const _tVal   = parseFloat(_tParts[0]);
+          const _tUnit  = (_tParts[1] || "").toUpperCase();
+          if (isNaN(_tVal) || !["C","F","K"].includes(_tUnit)) {
+            await sock.sendMessage(from, {
+              text: `🌡️ *Temperature Converter*\n\nUsage: \`${_pfx}tempconv <value> <C|F|K>\`\n\nExamples:\n• \`${_pfx}tempconv 100 C\` → Celsius to F & K\n• \`${_pfx}tempconv 212 F\` → Fahrenheit to C & K\n• \`${_pfx}tempconv 373 K\` → Kelvin to C & F`,
+            }, { quoted: msg });
+            return;
+          }
+          let _toC, _toF, _toK;
+          if (_tUnit === "C")      { _toC = _tVal; _toF = _tVal * 9/5 + 32; _toK = _tVal + 273.15; }
+          else if (_tUnit === "F") { _toC = (_tVal - 32) * 5/9; _toF = _tVal; _toK = (_tVal + 459.67) * 5/9; }
+          else                     { _toC = _tVal - 273.15; _toF = _tVal * 9/5 - 459.67; _toK = _tVal; }
+          const _feel = _toC < 0 ? "🥶 Freezing" : _toC < 10 ? "❄️ Very Cold" : _toC < 20 ? "🌬️ Cool" : _toC < 28 ? "☀️ Comfortable" : _toC < 36 ? "🌤️ Warm" : _toC < 45 ? "🔥 Hot" : "💀 Extreme Heat";
+          await sock.sendMessage(from, {
+            text:
+`╔══〔 🌡️ 𝗧𝗘𝗠𝗣 𝗖𝗢𝗡𝗩𝗘𝗥𝗧𝗘𝗥 〕═════╗
+╚═══════════════════════════════╝
+
+🔢 *Input:*   ${_tVal}°${_tUnit}
+
+🌡️ *Celsius:*     ${_toC.toFixed(2)}°C
+⚗️ *Fahrenheit:*  ${_toF.toFixed(2)}°F
+⚛️ *Kelvin:*      ${_toK.toFixed(2)} K
+
+🎯 *Feels like:* ${_feel}
+
+_⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 Unit Converter_`,
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .uuid — generate UUIDs ─────────────────────────────────────────────
+        if (_cmd === "uuid" || _cmd === "guid") {
+          const _crypto4 = require("crypto");
+          const _mkUUID  = () => {
+            const h = _crypto4.randomBytes(16);
+            h[6] = (h[6] & 0x0f) | 0x40;
+            h[8] = (h[8] & 0x3f) | 0x80;
+            return [...h].map((b, i) => ([4,6,8,10].includes(i) ? "-" : "") + b.toString(16).padStart(2,"0")).join("");
+          };
+          const _uuids = Array.from({ length: 5 }, _mkUUID);
+          await sock.sendMessage(from, {
+            text:
+`╔══〔 🔑 𝗨𝗨𝗜𝗗 𝗚𝗘𝗡𝗘𝗥𝗔𝗧𝗢𝗥 〕═════╗
+   5× Cryptographically Random UUIDs
+╚═══════════════════════════════╝
+
+${_uuids.map((u, i) => `\`${i+1}. ${u}\``).join("\n")}
+
+_⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 · RFC 4122 v4 UUID_`,
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .binary <text> — text ↔ binary converter ───────────────────────────
+        if (_cmd === "binary" || _cmd === "bin2text" || _cmd === "text2bin") {
+          const _binInput = (_args || "").trim();
+          if (!_binInput) {
+            await sock.sendMessage(from, {
+              text: `🔢 *Binary Converter*\n\nUsage:\n• \`${_pfx}binary Hello\` → text to binary\n• \`${_pfx}binary 01001000 01101001\` → binary to text`,
+            }, { quoted: msg });
+            return;
+          }
+          try {
+            const _isBinary = /^[01\s]+$/.test(_binInput) && _binInput.includes(" ");
+            if (_isBinary) {
+              const _decoded = _binInput.trim().split(/\s+/).map(b => String.fromCharCode(parseInt(b, 2))).join("");
+              await sock.sendMessage(from, {
+                text:
+`╔══〔 🔢 𝗕𝗜𝗡𝗔𝗥𝗬 𝗗𝗘𝗖𝗢𝗗𝗘𝗥 〕══════╗
+╚═══════════════════════════════╝
+
+📥 *Binary Input:*
+\`${_binInput.slice(0,120)}${_binInput.length > 120 ? "…" : ""}\`
+
+📤 *Decoded Text:*
+*${_decoded}*
+
+_⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 Hacker Mode_`,
+              }, { quoted: msg });
+            } else {
+              const _encoded = _binInput.split("").map(c => c.charCodeAt(0).toString(2).padStart(8, "0")).join(" ");
+              await sock.sendMessage(from, {
+                text:
+`╔══〔 🔢 𝗕𝗜𝗡𝗔𝗥𝗬 𝗘𝗡𝗖𝗢𝗗𝗘𝗥 〕══════╗
+╚═══════════════════════════════╝
+
+📥 *Text Input:*  *${_binInput.slice(0, 50)}${_binInput.length > 50 ? "…" : ""}*
+
+📤 *Binary Output:*
+\`${_encoded.slice(0, 300)}${_encoded.length > 300 ? "…" : ""}\`
+
+_⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 Hacker Mode_`,
+              }, { quoted: msg });
+            }
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Binary conversion error: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
       }
     }
     // ── End built-in interceptors ─────────────────────────────────────────────
