@@ -1006,20 +1006,52 @@ function reconnectDelay() {
 }
 
 // ── Connection watchdog ───────────────────────────────────────────────────────
-// Checks every 90 s whether the bot has a live open socket.
-// If the socket has silently died (no disconnect event fired, no reconnect
-// scheduled) this forces a new startnexus() so the bot self-heals without
-// requiring a manual restart.
+// Checks every 30 s whether the bot has a live open socket.
+// Catches two failure modes:
+//   1. botStatus is not "connected" and no reconnect is in progress (standard drop).
+//   2. botStatus says "connected" but the underlying WebSocket is actually closed
+//      (silent death — no disconnect event fired). Previously the dual-condition
+//      guard missed this case entirely.
+// Also enforces a pong deadline: if the socket hasn't received a WS pong for
+// more than 2 minutes while "connected", the connection is treated as dead.
+let _lastPongAt = 0; // updated whenever the raw WS receives a pong frame
 setInterval(() => {
   if (isShuttingDown || waitingForSession || isConnecting) return;
   const ws = sockRef?.ws;
-  const isAlive = ws && !ws.isClosed && !ws.isClosing && botStatus === "connected";
-  if (!isAlive && botStatus !== "connected" && !isConnecting) {
-    console.warn("[WATCHDOG] 🔄 Dead socket detected — forcing reconnect...");
+  const wsAlive = ws && !ws.isClosed && !ws.isClosing;
+
+  // Case 1: not connected and nothing is already reconnecting
+  if (botStatus !== "connected" && !isConnecting) {
+    console.warn("[WATCHDOG] 🔄 Not connected — forcing reconnect...");
     reconnectAttempts = 0;
     startnexus().catch(() => {});
+    return;
   }
-}, 90 * 1000);
+
+  // Case 2: status says "connected" but WS is actually dead
+  if (botStatus === "connected" && !wsAlive) {
+    console.warn("[WATCHDOG] 🔄 Silent socket death detected (ws closed while status=connected) — forcing reconnect...");
+    botStatus = "disconnected";
+    sockRef = null;
+    reconnectAttempts = 0;
+    startnexus().catch(() => {});
+    return;
+  }
+
+  // Case 3: pong deadline — Baileys sends a WS ping every 15 s (keepAliveIntervalMs).
+  // If we haven't seen a pong for >2 min the connection is effectively frozen.
+  if (botStatus === "connected" && wsAlive && _lastPongAt > 0) {
+    const silentSec = Math.floor((Date.now() - _lastPongAt) / 1000);
+    if (silentSec > 120) {
+      console.warn(`[WATCHDOG] 🔄 No WS pong for ${silentSec}s — connection frozen, forcing reconnect...`);
+      botStatus = "disconnected";
+      sockRef = null;
+      reconnectAttempts = 0;
+      try { ws.terminate?.(); } catch {}
+      startnexus().catch(() => {});
+    }
+  }
+}, 30 * 1000);
 
 // ── Memory watchdog ───────────────────────────────────────────────────────────
 // Checks every 3 minutes. If RSS > 400 MB, clear the media buffer cache so
@@ -1451,6 +1483,18 @@ async function startnexus() {
       isConnecting = false;  // fully connected — allow future reconnect calls
       botStatus = "connected";
       sockRef = sock;
+
+      // ── Pong tracker — stamp _lastPongAt on every WS pong so the watchdog
+      // can detect frozen connections (no pong for >2 min → force reconnect).
+      // Baileys exposes the raw uWebSockets/ws object on sock.ws.
+      _lastPongAt = Date.now(); // seed with now so we don't false-fire on first connect
+      try {
+        const _rawWs = sock.ws;
+        if (_rawWs && typeof _rawWs.on === "function") {
+          _rawWs.on("pong", () => { _lastPongAt = Date.now(); });
+        }
+      } catch {}
+
       const jid = sock.user?.id;
       if (jid) botPhoneNumber = jid.split(":")[0].replace("@s.whatsapp.net", "");
       currentSessionId = encodeSession();
