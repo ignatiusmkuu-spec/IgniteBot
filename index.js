@@ -8545,7 +8545,19 @@ _⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 v2.0  •  Prefix: [${_pfx}]  •  ${_modeStr
               }, { quoted: msg }).catch(() => {});
             }
 
-            // ── 2. Single text bubble — always one message ────────────────
+            // ── 2. GIF/video header ───────────────────────────────────────
+            const _menuVidBuf    = settings.getMenuVideo();
+            const _menuMp4Path   = path.join(process.cwd(), "assets", "menu.mp4");
+            const _bannerGifPath = path.join(process.cwd(), "assets", "banner.gif");
+            if (_menuVidBuf) {
+              await sock.sendMessage(from, { video: _menuVidBuf, gifPlayback: true, mimetype: "video/mp4" }, { quoted: msg }).catch(() => {});
+            } else if (fs.existsSync(_menuMp4Path)) {
+              await sock.sendMessage(from, { video: fs.readFileSync(_menuMp4Path), gifPlayback: true, mimetype: "video/mp4" }, { quoted: msg }).catch(() => {});
+            } else if (fs.existsSync(_bannerGifPath)) {
+              await sock.sendMessage(from, { video: fs.readFileSync(_bannerGifPath), gifPlayback: true }, { quoted: msg }).catch(() => {});
+            }
+
+            // ── 3. Full menu text ─────────────────────────────────────────
             await sock.sendMessage(from, { text: _fullMenu }, { quoted: msg }).catch(() => {});
 
           } catch (_menuErr) {
