@@ -533,35 +533,62 @@ tr:hover td{background:rgba(0,212,255,0.03)}
 
 /* ── Deploy link ── */
 .deploy-link {
-  display:inline-flex;align-items:center;gap:6px;
-  padding:6px 14px;border-radius:999px;
-  background:linear-gradient(135deg,rgba(168,85,247,0.15),rgba(0,212,255,0.12));
-  border:1px solid rgba(168,85,247,0.45);
+  display:inline-flex;align-items:center;gap:7px;
+  padding:7px 16px;border-radius:999px;
+  background:linear-gradient(135deg,rgba(168,85,247,0.18),rgba(0,212,255,0.1),rgba(168,85,247,0.14));
+  background-size:200% 100%;
+  border:1px solid transparent;
+  background-clip:padding-box;
+  outline:1.5px solid rgba(168,85,247,0.5);
+  outline-offset:0px;
   color:var(--purple);
-  font-size:0.75rem;font-weight:700;
-  text-decoration:none;letter-spacing:0.6px;
+  font-size:0.73rem;font-weight:800;
+  text-decoration:none;letter-spacing:0.8px;
   white-space:nowrap;
-  transition:all .25s;
+  transition:all .3s;
   position:relative;overflow:hidden;
+  font-family:'JetBrains Mono',monospace;
+  animation:deploy-border-pulse 3s ease-in-out infinite;
+}
+@keyframes deploy-border-pulse{
+  0%,100%{outline-color:rgba(168,85,247,0.5)}
+  50%{outline-color:rgba(0,212,255,0.7)}
 }
 .deploy-link::before {
   content:'';position:absolute;inset:0;
-  background:linear-gradient(90deg,transparent,rgba(168,85,247,0.08),transparent);
+  background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.07) 50%,transparent 100%);
   transform:translateX(-100%);
-  transition:transform .5s;
+  transition:transform 0.55s ease;
 }
 .deploy-link:hover::before{transform:translateX(100%)}
 .deploy-link:hover {
-  background:linear-gradient(135deg,rgba(168,85,247,0.28),rgba(0,212,255,0.2));
-  border-color:rgba(168,85,247,0.8);
-  color:#c084fc;
-  box-shadow:0 0 18px rgba(168,85,247,0.35),0 0 6px rgba(0,212,255,0.15);
-  transform:translateY(-1px);
+  background:linear-gradient(135deg,rgba(168,85,247,0.32),rgba(0,212,255,0.22),rgba(168,85,247,0.28));
+  outline-color:rgba(0,212,255,0.9);
+  box-shadow:0 0 22px rgba(168,85,247,0.45),0 0 8px rgba(0,212,255,0.2),inset 0 0 14px rgba(168,85,247,0.08);
+  transform:translateY(-2px);
+  letter-spacing:1px;
 }
-.deploy-link-icon{font-size:0.85rem}
-.deploy-link-text{background:linear-gradient(90deg,#c084fc,#00d4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.deploy-link-arr{font-size:0.75rem;opacity:.7;transition:transform .2s}
-.deploy-link:hover .deploy-link-arr{transform:translate(2px,-2px);opacity:1}
+.deploy-link-icon{font-size:0.9rem;filter:drop-shadow(0 0 4px rgba(168,85,247,0.8))}
+.deploy-link-text{
+  background:linear-gradient(90deg,#e879f9,#00d4ff,#a855f7);
+  background-size:200%;
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  animation:deploy-text-shine 3s linear infinite;
+}
+@keyframes deploy-text-shine{0%{background-position:0%}100%{background-position:200%}}
+.deploy-link-divider{color:rgba(168,85,247,0.4);-webkit-text-fill-color:rgba(168,85,247,0.4)}
+.deploy-link-site{
+  background:linear-gradient(90deg,#00d4ff,#a855f7);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  font-size:0.7rem;opacity:0.9;
+}
+.deploy-link-arr{
+  font-size:0.8rem;
+  background:linear-gradient(135deg,#e879f9,#00d4ff);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  transition:transform .25s;
+}
+.deploy-link:hover .deploy-link-arr{transform:translate(3px,-3px)}
 
 /* ── Hidden ── */
 .hidden{display:none!important}
@@ -914,9 +941,11 @@ tr:hover td{background:rgba(0,212,255,0.03)}
   </a>
   <div class="header-spacer"></div>
   <a class="deploy-link" href="https://necus-website.vercel.app/#deploy" target="_blank" rel="noopener">
-    <span class="deploy-link-icon">🚀</span>
-    <span class="deploy-link-text">⚡ Deploy · Go Live</span>
-    <span class="deploy-link-arr">↗</span>
+    <span class="deploy-link-icon">🌐</span>
+    <span class="deploy-link-text">⚡ Visit &amp; Deploy</span>
+    <span class="deploy-link-divider">◈</span>
+    <span class="deploy-link-site">✦ Our Website ✦</span>
+    <span class="deploy-link-arr">⬗</span>
   </a>
   <span class="platform-chip" id="platformBadge">DETECTING…</span>
   <div class="status-pill">
