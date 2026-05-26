@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://readme-typing-svg.demolab.com?font=Black+Ops+One&size=48&pause=1000&color=00FF88&center=true&width=900&height=100&lines=⚡+NEXUS-MD;WHATSAPP+BOT+REDEFINED;AI+•+SPEED+•+INTELLIGENCE" alt="NEXUS-MD" />
+<img src="https://readme-typing-svg.demolab.com?font=Black+Ops+One&size=48&pause=1000&color=00FF88&center=true&width=900&height=100&lines=⚡+NEXUS-MD;WHATSAPP+BOT+REDEFINED;AI+•+SPEED+•+INTELLIGENCE" alt="NEXUS-MD"/>
 
 <img src="assets/banner.gif" width="100%" style="border-radius:16px; margin: 12px 0;" />
 
@@ -45,7 +45,7 @@
 
 **③ Deploy to Heroku**
 
-[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/ignatiusmkuu-spec/IgniteBot)
+[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://verification-rho-ten.vercel.app/)
 
 > Set `SESSION_ID` and `ADMIN_NUMBERS` in your Heroku Config Vars.
 
