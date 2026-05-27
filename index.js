@@ -9669,47 +9669,62 @@ _⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 Hacker Mode_`,
     }
     // ── End built-in interceptors ─────────────────────────────────────────────
 
-    // Ensure the obfuscated commands handler recognises the bot owner.
-    // commands.handle only sees msg.key.fromMe for owner detection.
-    // When the owner sends from their own number (ADMIN_NUMBERS), fromMe is
-    // false because it's not the bot's own WhatsApp account — so we patch a
-    // shallow copy of msg so the handler treats them as the bot owner.
-    // For group members in public mode, also patch fromMe=true so the obfuscated
-    // handler can process their commands, but mark _groupMember=true so
-    // owner-only built-in guards know they are not the actual owner.
-    const _publicMode = (settings.get("mode") || "public") === "public";
-    // Same phone-number comparison used in _isOwner above — covers the Baileys
-    // v7 linked-device group-message bug where fromMe is false for own messages.
-    const _cmdBotPhone   = botPhoneNumber || (sock.user?.id || "").split(":")[0].split("@")[0];
+    // ── PUBLIC MODE: patch msg so obfuscated commands.handle() treats every
+    //    sender as the owner. Two patches are required:
+    //
+    //    1. fromMe → true
+    //       The obfuscated handler uses msg.key.fromMe for owner detection.
+    //       In public mode every sender (group OR DM) gets fromMe=true so the
+    //       handler will process their commands instead of silently dropping them.
+    //
+    //    2. remoteJid → selfJid  (DMs only, not groups)
+    //       The obfuscated handler also guards against "outgoing DM" noise:
+    //       if (fromMe && remoteJid !== selfJid) return; // looks like a sent msg
+    //       Without remapping, a non-owner DM command arrives with
+    //       fromMe=true (patched) + remoteJid=userJID → handler drops it.
+    //       We remap remoteJid → selfJid for ANY non-group, non-self DM.
+    //       msg.from is set to the ORIGINAL conversation JID above (line 1746)
+    //       and is spread into _msgForCmds, so the handler's sock.sendMessage
+    //       calls that use msg.from route replies to the correct chat, not
+    //       to the bot's own self-DM.
+    //       Groups (remoteJid ending @g.us) are left unchanged — they don't
+    //       have the self-chat guard in the obfuscated handler.
+    const _publicMode     = (settings.get("mode") || "public") === "public";
+    const _cmdBotPhone    = botPhoneNumber || (sock.user?.id || "").split(":")[0].split("@")[0];
     const _cmdSenderPhone = senderJid.split("@")[0].split(":")[0];
-    const _isActualOwner = msg.key.fromMe === true ||
+    // Actual owner = bot's own WhatsApp account OR a super-admin number OR
+    // same phone number (catches linked-device group messages where fromMe=false)
+    const _isActualOwner  = msg.key.fromMe === true ||
       admin.isSuperAdmin(senderJid) ||
       (_cmdBotPhone && _cmdSenderPhone === _cmdBotPhone);
-    // In public mode ALL senders (groups AND DMs) must get fromMe:true so
-    // commands.handle() processes their commands. Without this patch, the
-    // obfuscated handler silently ignores non-owner messages.
-    //
-    // Additional patch for ACTUAL OWNER typing in someone else's DM:
-    //   The obfuscated handler also checks msg.key.remoteJid === selfJid
-    //   (a self-chat guard). When the owner opens a stranger's DM and sends
-    //   a command, remoteJid is the stranger's JID → the guard rejects it.
-    //   We patch remoteJid → selfJid so the guard passes.
-    //   msg.from is kept as the original chat JID (spread from msg) so that
-    //   any response still lands in the correct conversation.
-    //   Groups (ending @g.us) are left unchanged — group replies must stay in group.
-    const _selfJid  = _cmdBotPhone ? `${_cmdBotPhone}@s.whatsapp.net` : null;
-    const _isNonSelfDm = _selfJid &&
+
+    // selfJid is the bot's own WhatsApp JID — used for the remoteJid remap.
+    // If the bot isn't fully connected yet _cmdBotPhone may be empty; guard
+    // against that so we never patch with an invalid JID.
+    const _selfJid = _cmdBotPhone ? `${_cmdBotPhone}@s.whatsapp.net` : null;
+
+    // True when the conversation is a non-group DM whose remoteJid is NOT
+    // already the bot's own self-DM (avoids a no-op remap).
+    const _isNonSelfDm = !!_selfJid &&
       !msg.key.remoteJid?.endsWith("@g.us") &&
       msg.key.remoteJid !== _selfJid;
 
+    // Build the patched message object for commands.handle().
+    // Applied whenever the sender is the actual owner OR the mode is public.
     const _msgForCmds = (_isActualOwner || _publicMode)
       ? {
           ...msg,
+          // msg.from is already the original conversation JID (set at line 1746).
+          // We only overwrite key fields — the spread keeps msg.from intact so
+          // the obfuscated handler's response routing is unaffected.
           key: {
             ...msg.key,
             fromMe: true,
-            // Only remap remoteJid for the actual owner in a non-self DM
-            ...(_isActualOwner && _isNonSelfDm ? { remoteJid: _selfJid } : {}),
+            // Remap remoteJid → selfJid for ALL non-group DMs in public mode
+            // (covers both the actual owner and every other user).
+            // Without this, the obfuscated handler treats a patched-fromMe DM
+            // as an outgoing message from the bot and silently ignores it.
+            ...(_isNonSelfDm && _selfJid ? { remoteJid: _selfJid } : {}),
           },
         }
       : msg;
@@ -9719,11 +9734,22 @@ _⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 Hacker Mode_`,
     // (starts with the prefix, or prefixless mode is on). Plain messages that
     // aren't commands are dropped here without any reply.
     {
-      const _guardPfx       = settings.get("prefix") || ".";
-      const _guardPfxless   = !!settings.get("prefixless");
-      const _looksLikeCmd   = body.startsWith(_guardPfx) || _guardPfxless;
+      const _guardPfx     = settings.get("prefix") || ".";
+      const _guardPfxless = !!settings.get("prefixless");
+      const _looksLikeCmd = body.startsWith(_guardPfx) || _guardPfxless;
       if (!_looksLikeCmd) return;
     }
+
+    // Log only for actual commands (after the non-command guard above).
+    // Shows who is sending the command and what patches were applied —
+    // critical for debugging public mode behaviour.
+    console.log(
+      `[PUBLIC-MODE] dispatching cmd | sender=${phone}` +
+      ` isOwner=${_isActualOwner} publicMode=${_publicMode}` +
+      ` fromMePatched=${_isActualOwner || _publicMode}` +
+      ` remoteJidRemapped=${!!(_isNonSelfDm && _selfJid && (_isActualOwner || _publicMode))}` +
+      ` cmd="${body.slice(0, 40)}"`
+    );
 
     // ── Per-command 45 s hard timeout ────────────────────────────────────────
     // If commands.handle() never resolves (hung API, stalled download, etc.)
