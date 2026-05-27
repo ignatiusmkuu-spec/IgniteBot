@@ -1310,17 +1310,11 @@ tr:hover td{background:rgba(0,212,255,0.03)}
         </div>
       </div>
       <div id="herokuAppList" style="margin-top:10px;font-size:0.78rem;color:var(--muted)"></div>
-      <div style="margin-top:14px">
-        <div class="form-row">
-          <div class="form-group" style="margin-bottom:0">
-            <label class="form-label" style="text-transform:none;letter-spacing:0">NODE_ENV</label>
-            <input type="text" id="cfgNodeEnv" class="form-input" value="production" />
-          </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label class="form-label" style="text-transform:none;letter-spacing:0">PAIR_SITE_URL</label>
-            <input type="text" id="cfgPairSite" class="form-input" value="https://nexus-session-76ah.onrender.com" />
-          </div>
-        </div>
+      <!-- Hidden auto-fill vars — sent to Heroku automatically -->
+      <input type="hidden" id="cfgNodeEnv" value="production" />
+      <input type="hidden" id="cfgPairSite" value="https://nexus-session-76ah.onrender.com" />
+      <div class="alert alert-info" style="margin-top:12px;margin-bottom:0">
+        ℹ️ NODE_ENV and PAIR_SITE_URL are set automatically.
       </div>
     </div>
 
@@ -1415,16 +1409,16 @@ tr:hover td{background:rgba(0,212,255,0.03)}
 
   <div class="form-section">
     <div class="form-section-title" style="font-size:0.85rem;margin-bottom:4px">⚙️ Config Vars</div>
-    <div class="form-section-sub">Environment variables set on your new Heroku app. Required fields must be filled.</div>
+    <div class="form-section-sub">Only two fields needed — everything else is configured automatically.</div>
 
     <div class="form-group">
-      <label class="form-label">ADMIN_NUMBERS <span class="req-badge">Required</span></label>
+      <label class="form-label">📱 WhatsApp Number <span class="req-badge">Required</span></label>
       <div class="form-hint" style="margin-bottom:7px">Your WhatsApp number WITHOUT the + sign. Multiple: 254706535581,254781346242</div>
       <input type="tel" id="addAdminNumbers" class="form-input" placeholder="254706535581" />
     </div>
 
     <div class="form-group">
-      <label class="form-label">SESSION_ID <span class="req-badge">Required</span></label>
+      <label class="form-label">🔑 SESSION_ID <span class="req-badge">Required</span></label>
       <input type="text" id="addSessionId" class="form-input" placeholder="NEXUS-MD:~…" />
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="btn btn-ghost" style="font-size:0.78rem;padding:6px 12px" onclick="fillAddSessionFromBot()">📋 Use current bot session</button>
@@ -1445,37 +1439,16 @@ tr:hover td{background:rgba(0,212,255,0.03)}
       </div>
     </div>
 
-    <div class="form-group">
-      <label class="form-label">BOTNAME</label>
-      <div class="form-hint" style="margin-bottom:7px">Your bot display name shown in menus and messages.</div>
-      <input type="text" id="addBotname" class="form-input" value="NEXUS-MD" placeholder="NEXUS-MD" />
+    <div class="alert alert-info" style="margin-top:4px;margin-bottom:6px">
+      ℹ️ All other config vars (BOTNAME, MENU_TYPE, PAIR_SITE_URL, BAD_WORD, NODE_ENV) are set automatically.
     </div>
 
-    <div class="form-group">
-      <label class="form-label">DATABASE_URL</label>
-      <div class="form-hint" style="margin-bottom:7px">Auto-filled by Heroku Postgres add-on — leave blank.</div>
-      <input type="text" id="addDatabaseUrl" class="form-input" placeholder="(auto-filled by Heroku Postgres)" disabled />
-    </div>
-
-    <div class="form-group">
-      <label class="form-label">BAD_WORD</label>
-      <div class="form-hint" style="margin-bottom:7px">Comma-separated — members sending these words get kicked.</div>
-      <input type="text" id="addBadword" class="form-input" value="fuck,pussy,slut,bitch,cock,stupid" />
-    </div>
-
-    <div class="form-group">
-      <label class="form-label">MENU_TYPE</label>
-      <select id="addMenuType" class="form-select">
-        <option value="VIDEO">VIDEO — animated video menu</option>
-        <option value="IMAGE">IMAGE — static image menu</option>
-        <option value="LINK">LINK — text link menu</option>
-      </select>
-    </div>
-
-    <div class="form-group">
-      <label class="form-label">PAIR_SITE_URL</label>
-      <input type="text" id="addPairSite" class="form-input" value="https://nexus-session-76ah.onrender.com" />
-    </div>
+    <!-- Hidden auto-fill fields — values sent but not shown -->
+    <input type="hidden" id="addBotname" value="NEXUS-MD" />
+    <input type="hidden" id="addDatabaseUrl" value="" />
+    <input type="hidden" id="addBadword" value="fuck,pussy,slut,bitch,cock,stupid" />
+    <input type="hidden" id="addMenuType" value="VIDEO" />
+    <input type="hidden" id="addPairSite" value="https://nexus-session-76ah.onrender.com" />
 
     <div style="margin-top:24px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-solid-cyan" style="padding:11px 28px;font-size:0.92rem" onclick="deployHerokuApp()">🚀 Deploy App</button>
@@ -1941,11 +1914,9 @@ async function applyAddSessionLocal() {
 }
 
 function clearAddForm() {
-  ['addAppName','addHerokuKey','addAdminNumbers','addSessionId','addBadword'].forEach(id => {
+  ['addAppName','addHerokuKey','addAdminNumbers','addSessionId'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
-  const bn = document.getElementById('addBotname'); if (bn) bn.value = 'NEXUS-MD';
-  const ps = document.getElementById('addPairSite'); if (ps) ps.value = 'https://nexus-session-76ah.onrender.com';
   document.getElementById('addResult').innerHTML = '';
   document.getElementById('addSuccessBox').style.display = 'none';
 }
