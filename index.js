@@ -6344,15 +6344,89 @@ _⚡ Built with ❤️ by 𝗜𝗴𝗻𝗮𝘁𝗶𝘂𝘀 𝗣𝗲𝗿𝗲𝘇_
         // ── .stats — bot analytics summary ──────────────────────────────────
         if (_cmd === "stats") {
           try {
-            const analytics = require("./lib/analytics");
-            const _statsMsg = await analytics.formatStatsMessage();
-            const _upSec = Math.floor(process.uptime());
-            const _upH   = Math.floor(_upSec / 3600);
-            const _upM   = Math.floor((_upSec % 3600) / 60);
-            const _upS   = _upSec % 60;
-            await sock.sendMessage(from, {
-              text: `╭─⌈ 📊 *NEXUS-MD STATS* ⌋\n│\n${_statsMsg.split("\n").filter(Boolean).map(l => `├─ ${l.replace(/^[📊📨⚙️👥⏱🏆]+\s*/,"")}`).join("\n")}\n│\n├─ ⏱ Uptime: *${_upH}h ${_upM}m ${_upS}s*\n├─ 🌐 Node.js: *${process.version}*\n╰─ 🤖 NEXUS-MD by IGNITE`,
-            }, { quoted: msg });
+            const analytics   = require("./lib/analytics");
+            const _os          = require("os");
+            const _s           = await analytics.getStats();
+
+            // ── Uptime ─────────────────────────────────────────────────────
+            const _upSec  = Math.floor(process.uptime());
+            const _upH    = Math.floor(_upSec / 3600);
+            const _upM    = Math.floor((_upSec % 3600) / 60);
+            const _upS    = _upSec % 60;
+            const _upStr  = _upH > 0 ? `${_upH}h ${_upM}m ${_upS}s` : `${_upM}m ${_upS}s`;
+
+            // ── RAM ────────────────────────────────────────────────────────
+            const _mem       = process.memoryUsage();
+            const _totalRam  = _os.totalmem();
+            const _usedMB    = (_mem.rss / 1024 / 1024).toFixed(1);
+            const _totalMB   = (_totalRam / 1024 / 1024).toFixed(0);
+            const _ramPct    = Math.min(100, Math.round((_mem.rss / _totalRam) * 100));
+            const _barFilled = Math.max(1, Math.round(_ramPct / 10));
+            const _ramBar    = "▓".repeat(_barFilled) + "░".repeat(10 - _barFilled);
+
+            // ── Groups ─────────────────────────────────────────────────────
+            let _grpCount = 0;
+            try { _grpCount = Object.keys(await sock.groupFetchAllParticipating().catch(() => ({}))).length; } catch (_) {}
+
+            // ── Top commands with mini bar chart ───────────────────────────
+            const _topCmds  = (_s.topCommands || []).slice(0, 5);
+            const _maxCount = _topCmds.length ? (_topCmds[0][1] || 1) : 1;
+            const _medals   = ["🥇","🥈","🥉","◆","◇"];
+            const _cmdLines = _topCmds.length
+              ? _topCmds.map(([cmd, cnt], i) => {
+                  const _fill = Math.max(1, Math.round((cnt / _maxCount) * 8));
+                  const _bar  = "█".repeat(_fill) + "░".repeat(8 - _fill);
+                  return `│  ${_medals[i]}  ${(`.${cmd}`).padEnd(14)} ${_bar}  ${cnt}`;
+                }).join("\n")
+              : "│  ◇ No commands recorded yet";
+
+            // ── Activity trend (hourly buckets → ASCII spark) ──────────────
+            const _hourly   = (_s.hourlyStats || []).slice(-8);
+            const _sparkMap = ["▁","▂","▃","▄","▅","▆","▇","█"];
+            let _spark = "─";
+            if (_hourly.length) {
+              const _hMax = Math.max(..._hourly.map(h => h.count || 0), 1);
+              _spark = _hourly.map(h => {
+                const idx = Math.round(((h.count || 0) / _hMax) * 7);
+                return _sparkMap[Math.min(idx, 7)];
+              }).join("");
+            }
+
+            const _sep      = "─────────────────────────";
+            const _statsCard =
+`╔══〔 📊 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 𝗦𝗧𝗔𝗧𝗦 〕════╗
+   𝗟𝗶𝘃𝗲 𝗔𝗻𝗮𝗹𝘆𝘁𝗶𝗰𝘀 𝗗𝗮𝘀𝗵𝗯𝗼𝗮𝗿𝗱
+╚═══════════════════════════════╝
+
+┌─〔 📈 𝗔𝗖𝗧𝗜𝗩𝗜𝗧𝗬 〕──────────────┐
+│
+│  ◆ 📨  𝗠𝗲𝘀𝘀𝗮𝗴𝗲𝘀   ⟫ ${_s.totalMessages || 0}
+│  ◆ ⚙️  𝗖𝗼𝗺𝗺𝗮𝗻𝗱𝘀   ⟫ ${_s.totalCommands || 0}
+│  ◆ 👥  𝗨𝘀𝗲𝗿𝘀     ⟫ ${_s.uniqueUsers || 0}
+│  ◆ 🏘️  𝗚𝗿𝗼𝘂𝗽𝘀    ⟫ ${_grpCount}
+│
+│  𝗧𝗿𝗲𝗻𝗱 (𝗹𝗮𝘀𝘁 𝟴𝗵): ${_spark}
+│
+└${_sep}┘
+
+┌─〔 🏆 𝗧𝗢𝗣 𝗖𝗢𝗠𝗠𝗔𝗡𝗗𝗦 〕─────────┐
+│
+${_cmdLines}
+│
+└${_sep}┘
+
+┌─〔 🖥 𝗦𝗬𝗦𝗧𝗘𝗠 〕──────────────────┐
+│
+│  ◆ 🧠  𝗥𝗔𝗠     ⟫ ${_ramBar} ${_ramPct}%
+│       (${_usedMB}MB / ${_totalMB}MB)
+│  ◆ ⏱  𝗨𝗽𝘁𝗶𝗺𝗲 ⟫ ${_upStr}
+│  ◆ 🟢  𝗡𝗼𝗱𝗲   ⟫ ${process.version}
+│
+└${_sep}┘
+
+_⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 v2.0  •  All systems nominal_`;
+
+            await sock.sendMessage(from, { text: _statsCard }, { quoted: msg }).catch(() => {});
           } catch (e) { await sock.sendMessage(from, { text: `❌ Stats error: ${e.message}` }, { quoted: msg }); }
           return;
         }
