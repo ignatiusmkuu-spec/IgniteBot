@@ -5474,18 +5474,19 @@ _⚡ Built with ❤️ by 𝗜𝗴𝗻𝗮𝘁𝗶𝘂𝘀 𝗣𝗲𝗿𝗲𝘇_
             `║  𝟒𝟑 Enc ➣ Obfuscate/encrypt JavaScript code\n` +
             `║\n` +
             `║  ── ⚙️ 𝗢𝗪𝗡𝗘𝗥 𝗧𝗢𝗢𝗟𝗦 ──\n` +
-            `║  𝟒𝟒 Mode ➣ Switch bot mode (public/private) from chat\n` +
+            `║  𝟒𝟒 Tag ➣ Mention/ping every group member at once\n` +
+            `║  𝟒𝟓 Mode ➣ Switch bot mode (public/private) from chat\n` +
             `║\n` +
             `║  ── 🔬 𝗧𝗘𝗖𝗛 𝗧𝗢𝗢𝗟𝗦 ──\n` +
-            `║  𝟒𝟓 Sysinfo ➣ Full system diagnostic (RAM·CPU·uptime)\n` +
-            `║  𝟒𝟔 Ipinfo ➣ IP geolocation & ISP lookup\n` +
-            `║  𝟒𝟕 Hash ➣ MD5/SHA1/SHA256/SHA512 hash generator\n` +
-            `║  𝟒𝟖 Joke ➣ Random programming / dev joke\n` +
-            `║  𝟒𝟗 Crypto ➣ Live crypto price (Bitcoin, ETH, etc.)\n` +
-            `║  𝟓𝟎 Time ➣ Current time in any world timezone\n` +
-            `║  𝟓𝟏 Tempconv ➣ Temperature converter (C·F·K)\n` +
-            `║  𝟓𝟐 Uuid ➣ Generate 5 cryptographic UUIDs\n` +
-            `║  𝟓𝟑 Binary ➣ Text ↔ binary encoder/decoder\n` +
+            `║  𝟒𝟔 Sysinfo ➣ Full system diagnostic (RAM·CPU·uptime)\n` +
+            `║  𝟒𝟕 Ipinfo ➣ IP geolocation & ISP lookup\n` +
+            `║  𝟒𝟖 Hash ➣ MD5/SHA1/SHA256/SHA512 hash generator\n` +
+            `║  𝟒𝟗 Joke ➣ Random programming / dev joke\n` +
+            `║  𝟓𝟎 Crypto ➣ Live crypto price (Bitcoin, ETH, etc.)\n` +
+            `║  𝟓𝟏 Time ➣ Current time in any world timezone\n` +
+            `║  𝟓𝟐 Tempconv ➣ Temperature converter (C·F·K)\n` +
+            `║  𝟓𝟑 Uuid ➣ Generate 5 cryptographic UUIDs\n` +
+            `║  𝟓𝟒 Binary ➣ Text ↔ binary encoder/decoder\n` +
             `║\n╚════════════════════════════════╝`;
           await sock.sendMessage(from, { text: listText }, { quoted: msg });
           return;
@@ -8673,6 +8674,80 @@ _⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 v2.0  •  Prefix: [${_pfx}]  •  ${_modeStr
 
           } catch (_menuErr) {
             console.error("[menu] error:", _menuErr.message);
+          }
+          return;
+        }
+
+        // ── .tag — mention every group member ─────────────────────────────────
+        if (_cmd === "tag" || _cmd === "tagall" || _cmd === "everyone" || _cmd === "all") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          if (!msg.isGroup) {
+            await sock.sendMessage(from, { text: "❌ This command only works inside a group." }, { quoted: msg });
+            return;
+          }
+          try {
+            const _tagMeta  = await sock.groupMetadata(from);
+            const _tagParts = (_tagMeta?.participants || []);
+            if (!_tagParts.length) {
+              await sock.sendMessage(from, { text: "❌ Could not fetch group members." }, { quoted: msg });
+              return;
+            }
+
+            // Resolve every JID — LID → phone JID so mentions work correctly
+            const _tagJids = _tagParts
+              .map(p => _resolveSenderJid(p.id || ""))
+              .filter(j => j && j.includes("@"));
+
+            const _tagTotal   = _tagJids.length;
+            const _tagMsg     = (_args || "").trim() || "👋 *Attention everyone!*";
+            const _tagGroupName = _tagMeta?.subject || "this group";
+
+            // Build the mention lines — WhatsApp only renders @mentions when
+            // the JID is listed in the `mentions` array AND appears as @number in text.
+            // We batch into groups of 50 to stay well under WA's per-message mention cap.
+            const _BATCH = 50;
+            const _tagBatches = [];
+            for (let i = 0; i < _tagJids.length; i += _BATCH) {
+              _tagBatches.push(_tagJids.slice(i, i + _BATCH));
+            }
+
+            // Send the header message first
+            const _tagHeader =
+              `📢 *${_tagGroupName}*\n` +
+              `${"─".repeat(30)}\n` +
+              `${_tagMsg}\n` +
+              `${"─".repeat(30)}\n` +
+              `👥 Tagging *${_tagTotal}* member${_tagTotal !== 1 ? "s" : ""}…`;
+
+            await sock.sendMessage(from, { text: _tagHeader }, { quoted: msg });
+
+            // Send each batch with a short delay between them (1 s/batch)
+            // to avoid WhatsApp rate-limit drops.
+            for (let b = 0; b < _tagBatches.length; b++) {
+              const batch = _tagBatches[b];
+              const lines = batch
+                .map(j => `@${j.split("@")[0].split(":")[0]}`)
+                .join(" ");
+
+              await sock.sendMessage(from, {
+                text: lines,
+                mentions: batch,
+              });
+
+              if (b < _tagBatches.length - 1) {
+                await new Promise(r => setTimeout(r, 1000));
+              }
+            }
+
+            console.log(`[tag] tagged ${_tagTotal} members in ${from}`);
+          } catch (_tagErr) {
+            console.error("[tag] error:", _tagErr.message);
+            await sock.sendMessage(from, {
+              text: `❌ Tag failed: ${_tagErr.message}`,
+            }, { quoted: msg });
           }
           return;
         }
