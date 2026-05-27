@@ -1074,12 +1074,39 @@ setInterval(() => {
 const _msgCache = new Map();
 const _pendingOrders = new Map(); // jid → { pkg, step: "phone"|"confirm" }
 
+// LID → real-phone-JID resolver.
+// Baileys v7 multi-device uses privacy "LID" identifiers (@lid suffix) for
+// group-message participants. Without this map every @lid sender looks like
+// a random number → _isOwner / isSuperAdmin / phone comparisons all fail.
+// We populate it from the contacts events Baileys emits on connect.
+const _lidMap = new Map(); // "XXXXX@lid" → "254XXXXXXXX@s.whatsapp.net"
+function _indexContacts(contacts) {
+  if (!Array.isArray(contacts)) return;
+  for (const c of contacts) {
+    const lid  = c?.lid  || c?.id;
+    const real = c?.jid  || c?.phone;
+    if (lid?.endsWith("@lid") && real && !real.endsWith("@lid")) {
+      _lidMap.set(lid, real);
+    }
+    // Also index reverse: real → lid (so we can go both ways if needed)
+    if (real?.endsWith("@s.whatsapp.net") && lid?.endsWith("@lid")) {
+      _lidMap.set(real, lid);
+    }
+  }
+}
+// Resolve a potentially-LID JID to the best real phone JID we know.
+function _resolveSenderJid(jid) {
+  if (!jid) return jid;
+  if (!jid.endsWith("@lid")) return jid;
+  return _lidMap.get(jid) || jid; // fall back to original if unknown
+}
+
 // Active processMessage concurrency counter — flood protection
 let _activeMsgCount = 0;
 function _cacheMsg(msg) {
   if (!msg?.key?.id || !msg.message) return;
   _msgCache.set(msg.key.id, msg.message);
-  if (_msgCache.size > 1000) {
+  if (_msgCache.size > 2000) {
     const oldest = _msgCache.keys().next().value;
     _msgCache.delete(oldest);
   }
@@ -1598,15 +1625,23 @@ async function startnexus() {
   // the event is consumed.
   sock.ev.on("messaging-history.set", () => {});
   sock.ev.on("chats.set",             () => {});
-  sock.ev.on("contacts.set",          () => {});
   sock.ev.on("messages.set",          () => {});
+
+  // ── LID contact resolution — populate _lidMap so @lid JIDs can be
+  //    resolved to real phone JIDs for _isOwner / isSuperAdmin checks.
+  sock.ev.on("contacts.set",    ({ contacts }) => _indexContacts(contacts));
+  sock.ev.on("contacts.upsert", (contacts)     => _indexContacts(contacts));
+  sock.ev.on("contacts.update", (contacts)     => _indexContacts(contacts));
 
   // ── Active message processor — runs independently per message ──────────────
   // Spawned as a fire-and-forget Promise so multiple messages/commands never
   // block each other and the Baileys event loop is never held up.
   async function processMessage(msg) {
     const from      = msg.key.remoteJid;
-    const senderJid = msg.key.participant || from;
+    // Resolve @lid (Baileys v7 multi-device privacy IDs) → real phone JID.
+    // Without this, group messages from some devices have a garbage senderJid
+    // that breaks _isOwner, isSuperAdmin, and any phone-number comparison.
+    const senderJid = _resolveSenderJid(msg.key.participant || from);
 
     // Keep the shallow-unwrapped inner for viewOnce/media checks (only strips ephemeral)
     const _inner = msg.message?.ephemeralMessage?.message || msg.message || {};
@@ -9622,16 +9657,20 @@ _⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 Hacker Mode_`,
         !!(msgBody && msgBody.startsWith(dbPrefix))
       );
 
-      // ── ACTIVE LAYER — live or recent (≤60s) messages only ───────────────
-      const msgTs    = Number(msg.messageTimestamp || 0);
-      const isRecent = isLive || (nowSec - msgTs <= 120);
+      // ── ACTIVE LAYER — live or recent messages only ──────────────────────
+      // Window: 300s (5 min) instead of 120s so reconnect-delayed messages and
+      // cloud-host clock drift don't silently drop commands.
+      // Owner/fromMe messages are ALWAYS processed regardless of timestamp —
+      // the owner's own commands must never be discarded.
+      const msgTs     = Number(msg.messageTimestamp || 0);
+      const _isFromMe = !!msg.key?.fromMe;
+      const isRecent  = isLive || _isFromMe || (nowSec - msgTs <= 300);
       if (!isRecent) continue;
 
-      // Fire each message as an independent async task — never blocks the loop
-      // On Heroku, this means .ping responds immediately even while history syncs.
-      // Concurrency cap: if >60 messages are already being processed simultaneously
-      // (e.g., a spam flood or history-sync burst), drop the excess to prevent OOM.
-      if (_activeMsgCount >= 60) {
+      // Fire each message as an independent async task — never blocks the loop.
+      // Concurrency cap prevents OOM on spam floods / history-sync bursts.
+      // Owner/fromMe messages are NEVER dropped — their commands must always run.
+      if (_activeMsgCount >= 100 && !_isFromMe) {
         console.warn(`[FLOOD] ⚠️ Dropping message — ${_activeMsgCount} active handlers (flood protection)`);
         continue;
       }
