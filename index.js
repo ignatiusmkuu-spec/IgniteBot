@@ -1757,10 +1757,14 @@ async function startnexus() {
 
     console.log(`[MSG] from=${phone} type=${msgType} fromMe=${msg.key.fromMe} body="${body.slice(0, 60)}"`);
 
-    // For fromMe: only process if it starts with prefix OR prefixless mode is on
+    // For fromMe (bot's own messages echoed back by Baileys):
+    // ALWAYS require the prefix — even when prefixless mode is ON.
+    // Prefixless mode only relaxes the rule for OTHER users (non-fromMe).
+    // If we skipped the prefix check here, every bot response ("Here's the menu…",
+    // "✅ Done", etc.) would be fed back into processMessage with fromMe=true and
+    // treated as a prefixless command, causing an echo loop.
     if (msg.key.fromMe) {
-      const isPrefixless = !!settings.get("prefixless");
-      if (!body.startsWith(prefix) && !isPrefixless) return;
+      if (!body.startsWith(prefix)) return;
     }
 
     // Banned senders
@@ -1897,7 +1901,9 @@ async function startnexus() {
     // ── Per-group antilink enforcement (per-group toggle via .antilink) ────
     // Skip for command messages — commands are never subject to antilink/antichat/ASM
     // prefix is already computed above at const prefix = settings.get("prefix") || "."
-    const _isCmd = body.startsWith(prefix);
+    // In prefixless mode, any non-empty body could be a command, so treat it as one
+    // to prevent enforcement blocks from incorrectly acting on prefixless commands.
+    const _isCmd = body.startsWith(prefix) || !!settings.get("prefixless");
     if (!_isCmd && msg.isGroup && !msg.key.fromMe && body) {
       const _galMap = db.read(`grp_antilink`, {});
       const _galEnabled = _galMap[from];
@@ -2174,9 +2180,17 @@ async function startnexus() {
     {
       const _pvtMode = settings.get("mode") || "public";
       if (_pvtMode === "private" && !msg.key.fromMe && !admin.isSuperAdmin(senderJid)) {
-        const _pvtPfx = settings.get("prefix") || ".";
+        const _pvtPfx     = settings.get("prefix") || ".";
         const _pvtPfxless = !!settings.get("prefixless");
-        if (body.startsWith(_pvtPfx) || _pvtPfxless) {
+        // Only block when the message actually looks like a command — either it
+        // starts with the prefix, OR prefixless is on AND the first word is short
+        // enough to plausibly be a command (≤ 20 chars, no newlines).
+        // This prevents the old `|| _pvtPfxless` from silently dropping every
+        // plain chat message ("hi", "ok", "thanks") when prefixless is on.
+        const _pvtFirstWord = body.trim().split(/\s+/)[0] || "";
+        const _pvtLooksCmd  = body.startsWith(_pvtPfx) ||
+          (_pvtPfxless && _pvtFirstWord.length > 0 && _pvtFirstWord.length <= 20 && !body.includes("\n"));
+        if (_pvtLooksCmd) {
           // Silently ignore — do not process any command from non-owners in private mode
           console.log(`[private-mode] blocked command from ${phone}: "${body.slice(0, 40)}"`);
           return;
@@ -7773,26 +7787,65 @@ _⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 𝗖𝗹𝗼𝗰𝗸  •  Stay on time!_`;
         }
 
         // ── .prefixless ────────────────────────────────────────────────────
+        // Toggles prefixless mode — lets other users send commands without the
+        // prefix character. Note: the bot's own fromMe messages ALWAYS require
+        // the prefix regardless of this setting (prevents echo-loop bugs).
         if (_cmd === "prefixless") {
           if (!_isOwner) {
             await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
             return;
           }
-          const sub = _args.toLowerCase().trim();
-          if (sub === "on") {
-            settings.set("prefixless", true);
+          const sub     = _args.toLowerCase().trim();
+          const _curPfx = !!settings.get("prefixless");
+
+          // No argument — show current state and usage
+          if (!sub) {
             await sock.sendMessage(from, {
-              text: `✅ *Prefixless mode ON*\n\nCommands now work without the \`${_pfx}\` prefix.\nExample: type \`menu\` instead of \`${_pfx}menu\``,
+              text:
+                `⚙️ *Prefixless Mode*\n\n` +
+                `Current: *${_curPfx ? "ON ✅" : "OFF ❌"}*\n\n` +
+                `🔓 *on*  — other users can send commands without the \`${_pfx}\` prefix\n` +
+                `🔒 *off* — all users must include the \`${_pfx}\` prefix\n\n` +
+                `⚠️ _Note: even when ON, the bot itself always requires the prefix to avoid echo loops._\n\n` +
+                `Usage: \`${_pfx}prefixless [on|off]\``,
             }, { quoted: msg });
-          } else if (sub === "off") {
-            settings.set("prefixless", false);
+            return;
+          }
+
+          if (sub !== "on" && sub !== "off") {
             await sock.sendMessage(from, {
-              text: `✅ *Prefixless mode OFF*\n\nCommands now require the \`${_pfx}\` prefix again.`,
+              text: `❌ Unknown option *"${sub}"*. Use \`${_pfx}prefixless on\` or \`${_pfx}prefixless off\`.`,
+            }, { quoted: msg });
+            return;
+          }
+
+          const wantOn = sub === "on";
+
+          // Already-on/off guard — avoid misleading confirmations
+          if (wantOn === _curPfx) {
+            await sock.sendMessage(from, {
+              text: `⚠️ *Prefixless Mode* is already *${_curPfx ? "ON ✅" : "OFF ❌"}* — no changes made.`,
+            }, { quoted: msg });
+            return;
+          }
+
+          settings.set("prefixless", wantOn);
+          console.log(`[prefixless] set to ${wantOn} by ${phone}`);
+
+          if (wantOn) {
+            await sock.sendMessage(from, {
+              text:
+                `✅ *Prefixless Mode ON*\n\n` +
+                `Other users can now send commands without the \`${_pfx}\` prefix.\n` +
+                `Example: type \`menu\` instead of \`${_pfx}menu\`\n\n` +
+                `⚠️ _The bot's own messages still require the prefix (prevents echo loops)._`,
             }, { quoted: msg });
           } else {
-            const cur = !!settings.get("prefixless");
             await sock.sendMessage(from, {
-              text: `⚙️ *Prefixless mode*\n\nCurrent: *${cur ? "ON" : "OFF"}*\n\nUsage: \`${_pfx}prefixless on\` or \`${_pfx}prefixless off\``,
+              text:
+                `✅ *Prefixless Mode OFF*\n\n` +
+                `All users must now include the \`${_pfx}\` prefix before commands.\n` +
+                `Example: \`${_pfx}menu\`, \`${_pfx}play song\`, etc.`,
             }, { quoted: msg });
           }
           return;
