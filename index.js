@@ -5438,16 +5438,19 @@ _⚡ Built with ❤️ by 𝗜𝗴𝗻𝗮𝘁𝗶𝘂𝘀 𝗣𝗲𝗿𝗲𝘇_
             `║  𝟒𝟐 Lyrics ➣ Fetch song lyrics with art\n` +
             `║  𝟒𝟑 Enc ➣ Obfuscate/encrypt JavaScript code\n` +
             `║\n` +
+            `║  ── ⚙️ 𝗢𝗪𝗡𝗘𝗥 𝗧𝗢𝗢𝗟𝗦 ──\n` +
+            `║  𝟒𝟒 Mode ➣ Switch bot mode (public/private) from chat\n` +
+            `║\n` +
             `║  ── 🔬 𝗧𝗘𝗖𝗛 𝗧𝗢𝗢𝗟𝗦 ──\n` +
-            `║  𝟒𝟒 Sysinfo ➣ Full system diagnostic (RAM·CPU·uptime)\n` +
-            `║  𝟒𝟓 Ipinfo ➣ IP geolocation & ISP lookup\n` +
-            `║  𝟒𝟔 Hash ➣ MD5/SHA1/SHA256/SHA512 hash generator\n` +
-            `║  𝟒𝟕 Joke ➣ Random programming / dev joke\n` +
-            `║  𝟒𝟖 Crypto ➣ Live crypto price (Bitcoin, ETH, etc.)\n` +
-            `║  𝟒𝟗 Time ➣ Current time in any world timezone\n` +
-            `║  𝟓𝟎 Tempconv ➣ Temperature converter (C·F·K)\n` +
-            `║  𝟓𝟏 Uuid ➣ Generate 5 cryptographic UUIDs\n` +
-            `║  𝟓𝟐 Binary ➣ Text ↔ binary encoder/decoder\n` +
+            `║  𝟒𝟓 Sysinfo ➣ Full system diagnostic (RAM·CPU·uptime)\n` +
+            `║  𝟒𝟔 Ipinfo ➣ IP geolocation & ISP lookup\n` +
+            `║  𝟒𝟕 Hash ➣ MD5/SHA1/SHA256/SHA512 hash generator\n` +
+            `║  𝟒𝟖 Joke ➣ Random programming / dev joke\n` +
+            `║  𝟒𝟗 Crypto ➣ Live crypto price (Bitcoin, ETH, etc.)\n` +
+            `║  𝟓𝟎 Time ➣ Current time in any world timezone\n` +
+            `║  𝟓𝟏 Tempconv ➣ Temperature converter (C·F·K)\n` +
+            `║  𝟓𝟐 Uuid ➣ Generate 5 cryptographic UUIDs\n` +
+            `║  𝟓𝟑 Binary ➣ Text ↔ binary encoder/decoder\n` +
             `║\n╚════════════════════════════════╝`;
           await sock.sendMessage(from, { text: listText }, { quoted: msg });
           return;
@@ -8636,6 +8639,55 @@ _⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 v2.0  •  Prefix: [${_pfx}]  •  ${_modeStr
           } catch (_menuErr) {
             console.error("[menu] error:", _menuErr.message);
           }
+          return;
+        }
+
+        // ── .mode — switch bot access mode ────────────────────────────────────
+        if (_cmd === "mode") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          const _modeVal = (_args || "").trim().toLowerCase();
+          const _modeMap = { public: "public", pub: "public", open: "public", private: "private", priv: "private", closed: "private" };
+          const _modeNew = _modeMap[_modeVal];
+          if (!_modeNew) {
+            const _curMode = settings.get("mode") || "public";
+            const _curIcon = _curMode === "public" ? "🌍" : "🔒";
+            await sock.sendMessage(from, {
+              text:
+`╔══〔 ⚙️ 𝗕𝗢𝗧 𝗠𝗢𝗗𝗘 〕═══════════════╗
+╚═══════════════════════════════╝
+
+${_curIcon} Current mode: *${_curMode.toUpperCase()}*
+
+📖 *Modes:*
+• 🌍 \`${_pfx}mode public\`  — everyone can use commands
+• 🔒 \`${_pfx}mode private\` — only you (owner) can use commands
+
+_Aliases: pub · open · priv · closed_`,
+            }, { quoted: msg });
+            return;
+          }
+          const _prevMode = settings.get("mode") || "public";
+          if (_prevMode === _modeNew) {
+            await sock.sendMessage(from, {
+              text: `⚠️ Mode is already *${_modeNew.toUpperCase()}* — no change made.`,
+            }, { quoted: msg });
+            return;
+          }
+          settings.set("mode", _modeNew);
+          const _newIcon = _modeNew === "public" ? "🌍" : "🔒";
+          await sock.sendMessage(from, {
+            text:
+`${_newIcon} *Bot mode changed!*
+
+${_prevMode.toUpperCase()} → *${_modeNew.toUpperCase()}*
+
+${_modeNew === "public"
+  ? "✅ All users can now send commands to the bot."
+  : "🔒 Only you (owner) can now send commands. All other users are silently ignored."}`,
+          }, { quoted: msg });
           return;
         }
 
