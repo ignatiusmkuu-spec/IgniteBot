@@ -6629,6 +6629,150 @@ _⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 is fully operational!_`;
           return;
         }
 
+        // ── .uptime — bot runtime card ────────────────────────────────────────
+        if (_cmd === "uptime") {
+          try {
+            const _os         = require("os");
+            const _procUp     = Math.floor(process.uptime());
+            const _osUp       = Math.floor(_os.uptime());
+
+            // ── Bot (process) uptime ───────────────────────────────────────
+            const _pd  = Math.floor(_procUp / 86400);
+            const _ph  = Math.floor((_procUp % 86400) / 3600);
+            const _pm  = Math.floor((_procUp % 3600) / 60);
+            const _ps  = _procUp % 60;
+            const _procStr = _pd > 0
+              ? `${_pd}d ${_ph}h ${_pm}m ${_ps}s`
+              : _ph > 0 ? `${_ph}h ${_pm}m ${_ps}s` : `${_pm}m ${_ps}s`;
+
+            // ── OS (server) uptime ─────────────────────────────────────────
+            const _od  = Math.floor(_osUp / 86400);
+            const _oh  = Math.floor((_osUp % 86400) / 3600);
+            const _om  = Math.floor((_osUp % 3600) / 60);
+            const _osStr = _od > 0
+              ? `${_od}d ${_oh}h ${_om}m`
+              : `${_oh}h ${_om}m`;
+
+            // ── Uptime bar (bot) — 24h scale ───────────────────────────────
+            const _dayPct   = Math.min(100, Math.round((_procUp / 86400) * 100));
+            const _filled   = Math.max(1, Math.round(_dayPct / 10));
+            const _uptBar   = "▓".repeat(_filled) + "░".repeat(10 - _filled);
+
+            // ── RAM snapshot ───────────────────────────────────────────────
+            const _mem      = process.memoryUsage();
+            const _totalRam = _os.totalmem();
+            const _usedMB   = (_mem.rss / 1024 / 1024).toFixed(1);
+            const _ramPct   = Math.min(100, Math.round((_mem.rss / _totalRam) * 100));
+            const _ramFill  = Math.max(1, Math.round(_ramPct / 10));
+            const _ramBar   = "▓".repeat(_ramFill) + "░".repeat(10 - _ramFill);
+
+            // ── Platform ───────────────────────────────────────────────────
+            const _platInfo = require("./lib/platform");
+            const _platDet  = (_platInfo && _platInfo.detect) ? _platInfo.detect() : null;
+            const _platName = _platDet ? (_platDet.name || "Cloud") : "Cloud";
+            const _platIcon = _platDet ? (_platDet.icon || "☁️") : "☁️";
+
+            const _sep      = "─────────────────────────";
+            const _uptCard  =
+`╔══〔 ⏱ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 𝗨𝗣𝗧𝗜𝗠𝗘 〕═══╗
+   𝗥𝘂𝗻𝘁𝗶𝗺𝗲 𝗦𝘁𝗮𝘁𝘂𝘀 𝗠𝗼𝗻𝗶𝘁𝗼𝗿
+╚═══════════════════════════════╝
+
+┌─〔 🤖 𝗕𝗢𝗧 𝗨𝗣𝗧𝗜𝗠𝗘 〕───────────┐
+│
+│  ◆ 🟢 𝗦𝘁𝗮𝘁𝘂𝘀    ⟫ Online
+│  ◆ ⏱  𝗥𝘂𝗻𝗻𝗶𝗻𝗴  ⟫ ${_procStr}
+│
+│  24h Scale: ${_uptBar} ${_dayPct}%
+│
+└${_sep}┘
+
+┌─〔 🖥 𝗦𝗬𝗦𝗧𝗘𝗠 〕──────────────────┐
+│
+│  ◆ ${_platIcon}  𝗣𝗹𝗮𝘁𝗳𝗼𝗿𝗺  ⟫ ${_platName}
+│  ◆ 🖥  𝗦𝗿𝘃 𝗨𝗽  ⟫ ${_osStr}
+│  ◆ 🧠  𝗥𝗔𝗠     ⟫ ${_ramBar} ${_ramPct}%
+│       (${_usedMB}MB used)
+│  ◆ 🟢  𝗡𝗼𝗱𝗲   ⟫ ${process.version}
+│
+└${_sep}┘
+
+_⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 has been running for ${_procStr}_`;
+
+            await sock.sendMessage(from, { text: _uptCard }, { quoted: msg }).catch(() => {});
+          } catch (e) { await sock.sendMessage(from, { text: `❌ Uptime error: ${e.message}` }, { quoted: msg }); }
+          return;
+        }
+
+        // ── .time / .date — world clock card ─────────────────────────────────
+        if (_cmd === "time" || _cmd === "date") {
+          try {
+            const _tz       = settings.get("timezone") || "Africa/Nairobi";
+            const _now      = new Date();
+
+            // ── Format helpers ─────────────────────────────────────────────
+            const _fmt = (tz, opts) => _now.toLocaleString("en-GB", { timeZone: tz, ...opts });
+            const _timeStr  = _fmt(_tz, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
+            const _dateStr  = _fmt(_tz, { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+            const _dayOfYr  = Math.ceil((_now - new Date(_now.getFullYear(), 0, 1)) / 86400000);
+            const _weekOfYr = Math.ceil(_dayOfYr / 7);
+            const _daysLeft = 365 - _dayOfYr + (new Date(_now.getFullYear(), 1, 29).getDate() === 29 ? 1 : 0);
+
+            // ── Year progress bar ──────────────────────────────────────────
+            const _yrPct   = Math.round((_dayOfYr / 365) * 100);
+            const _yrFill  = Math.max(1, Math.round(_yrPct / 10));
+            const _yrBar   = "▓".repeat(_yrFill) + "░".repeat(10 - _yrFill);
+
+            // ── World clocks ───────────────────────────────────────────────
+            const _zones = [
+              { label: "🇳🇦 Nairobi ", tz: "Africa/Nairobi"    },
+              { label: "🇬🇧 London  ", tz: "Europe/London"      },
+              { label: "🇺🇸 New York", tz: "America/New_York"   },
+              { label: "🇯🇵 Tokyo   ", tz: "Asia/Tokyo"         },
+              { label: "🇦🇪 Dubai   ", tz: "Asia/Dubai"         },
+            ];
+            const _worldLines = _zones.map(z => {
+              const _t = _fmt(z.tz, { hour: "2-digit", minute: "2-digit", hour12: true });
+              return `│  ${z.label}  ⟫  ${_t}`;
+            }).join("\n");
+
+            const _sep      = "─────────────────────────";
+            const _timeCard =
+`╔══〔 🕐 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 𝗖𝗟𝗢𝗖𝗞 〕═════╗
+   𝗪𝗼𝗿𝗹𝗱 𝗧𝗶𝗺𝗲 & 𝗗𝗮𝘁𝗲 𝗖𝗲𝗻𝘁𝗲𝗿
+╚═══════════════════════════════╝
+
+┌─〔 📍 𝗟𝗢𝗖𝗔𝗟 𝗧𝗜𝗠𝗘 〕──────────┐
+│
+│  🕐  ${_timeStr}
+│  📅  ${_dateStr}
+│  📍  Zone: ${_tz}
+│
+└${_sep}┘
+
+┌─〔 📆 𝗗𝗔𝗧𝗘 𝗜𝗡𝗙𝗢 〕────────────┐
+│
+│  ◆ 📅  𝗗𝗮𝘆 𝗼𝗳 𝗬𝗲𝗮𝗿  ⟫ ${_dayOfYr} / 365
+│  ◆ 📊  𝗪𝗲𝗲𝗸        ⟫ Week ${_weekOfYr}
+│  ◆ ⏳  𝗗𝗮𝘆𝘀 𝗟𝗲𝗳𝘁   ⟫ ${_daysLeft} days
+│
+│  𝗬𝗲𝗮𝗿 𝗣𝗿𝗼𝗴𝗿𝗲𝘀𝘀: ${_yrBar} ${_yrPct}%
+│
+└${_sep}┘
+
+┌─〔 🌍 𝗪𝗢𝗥𝗟𝗗 𝗖𝗟𝗢𝗖𝗞𝗦 〕─────────┐
+│
+${_worldLines}
+│
+└${_sep}┘
+
+_⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 𝗖𝗹𝗼𝗰𝗸  •  Stay on time!_`;
+
+            await sock.sendMessage(from, { text: _timeCard }, { quoted: msg }).catch(() => {});
+          } catch (e) { await sock.sendMessage(from, { text: `❌ Time error: ${e.message}` }, { quoted: msg }); }
+          return;
+        }
+
         // ── .whatsong / .shazam — identify song from quoted audio/video ─────
         if (_cmd === "whatsong" || _cmd === "shazam") {
           if (!msg.quoted) {
