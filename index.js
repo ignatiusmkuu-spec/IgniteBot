@@ -9044,12 +9044,13 @@ _⚡ 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗 Hacker Mode_`,
       (_cmdBotPhone && _cmdSenderPhone === _cmdBotPhone);
     // In public mode ALL senders (groups AND DMs) must get fromMe:true so
     // commands.handle() processes their commands. Without this patch, the
-    // obfuscated handler silently ignores non-owner messages in DMs.
-    const _msgForCmds = _isActualOwner
+    // obfuscated handler silently ignores non-owner messages.
+    // NOTE: do NOT add _publicUser / _isOwner flags here — the obfuscated
+    // handler reads those flags and uses them to restrict commands, which is
+    // exactly the behaviour we're trying to bypass in public mode.
+    const _msgForCmds = (_isActualOwner || _publicMode)
       ? { ...msg, key: { ...msg.key, fromMe: true } }
-      : _publicMode
-        ? { ...msg, key: { ...msg.key, fromMe: true }, _publicUser: true, _isOwner: false }
-        : msg;
+      : msg;
 
     // ── Non-command guard — silently ignore plain chat messages ──────────────
     // Only forward to commands.handle() when the body looks like a command
