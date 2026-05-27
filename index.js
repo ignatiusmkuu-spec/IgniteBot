@@ -5477,16 +5477,22 @@ _⚡ Built with ❤️ by 𝗜𝗴𝗻𝗮𝘁𝗶𝘂𝘀 𝗣𝗲𝗿𝗲𝘇_
             `║  𝟒𝟒 Tag ➣ Mention/ping every group member at once\n` +
             `║  𝟒𝟓 Mode ➣ Switch bot mode (public/private) from chat\n` +
             `║\n` +
+            `║  ── ⚠️ 𝗪𝗔𝗥𝗡𝗜𝗡𝗚 𝗦𝗬𝗦𝗧𝗘𝗠 ──\n` +
+            `║  𝟒𝟔 Warn ➣ Issue a warning to a member\n` +
+            `║  𝟒𝟕 Warnings ➣ Check warning count for any member\n` +
+            `║  𝟒𝟖 Clearwarn ➣ Reset warnings for a member\n` +
+            `║  𝟒𝟗 Setwarnlimit ➣ Set how many warns before auto-kick\n` +
+            `║\n` +
             `║  ── 🔬 𝗧𝗘𝗖𝗛 𝗧𝗢𝗢𝗟𝗦 ──\n` +
-            `║  𝟒𝟔 Sysinfo ➣ Full system diagnostic (RAM·CPU·uptime)\n` +
-            `║  𝟒𝟕 Ipinfo ➣ IP geolocation & ISP lookup\n` +
-            `║  𝟒𝟖 Hash ➣ MD5/SHA1/SHA256/SHA512 hash generator\n` +
-            `║  𝟒𝟗 Joke ➣ Random programming / dev joke\n` +
-            `║  𝟓𝟎 Crypto ➣ Live crypto price (Bitcoin, ETH, etc.)\n` +
-            `║  𝟓𝟏 Time ➣ Current time in any world timezone\n` +
-            `║  𝟓𝟐 Tempconv ➣ Temperature converter (C·F·K)\n` +
-            `║  𝟓𝟑 Uuid ➣ Generate 5 cryptographic UUIDs\n` +
-            `║  𝟓𝟒 Binary ➣ Text ↔ binary encoder/decoder\n` +
+            `║  𝟓𝟎 Sysinfo ➣ Full system diagnostic (RAM·CPU·uptime)\n` +
+            `║  𝟓𝟏 Ipinfo ➣ IP geolocation & ISP lookup\n` +
+            `║  𝟓𝟐 Hash ➣ MD5/SHA1/SHA256/SHA512 hash generator\n` +
+            `║  𝟓𝟑 Joke ➣ Random programming / dev joke\n` +
+            `║  𝟓𝟒 Crypto ➣ Live crypto price (Bitcoin, ETH, etc.)\n` +
+            `║  𝟓𝟓 Time ➣ Current time in any world timezone\n` +
+            `║  𝟓𝟔 Tempconv ➣ Temperature converter (C·F·K)\n` +
+            `║  𝟓𝟕 Uuid ➣ Generate 5 cryptographic UUIDs\n` +
+            `║  𝟓𝟖 Binary ➣ Text ↔ binary encoder/decoder\n` +
             `║\n╚════════════════════════════════╝`;
           await sock.sendMessage(from, { text: listText }, { quoted: msg });
           return;
@@ -6083,6 +6089,189 @@ _⚡ Built with ❤️ by 𝗜𝗴𝗻𝗮𝘁𝗶𝘂𝘀 𝗣𝗲𝗿𝗲𝘇_
                 `╰─ \`${_pfx}antilink setwarn <1-10>\` — set warn limit`,
             }, { quoted: msg });
           }
+          return;
+        }
+
+        // ── .warn / .warnings / .clearwarn / .setwarnlimit ────────────────────
+        // Manual per-group warning system. Admins issue warns; hitting the
+        // threshold auto-kicks. Stored per group in DB — survives restarts.
+        if (_cmd === "warn" || _cmd === "warning") {
+          if (!from.endsWith("@g.us")) {
+            await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return;
+          }
+          const _wParts = await admin.getGroupParticipants(sock, from).catch(() => []);
+          if (!admin.isAdmin(senderJid, _wParts) && !_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Only group admins can issue warnings." }, { quoted: msg }); return;
+          }
+
+          // Resolve target from mention or quoted message
+          const _wMentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+          const _wQuotedSender = msg.message?.extendedTextMessage?.contextInfo?.participant || null;
+          const _wRawTarget = _wMentions[0] || _wQuotedSender || null;
+
+          // Also support bare number in args: .warn 254712345678 [reason]
+          const _wArgParts = (_args || "").trim().split(/\s+/);
+          const _wArgNum   = _wArgParts[0]?.replace(/[^0-9]/g, "");
+          const _wTargetJid = _wRawTarget
+            ? _wRawTarget.split(":")[0].split("@")[0] + "@s.whatsapp.net"
+            : (_wArgNum?.length >= 7 ? `${_wArgNum}@s.whatsapp.net` : null);
+
+          if (!_wTargetJid) {
+            await sock.sendMessage(from, {
+              text: `❓ *Who should I warn?*\nMention them, reply to their message, or provide their number.\n\n_Usage:_ \`${_pfx}warn @user [reason]\``,
+            }, { quoted: msg }); return;
+          }
+
+          const _wPhone = _wTargetJid.split("@")[0];
+
+          // Admins cannot be warned
+          const _wTargetPart = _wParts.find(p => p.id.split(":")[0].split("@")[0] === _wPhone);
+          if (_wTargetPart?.admin === "admin" || _wTargetPart?.admin === "superadmin") {
+            await sock.sendMessage(from, {
+              text: `❌ @${_wPhone} is a group admin and cannot be warned.`,
+              mentions: [_wTargetJid],
+            }, { quoted: msg }); return;
+          }
+
+          // Bot cannot warn itself
+          const _wBotPhone = (sock.user?.id || "").split(":")[0].split("@")[0];
+          if (_wPhone === _wBotPhone) {
+            await sock.sendMessage(from, { text: "❌ I can't warn myself." }, { quoted: msg }); return;
+          }
+
+          // Work out reason (everything after the @mention or number)
+          const _wReasonRaw = (_args || "").replace(new RegExp(`@?${_wPhone}`, "i"), "").replace(/^[\s,]+/, "").trim();
+          const _wReason = _wReasonRaw || "No reason given";
+
+          // Read/update warn counts
+          const _wCfgAll   = db.read("grp_warn_cfg",    {});
+          const _wCfg      = _wCfgAll[from] || { limit: 3 };
+          const _wLimit    = _wCfg.limit || 3;
+          const _wDataAll  = db.read("grp_warns",        {});
+          if (!_wDataAll[from]) _wDataAll[from] = {};
+          _wDataAll[from][_wTargetJid] = (_wDataAll[from][_wTargetJid] || 0) + 1;
+          const _wCount = _wDataAll[from][_wTargetJid];
+          db.write("grp_warns", _wDataAll);
+
+          // Check for bot admin status (needed to kick)
+          const _wBotPart   = _wParts.find(p => p.id.split(":")[0].split("@")[0] === _wBotPhone);
+          const _wBotAdmin  = _wBotPart?.admin === "admin" || _wBotPart?.admin === "superadmin";
+
+          if (_wCount >= _wLimit) {
+            // Reset counter then kick
+            _wDataAll[from][_wTargetJid] = 0;
+            db.write("grp_warns", _wDataAll);
+            await sock.sendMessage(from, {
+              text:
+                `⛔ @${_wPhone} has reached *${_wLimit}/${_wLimit} warnings* and has been *removed* from the group.\n` +
+                `📝 *Last reason:* ${_wReason}`,
+              mentions: [_wTargetJid],
+            }, { quoted: msg });
+            if (_wBotAdmin) {
+              await sock.groupParticipantsUpdate(from, [_wTargetJid], "remove").catch(() => {});
+            } else {
+              await sock.sendMessage(from, {
+                text: "⚠️ Make me a group admin so I can also kick warned members.",
+              });
+            }
+          } else {
+            await sock.sendMessage(from, {
+              text:
+                `⚠️ @${_wPhone} has been warned.\n` +
+                `📊 *Warnings:* ${_wCount}/${_wLimit}\n` +
+                `📝 *Reason:* ${_wReason}\n` +
+                `_${_wLimit - _wCount} more warning${_wLimit - _wCount !== 1 ? "s" : ""} before removal._`,
+              mentions: [_wTargetJid],
+            }, { quoted: msg });
+          }
+          return;
+        }
+
+        if (_cmd === "warnings" || _cmd === "warncount") {
+          if (!from.endsWith("@g.us")) {
+            await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return;
+          }
+          const _wsMentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+          const _wsQuoted   = msg.message?.extendedTextMessage?.contextInfo?.participant || null;
+          const _wsRaw      = _wsMentions[0] || _wsQuoted || senderJid;
+          const _wsJid      = _wsRaw.split(":")[0].split("@")[0] + "@s.whatsapp.net";
+          const _wsPhone    = _wsJid.split("@")[0];
+
+          const _wsCfgAll  = db.read("grp_warn_cfg", {});
+          const _wsCfg     = _wsCfgAll[from] || { limit: 3 };
+          const _wsLimit   = _wsCfg.limit || 3;
+          const _wsDataAll = db.read("grp_warns",    {});
+          const _wsCount   = (_wsDataAll[from] || {})[_wsJid] || 0;
+
+          const _wsBar = "🟥".repeat(_wsCount) + "⬜".repeat(Math.max(0, _wsLimit - _wsCount));
+          await sock.sendMessage(from, {
+            text:
+              `📊 *Warnings for @${_wsPhone}*\n` +
+              `${"─".repeat(28)}\n` +
+              `${_wsBar}\n` +
+              `*${_wsCount} / ${_wsLimit}* warning${_wsCount !== 1 ? "s" : ""}\n` +
+              `_${_wsCount >= _wsLimit ? "⛔ Would be removed on next warn." : `${_wsLimit - _wsCount} more before removal.`}_`,
+            mentions: [_wsJid],
+          }, { quoted: msg });
+          return;
+        }
+
+        if (_cmd === "clearwarn" || _cmd === "resetwarn" || _cmd === "unwarn") {
+          if (!from.endsWith("@g.us")) {
+            await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return;
+          }
+          const _cwParts = await admin.getGroupParticipants(sock, from).catch(() => []);
+          if (!admin.isAdmin(senderJid, _cwParts) && !_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Only group admins can clear warnings." }, { quoted: msg }); return;
+          }
+          const _cwMentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+          const _cwQuoted   = msg.message?.extendedTextMessage?.contextInfo?.participant || null;
+          const _cwRaw      = _cwMentions[0] || _cwQuoted || null;
+          const _cwArgNum   = (_args || "").trim().replace(/[^0-9]/g, "");
+          const _cwJid      = _cwRaw
+            ? _cwRaw.split(":")[0].split("@")[0] + "@s.whatsapp.net"
+            : (_cwArgNum?.length >= 7 ? `${_cwArgNum}@s.whatsapp.net` : null);
+
+          if (!_cwJid) {
+            await sock.sendMessage(from, {
+              text: `❓ Mention a user or reply to their message.\n_Usage:_ \`${_pfx}clearwarn @user\``,
+            }, { quoted: msg }); return;
+          }
+          const _cwPhone   = _cwJid.split("@")[0];
+          const _cwDataAll = db.read("grp_warns", {});
+          const _cwBefore  = (_cwDataAll[from] || {})[_cwJid] || 0;
+          if (!_cwDataAll[from]) _cwDataAll[from] = {};
+          _cwDataAll[from][_cwJid] = 0;
+          db.write("grp_warns", _cwDataAll);
+          await sock.sendMessage(from, {
+            text:
+              `✅ Warnings cleared for @${_cwPhone}.\n` +
+              `_(Was ${_cwBefore} warning${_cwBefore !== 1 ? "s" : ""}, now reset to 0.)_`,
+            mentions: [_cwJid],
+          }, { quoted: msg });
+          return;
+        }
+
+        if (_cmd === "setwarnlimit" || _cmd === "warnlimit") {
+          if (!from.endsWith("@g.us")) {
+            await sock.sendMessage(from, { text: "❌ Groups only." }, { quoted: msg }); return;
+          }
+          const _swlParts = await admin.getGroupParticipants(sock, from).catch(() => []);
+          if (!admin.isAdmin(senderJid, _swlParts) && !_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Only group admins can change the warn limit." }, { quoted: msg }); return;
+          }
+          const _swlNum = parseInt((_args || "").trim());
+          if (!_swlNum || _swlNum < 1 || _swlNum > 20) {
+            await sock.sendMessage(from, {
+              text: `❌ Limit must be between 1 and 20.\n_Usage:_ \`${_pfx}setwarnlimit 3\``,
+            }, { quoted: msg }); return;
+          }
+          const _swlCfgAll = db.read("grp_warn_cfg", {});
+          _swlCfgAll[from] = { ...(_swlCfgAll[from] || {}), limit: _swlNum };
+          db.write("grp_warn_cfg", _swlCfgAll);
+          await sock.sendMessage(from, {
+            text: `✅ *Warn limit updated to ${_swlNum}*\nMembers will be removed after *${_swlNum}* warning${_swlNum !== 1 ? "s" : ""}.`,
+          }, { quoted: msg });
           return;
         }
 
