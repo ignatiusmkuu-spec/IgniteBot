@@ -2232,6 +2232,69 @@ async function startnexus() {
           return false;
         };
 
+        // ── .mode — toggle public / private mode ──────────────────────────
+        // public  → anyone can trigger commands with the prefix
+        // private → only the owner / super-admins can use commands
+        // Usage:  .mode            (show current mode)
+        //         .mode public
+        //         .mode private
+        if (_cmd === "mode") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          const _modeArg = _args.toLowerCase().trim();
+          const _curMode = settings.get("mode") || "public";
+
+          // No argument — show current mode + usage
+          if (!_modeArg) {
+            await sock.sendMessage(from, {
+              text:
+                `⚙️ *Bot Mode*\n\n` +
+                `Current mode: *${_curMode.toUpperCase()}*\n\n` +
+                `🌐 *public* — anyone can use commands with the prefix\n` +
+                `🔒 *private* — only owner / super-admins can use commands\n\n` +
+                `Usage: \`${_pfx}mode [public|private]\``,
+            }, { quoted: msg });
+            return;
+          }
+
+          // Validate argument
+          if (_modeArg !== "public" && _modeArg !== "private") {
+            await sock.sendMessage(from, {
+              text:
+                `❌ Unknown mode *"${_modeArg}"*.\n\n` +
+                `Valid options:\n` +
+                `  • \`${_pfx}mode public\`  — open to all users\n` +
+                `  • \`${_pfx}mode private\` — owner only`,
+            }, { quoted: msg });
+            return;
+          }
+
+          // Already at requested mode
+          if (_modeArg === _curMode) {
+            await sock.sendMessage(from, {
+              text: `⚠️ Mode is already *${_curMode.toUpperCase()}* — no changes made.`,
+            }, { quoted: msg });
+            return;
+          }
+
+          // Apply the change
+          settings.set("mode", _modeArg);
+          const _modeEmoji = _modeArg === "public" ? "🌐" : "🔒";
+          const _modeDesc  = _modeArg === "public"
+            ? "All users can now trigger commands using the prefix."
+            : "Commands are now restricted to the owner and super-admins only.";
+          await sock.sendMessage(from, {
+            text:
+              `${_modeEmoji} *Bot mode changed to ${_modeArg.toUpperCase()}*\n\n` +
+              `${_modeDesc}\n\n` +
+              `_Previous mode: ${_curMode}_`,
+          }, { quoted: msg });
+          console.log(`[mode] changed ${_curMode} → ${_modeArg} by ${phone}`);
+          return;
+        }
+
         // ── .antidelete / .antidel ─────────────────────────────────────────
         if (_cmd === "antidelete" || _cmd === "antidel") {
           if (!_isOwner) {
